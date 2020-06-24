@@ -1,6 +1,0 @@
-module type;
-
-struct Type {
-
-}
-

@@ -2,7 +2,7 @@ module tree_sitter.api;
 
 import core.stdc.stdio;
 
-extern (C):
+extern(C):
 @nogc:
 nothrow:
 
