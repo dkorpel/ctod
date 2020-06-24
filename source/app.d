@@ -1,34 +1,119 @@
 import tree_sitter.api;
 import core.stdc.stdio: printf;
 import core.stdc.stdlib: free;
+import core.stdc.string: strlen;
+
+import std.stdio;
 
 extern(C) TSLanguage* tree_sitter_c();
 
+immutable source = `
+#include<stdio.h>
+
+#define X 3
+
+// My nice struct
+struct Test {
+	unsigned int x;
+	int *y;
+}
+
 int main() {
-	// Create a parser.
-	TSParser *parser = ts_parser_new();
 
-	// Set the parser's language (JSON in this case).
-	ts_parser_set_language(parser, tree_sitter_c());
+	while(x) {
+		foo();
+	}
 
-	// Build a syntax tree based on source code stored in a string.
-	string sourceCode = "#define TEST_CONST 3\n";
-	TSTree *tree = ts_parser_parse_string(parser, null, sourceCode.ptr, cast(uint) sourceCode.length);
+	Test *t;
 
-	// Get the root node of the syntax tree.
-	TSNode root_node = ts_tree_root_node(tree);
+	t->x = 3;
 
-	// Get some child nodes.
-	TSNode array_node = ts_node_named_child(root_node, 0);
-	TSNode number_node = ts_node_named_child(array_node, 0);
-
-	// Print the syntax tree as an S-expression.
-	char *str = ts_node_string(root_node);
-	printf("Syntax tree: %s\n", str);
-
-	// Free all of the heap-allocated memory.
-	free(str);
-	ts_tree_delete(tree);
-	ts_parser_delete(parser);
 	return 0;
 }
+`;
+
+int main() {
+	cToD(source);
+	return 0;
+}
+
+string cToD(string input) {
+	scope TSParser *parser = ts_parser_new();
+	scope(exit) ts_parser_delete(parser);
+
+	TSLanguage* language = tree_sitter_c();
+	assert(ts_parser_set_language(parser, language));
+
+
+	scope TSTree* tree = ts_parser_parse_string(parser, null, input.ptr, cast(uint) input.length);
+	scope(exit) ts_tree_delete(tree);
+
+	const rootNode = ts_tree_root_node(tree);
+
+	Translator(input).translateNode(rootNode);
+
+	scope const(char)* str = ts_node_string(rootNode);
+	scope(exit) free(cast(void*) str);
+
+	printf("Syntax tree: %s\n", str);
+	return null;
+}
+
+void printFields(TSLanguage* language) {
+	const count = cast(ushort) ts_language_field_count(language);
+	foreach(ushort i; 0..count) {
+		const char* str = ts_language_field_name_for_id(language, i);
+		printf("%d: %s\n", i, str);
+	}
+}
+
+struct Translator {
+	string source;
+
+	this(string source) {
+		this.source = source;
+
+		//ts_language_field_id_for_name
+	}
+
+	string nodeSource(TSNode node) {
+		const s = ts_node_start_byte(node);
+		const e = ts_node_end_byte(node);
+		return source[s..e];
+	}
+
+	const(char)[] nodeType(TSNode node) {
+		const c = ts_node_type(node);
+		return c[0..strlen(c)];
+	}
+
+	string translateNode(TSNode node) {
+
+		// ts_node_named_child_count
+
+		const count = ts_node_child_count(node);
+		foreach(uint i; 0..count) {
+			TSNode child = ts_node_child(node, i);
+			translateNode(child);
+		}
+
+		if (count == 0) {
+			writefln("%20s: %s", nodeType(node), nodeSource(node));
+		}
+
+		return "";
+
+	}
+
+	string translateNodeCursor(TSNode node) {
+		TSTreeCursor cursor = ts_tree_cursor_new(node);
+		TSNode curr = ts_tree_cursor_current_node(&cursor);
+		//ts_tree_cursor_delete(cursor);
+		return "";
+
+	}
+
+
+
+}
+
