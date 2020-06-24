@@ -8,3 +8,5 @@ dflags "-preview=dip25" "-preview=dip1000"
 sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a"
 workingDirectory "build"
 buildRequirements "allowWarnings"
+
+dependency "bitops" path="../bitops"

@@ -2,11 +2,11 @@
 module main;
 
 extern(C): @nogc: nothrow:
-import core.stdc.assert_
-;import core.stdc.string
-;import core.stdc.stdio
+import core.stdc.assert_;
+import core.stdc.string;
+import core.stdc.stdio;
 
-;u x;
+u x;
 
 int main() {
 	return 0;

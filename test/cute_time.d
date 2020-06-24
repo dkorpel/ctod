@@ -11,11 +11,11 @@ extern(C): @nogc: nothrow:
 		#define CUTE_TIME_IMPLEMENTATION
 	in *one* C/CPP file (translation unit) that includes this file
 */
-static if ( !defined(CUTE_TIME_H)
+static if (!defined(CUTE_TIME_H)) {
 
-import core.stdc.stdint
+import core.stdc.stdint;
 
-;typedef struct ct_timer_t ct_timer_t;
+alias  ct_timer_t ct_timer_t;
 
 // quick and dirty elapsed time since last call
 float ct_time();
@@ -27,16 +27,16 @@ float ct_time();
 void ct_init_timer(ct_timer_t* timer);
 
 // returns raw ticks in platform-specific units between now-time and last cs_record call
-int64_t ct_elapsed(ct_timer_t* timer);
+long ct_elapsed(ct_timer_t* timer);
 
 // ticks to seconds conversion
-int64_t ct_seconds(ct_timer_t* timer, int64_t ticks);
+long ct_seconds(ct_timer_t* timer, long ticks);
 
 // ticks to milliseconds conversion
-int64_t ct_milliseconds(ct_timer_t* timer, int64_t ticks);
+long ct_milliseconds(ct_timer_t* timer, long ticks);
 
 // ticks to microseconds conversion
-int64_t ct_microseconds(ct_timer_t* timer, int64_t ticks);
+long ct_microseconds(ct_timer_t* timer, long ticks);
 
 // records the now-time in raw platform-specific units
 void cs_record(ct_timer_t* timer);
@@ -45,15 +45,15 @@ enum x = 0;#define CUTE_TIME_WINDOWS	1
 enum x = 0;#define CUTE_TIME_MAC		2
 enum x = 0;#define CUTE_TIME_UNIX		3
 
-static if ( defined(_WIN32)
+static if (defined(_WIN32)) {
 	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_WINDOWS
-#elif defined(__APPLE__)
+else static if defined(__APPLE__)
 	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_MAC
-#else
+else
 	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_UNIX
 }
 
-static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
+static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
 
 	struct ct_timer_t
 	{
@@ -61,8 +61,8 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 		LARGE_INTEGER prev;
 	};
 
-#elif CUTE_TIME_PLATFORM == CUTE_TIME_MAC
-#else
+else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
+else
 }
 
 //#define CUTE_TIME_H
@@ -83,7 +83,7 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 // multiple cores.
 // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ee417693(v=vs.85).aspx
 
-static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
+static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
 
 	float ct_time()
 	{
@@ -115,24 +115,24 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 		QueryPerformanceFrequency(&timer.freq);
 	}
 
-	int64_t ct_elapsed(ct_timer_t* timer)
+	long ct_elapsed(ct_timer_t* timer)
 	{
 		LARGE_INTEGER now;
 		QueryPerformanceCounter(&now);
-		return cast(int64_t)(now.QuadPart - timer.prev.QuadPart);
+		return cast(long)(now.QuadPart - timer.prev.QuadPart);
 	}
 
-	int64_t ct_seconds(ct_timer_t* timer, int64_t ticks)
+	long ct_seconds(ct_timer_t* timer, long ticks)
 	{
 		return ticks / timer.freq.QuadPart;
 	}
 
-	int64_t ct_milliseconds(ct_timer_t* timer, int64_t ticks)
+	long ct_milliseconds(ct_timer_t* timer, long ticks)
 	{
 		return ticks / (timer.freq.QuadPart / 1000);
 	}
 
-	int64_t ct_microseconds(ct_timer_t* timer, int64_t ticks)
+	long ct_microseconds(ct_timer_t* timer, long ticks)
 	{
 		return ticks / (timer.freq.QuadPart / 1000000);
 	}
@@ -142,14 +142,14 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 		QueryPerformanceCounter(&timer.prev);
 	}
 
-#elif CUTE_TIME_PLATFORM == CUTE_TIME_MAC
+else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
 
 	import <mach/mach_time.h>
 
-;	float ct_time()
+	float ct_time()
 	{
 		static int first = 1;
-		static uint64_t prev = 0;
+		static ulong prev = 0;
 		static double factor;
 
 		if (first)
@@ -162,20 +162,20 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 			return 0;
 		}
 
-		uint64_t now = mach_absolute_time();
+		ulong now = mach_absolute_time();
 		float elapsed = cast(float)(cast(double)(now - prev) * factor);
 		prev = now;
 		return elapsed;
 	}
 
-#else
+else
 
-	import core.stdc.time
+	import core.stdc.time;
 
-;	float ct_time()
+	float ct_time()
 	{
 		static int first = 1;
-		static struct timespec prev;
+		static  timespec prev;
 
 		if (first)
 		{
@@ -184,7 +184,7 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 			return 0;
 		}
 
-		struct timespec now;
+		 timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		float elapsed = cast(float)(cast(double)(now.tv_sec - prev.tv_sec) + (cast(double)(now.tv_nsec - prev.tv_nsec) * 1.0e-9));
 		prev = now;
@@ -193,5 +193,5 @@ static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 
 }
 
-#endif // CUTE_TIME_IMPLEMENTATION_ONCE
-#endif // CUTE_TIME_IMPLEMENTATION
+} // CUTE_TIME_IMPLEMENTATION_ONCE
+} // CUTE_TIME_IMPLEMENTATION

@@ -1,7 +1,7 @@
 module ctod.translate;
 
 import ctod;
-import tree_sitter.api;
+import tree_sitter.api, tree_sitter.wrapper;
 import std.format;
 import std.stdio;
 
@@ -64,7 +64,8 @@ struct CTranslationUnit {
 		ts_tree_print_dot_graph(tree, file);
 		fclose(file);
 
-		const rootNode = ts_tree_root_node(tree);
+		const rootNode = Node(ts_tree_root_node(tree));
+		assert(rootNode);
 		//printf("Syntax tree: %s\n", str);
 		Replacement[] result;
 		getReplacements(rootNode, result);
@@ -72,61 +73,110 @@ struct CTranslationUnit {
 		return result;
 	}
 
-	void getReplacements(TSNode node, ref Replacement[] replacements) {
-		const nodeStart = ts_node_start_byte(node);
-		const nodeEnd = ts_node_end_byte(node);
-		const nodeSource = source[nodeStart..nodeEnd];
-		const count = ts_node_child_count(node);
+	void getReplacements(const Node node, ref Replacement[] replacements) {
+		const nodeSource = source[node.start..node.end];
+		const count = node.numChildren;
 		foreach(uint i; 0..count) {
-			TSNode child = ts_node_child(node, i);
+			Node child = node.child(i);
 			getReplacements(child, replacements);
 		}
-
-		const type = nodeType(node);
-
-		switch (type) {
+		switch (node.type) {
 			case "->":
-				replacements ~= Replacement(nodeStart, nodeEnd, ".");
+				replacements ~= Replacement(node.start, node.end, ".");
 				break;
 			case "cast_expression":
-				replacements ~= Replacement(nodeStart, nodeStart, "cast");
+				replacements ~= Replacement(node.start, node.start, "cast");
 				break;
 			case "preproc_if":
-				replacements ~= Replacement(nodeStart, nodeStart + "#if".length, "static if (");
-				replacements ~= Replacement(nodeEnd - "#endif".length, nodeEnd, "}");
+				//replacements ~= Replacement(node.start, node.start + "#if".length, "static if");
+				if (auto conditionNode = node.childByField("condition")) {
+					replacements ~= Replacement(conditionNode.start, conditionNode.start, "(");
+					replacements ~= Replacement(conditionNode.end, conditionNode.end, ") {");
+				}
+				//replacements ~= Replacement(node.end - "#endif".length, node.end, "}");
+				break;
+			case "#endif":
+				replacements ~= Replacement(node.start, node.end, "}");
+				break;
+			case "#elif":
+				replacements ~= Replacement(node.start, node.end, "else static if");
+				break;
+			case "#else":
+				replacements ~= Replacement(node.start, node.end, "else");
+				break;
+			case "#if":
+				replacements ~= Replacement(node.start, node.end, "static if");
 				break;
 			case "preproc_include":
-				replacements ~= Replacement(nodeStart, nodeStart + "#include".length, "import");
-				replacements ~= Replacement(nodeEnd, nodeEnd, ";");
+				replacements ~= Replacement(node.start, node.start + "#include".length, "import");
 				break;
 			case "preproc_def":
-
-				TSNode valueNode = ts_node_child_by_field_name(node, "value".ptr, "value".length);
-				if (ts_node_is_null(valueNode)) {
-					replacements ~= Replacement(nodeStart, nodeStart, "//");
-				} else {
+				//TSNode valueNode = ts_node_child_by_field_name(node, "value".ptr, "value".length);
+				if (auto valueNode = node.childByField("value")) {
 					// todo
-					replacements ~= Replacement(nodeStart, nodeStart, "enum x = 0;");
+					replacements ~= Replacement(node.start, node.start, "enum x = 0;");
+				} else {
+					replacements ~= Replacement(node.start, node.start, "//");
 				}
 				break;
 			case "system_lib_string":
 				string lib = nodeSource[1..$-1]; // slice to strip off angle brackets in <stdio.h>
 				if (string importName = translateSysLib(lib)) {
-					replacements ~= Replacement(nodeStart, nodeEnd, importName);
+					replacements ~= Replacement(node.start, node.end, importName~";");
 				} else {
 					//assert(0, nodeSource);
 				}
 				break;
 			case "sized_type_specifier":
-				replacements ~= Replacement(nodeStart, nodeEnd, "u");
+				if (true) {
+					replacements ~= Replacement(node.start, node.end, "u");
+				}
+				break;
+			case "primitive_type":
+				if (string s = replacePrimitiveType(nodeSource)) {
+					replacements ~= Replacement(node.start, node.end, s);
+				}
+				break;
+			case "null":
+				// while the node name is 'null', NULL in C is capitalized
+				replacements ~= Replacement(node.start, node.end, "null");
+				break;
+			case "initializer_list":
+				replacements ~= Replacement(node.start, node.start+1, "[");
+				replacements ~= Replacement(node.end-1, node.end, "]");
+				break;
+			case "type_definition":
+				replacements ~= Replacement(node.start, node.start + "typedef".length, "alias");
+				break;
+			case "struct_specifier":
+				// todo: the actual check should be whether you are in a type expression
+				// struct Opaque; should be allowed
+				if (auto bodyNode = node.childByField("body")) {
+
+				} else {
+					replacements ~= Replacement(node.start, node.start + "struct".length, "");
+				}
+				break;
+			case "parameter_declaration":
+				// e.g. int main(void);
+				if (nodeSource == "void") {
+					replacements ~= Replacement(node.start, node.end, "");
+				}
+				break;
+			case "sizeof_expression":
+				// sizeof(x) => x.sizeof
+				if (auto typeNode = node.childByField("type")) {
+					replacements ~= Replacement(node.start, node.end, source[typeNode.start..typeNode.end] ~ ".sizeof");
+				}
 				break;
 			default:
 				break;
 		}
+		//writefln("> %20s: %s", node.type, "..."); // nodeSource(node, )
+	}
 
-		if (count == 0) {
-			//writefln("> %20s: %s", nodeType(node), "..."); // nodeSource(node, )
-		}
+	void replacePreprocessor() {
+
 	}
 }
 
