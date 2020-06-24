@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/ctod
+ctod.so
+ctod.dylib
+ctod.dll
+ctod.a
+ctod.lib
+ctod-test-*
+*.exe
+*.o
+*.obj
+*.lst
+build/
