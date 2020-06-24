@@ -127,10 +127,12 @@ struct CTranslationUnit {
 					//assert(0, nodeSource);
 				}
 				break;
-			case "sized_type_specifier":
-				if (true) {
-					replacements ~= Replacement(node.start, node.end, "u");
-				}
+			//case "sized_type_specifier":
+			case "unsigned":
+				replacements ~= Replacement(node.start, node.end, "u");
+				break;
+			case "signed":
+				replacements ~= Replacement(node.start, node.end, "");
 				break;
 			case "primitive_type":
 				if (string s = replacePrimitiveType(nodeSource)) {
