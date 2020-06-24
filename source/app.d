@@ -8,26 +8,37 @@ import std.stdio;
 extern(C) TSLanguage* tree_sitter_c();
 
 immutable source = `
-#include<stdio.h>
+
+int sqr(int x) {
+	return SQR(x);
+}
+`;
+
+immutable sourceAlt = `
+#include <stdio.h>
+#include "mymodule.h"
+
+typedef char *test;
 
 #define X 3
+#define SQR(x) (x * x)
+
+#ifdef 0
+
+#endif
 
 // My nice struct
 struct Test {
 	unsigned int x;
 	int *y;
-}
+};
 
-int main() {
-
+int main(void) {
 	while(x) {
 		foo();
 	}
-
 	Test *t;
-
 	t->x = 3;
-
 	return 0;
 }
 `;
@@ -37,6 +48,12 @@ int main() {
 	return 0;
 }
 
+string cToD(string source, string moduleName) {
+	string result = "module " ~ ";";
+	result = "extern(C): @nogc: nothrow:";
+	return result;
+}
+
 string cToD(string input) {
 	scope TSParser *parser = ts_parser_new();
 	scope(exit) ts_parser_delete(parser);
@@ -44,13 +61,22 @@ string cToD(string input) {
 	TSLanguage* language = tree_sitter_c();
 	assert(ts_parser_set_language(parser, language));
 
+	//printFields(language);
+	//printSymbols(language);
 
 	scope TSTree* tree = ts_parser_parse_string(parser, null, input.ptr, cast(uint) input.length);
 	scope(exit) ts_tree_delete(tree);
 
+	import core.stdc.stdio: fopen, FILE;
+	FILE* file = fopen("test.dot", "w");
+	ts_tree_print_dot_graph(tree, file);
+	fclose(file);
+
 	const rootNode = ts_tree_root_node(tree);
 
-	Translator(input).translateNode(rootNode);
+	auto tr = Translator(input);
+	tr.translateNode(rootNode);
+	writeln(tr.result);
 
 	scope const(char)* str = ts_node_string(rootNode);
 	scope(exit) free(cast(void*) str);
@@ -59,16 +85,10 @@ string cToD(string input) {
 	return null;
 }
 
-void printFields(TSLanguage* language) {
-	const count = cast(ushort) ts_language_field_count(language);
-	foreach(ushort i; 0..count) {
-		const char* str = ts_language_field_name_for_id(language, i);
-		printf("%d: %s\n", i, str);
-	}
-}
-
 struct Translator {
+
 	string source;
+	string result;
 
 	this(string source) {
 		this.source = source;
@@ -88,9 +108,7 @@ struct Translator {
 	}
 
 	string translateNode(TSNode node) {
-
 		// ts_node_named_child_count
-
 		const count = ts_node_child_count(node);
 		foreach(uint i; 0..count) {
 			TSNode child = ts_node_child(node, i);
@@ -98,11 +116,10 @@ struct Translator {
 		}
 
 		if (count == 0) {
-			writefln("%20s: %s", nodeType(node), nodeSource(node));
+			result ~= nodeSource(node);
 		}
-
+		writefln("> %20s: %s", nodeType(node), nodeSource(node));
 		return "";
-
 	}
 
 	string translateNodeCursor(TSNode node) {
@@ -112,8 +129,22 @@ struct Translator {
 		return "";
 
 	}
-
-
-
 }
 
+void printFields(TSLanguage* language) {
+	printf("Fields:\n");
+	const count = cast(ushort) ts_language_field_count(language);
+	foreach(ushort i; 0..count) {
+		const char* str = ts_language_field_name_for_id(language, i);
+		printf("%d: %s\n", i, str);
+	}
+}
+
+void printSymbols(TSLanguage* language) {
+	printf("Symbols:\n");
+	const count = cast(ushort) ts_language_symbol_count(language);
+	foreach(ushort i; 0..count) {
+		const char* str = ts_language_symbol_name(language, i);
+		printf("%d: %s\n", i, str);
+	}
+}

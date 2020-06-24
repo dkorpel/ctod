@@ -1,0 +1,6 @@
+module type;
+
+struct Type {
+
+}
+
