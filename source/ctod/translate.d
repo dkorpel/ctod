@@ -175,7 +175,7 @@ struct CTranslationUnit {
 		//writefln("> %20s: %s", node.type, "..."); // nodeSource(node, )
 	}
 
-	void replacePreprocessor() {
+	void replacePreprocessor(const Node node, ref Replacement[] replacements) {
 
 	}
 }
