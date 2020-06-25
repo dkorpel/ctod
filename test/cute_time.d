@@ -11,11 +11,11 @@ extern(C): @nogc: nothrow:
 		#define CUTE_TIME_IMPLEMENTATION
 	in *one* C/CPP file (translation unit) that includes this file
 */
-static if (!defined(CUTE_TIME_H)) {
+static if ( !defined(CUTE_TIME_H)
 
 import core.stdc.stdint;
 
-alias  ct_timer_t ct_timer_t;
+alias struct ct_timer_t ct_timer_t;
 
 // quick and dirty elapsed time since last call
 float ct_time();
@@ -45,15 +45,15 @@ enum CUTE_TIME_WINDOWS	1
 enum CUTE_TIME_MAC		2
 enum CUTE_TIME_UNIX		3
 
-static if (defined(_WIN32)) {
+static if ( defined(_WIN32)
 	enum CUTE_TIME_PLATFORM CUTE_TIME_WINDOWS
-else static if defined(__APPLE__)
+} else static if ( defined(__APPLE__)
 	enum CUTE_TIME_PLATFORM CUTE_TIME_MAC
-else
+} else {
 	enum CUTE_TIME_PLATFORM CUTE_TIME_UNIX
 }
 
-static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
+static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 
 	struct ct_timer_t
 	{
@@ -61,8 +61,8 @@ static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
 		LARGE_INTEGER prev;
 	};
 
-else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
-else
+} else static if ( CUTE_TIME_PLATFORM == CUTE_TIME_MAC
+} else {
 }
 
 enum CUTE_TIME_H
@@ -83,7 +83,7 @@ enum CUTE_TIME_IMPLEMENTATION_ONCE
 // multiple cores.
 // More info: https://msdn.microsoft.com/en-us/library/windows/desktop/ee417693(v=vs.85).aspx
 
-static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
+static if ( CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS
 
 	float ct_time()
 	{
@@ -142,9 +142,9 @@ static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
 		QueryPerformanceCounter(&timer.prev);
 	}
 
-else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
+} else static if ( CUTE_TIME_PLATFORM == CUTE_TIME_MAC
 
-	import <mach/mach_time.h>
+	import mach/mach_time
 
 	float ct_time()
 	{
@@ -168,14 +168,14 @@ else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
 		return elapsed;
 	}
 
-else
+} else {
 
 	import core.stdc.time;
 
 	float ct_time()
 	{
 		static int first = 1;
-		static  timespec prev;
+		static struct timespec prev;
 
 		if (first)
 		{
@@ -184,7 +184,7 @@ else
 			return 0;
 		}
 
-		 timespec now;
+		struct timespec now;
 		clock_gettime(CLOCK_MONOTONIC, &now);
 		float elapsed = cast(float)(cast(double)(now.tv_sec - prev.tv_sec) + (cast(double)(now.tv_nsec - prev.tv_nsec) * 1.0e-9));
 		prev = now;

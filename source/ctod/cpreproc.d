@@ -6,60 +6,82 @@ module ctod.cpreproc;
 import ctod.translate;
 import tree_sitter.wrapper;
 
-/// Returns: true if a replacement was added
-bool preprocReplacements(ref TranslationContext ctu, const Node node, ref Replacement[] replacements) {
+string tryTranslatePreprocessor(ref TranslationContext ctu, const Node node) {
 	const nodeSource = ctu.source[node.start..node.end];
 	switch (node.type) {
-		case "preproc_if":
-			//replacements ~= Replacement(node.start, node.start + "#if".length, "static if");
-			if (auto conditionNode = node.childByField("condition")) {
-				replacements ~= Replacement(conditionNode.start, conditionNode.start, "(");
-				replacements ~= Replacement(conditionNode.end, conditionNode.end, ") {");
-			}
-			//getReplacements(ctu, node, replacements);
-			//replacements ~= Replacement(node.end - "#endif".length, node.end, "}");
-			break;
+			// return translateNodeChildren(ctu, node) ~ ") {";
 		case "#endif":
-			replacements ~= Replacement(node.start, node.end, "}");
-			break;
+			return "}";
 		case "#elif":
-			replacements ~= Replacement(node.start, node.end, "else static if");
-			break;
+			return "} else static if (";
 		case "#else":
-			replacements ~= Replacement(node.start, node.end, "else");
-			break;
+			return "} else {";
 		case "#if":
-			replacements ~= Replacement(node.start, node.end, "static if");
-			break;
-		case "preproc_include":
-			//replacements ~= Replacement(node.start, node.start + "#include".length, "import");
-			break;
+			return "static if (";
+		case "#ifdef":
+			return "version(";
 		case "#include":
-			replacements ~= Replacement(node.start, node.end, "import");
-			break;
-		case "preproc_def":
-			//TSNode valueNode = ts_node_child_by_field_name(node, "value".ptr, "value".length);
-			if (auto valueNode = node.childByField("value")) {
-				// todo
-				//replacements ~= Replacement(node.start, node.start, "enum x = 0;");
-			} else {
-				//replacements ~= Replacement(node.start, node.start, "//");
+			return "import";
+		case "identifier":
+			// semicolon after version = X translation
+			switch (node.parent.type) {
+				case "preproc_def":
+					if (ctu.macroType == MacroType.versionId) {
+						return nodeSource ~ ";";
+					}
+					break;
+				case "preproc_function_def":
+					return nodeSource ~ "(T)";
+				case "preproc_ifdef":
+					return nodeSource ~ ") {";
+				default: break;
 			}
+			return null;
+		case "preproc_def":
+			if (auto valueNode = node.childByField("value")) {
+				ctu.macroType = MacroType.manifestConstant;
+			} else {
+				ctu.macroType = MacroType.versionId;
+			}
+			break;
+		case "preproc_arg":
+			with(MacroType) switch (ctu.macroType) {
+				case manifestConstant: return "=" ~ nodeSource ~ ";";
+				case inlineFunc: return "{return "~nodeSource~";}";
+				default: break;
+			}
+			return null;
+		case "preproc_function_def":
+			ctu.macroType = MacroType.inlineFunc;
+			break;
+		case "preproc_if":
+		case "preproc_elif":
+			// TODO
+			break;
+		case "preproc_params":
 			break;
 		case "#define":
-			replacements ~= Replacement(node.start, node.end, "enum");
-			break;
+			with(MacroType) switch (ctu.macroType) {
+				case manifestConstant: return "enum";
+				case inlineFunc: return "auto";
+				case versionId: return "version =";
+				default: return null;
+			}
 		case "system_lib_string":
+			if (nodeSource.length < "<>".length) {
+				return nodeSource; // to short to slice
+			}
 			string lib = nodeSource[1..$-1]; // slice to strip off angle brackets in <stdio.h>
 			if (string importName = translateSysLib(lib)) {
-				replacements ~= Replacement(node.start, node.end, importName~";");
+				return importName~";";
 			} else {
-				//assert(0, nodeSource);
+				import std.path: stripExtension;
+				return lib.stripExtension~";";
 			}
-			break;
-		default: return false;
+		case "preproc_include":
+		default: return null;
 	}
-	return true;
+	return null;
 }
 
 /// Find version string to e.g. replace `#ifdef _WIN32` with `version(Windows)`

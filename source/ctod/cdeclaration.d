@@ -1,5 +1,35 @@
 module ctod.cdeclaration;
 
+import ctod.translate;
+import tree_sitter.wrapper;
+
+string tryTranslateDeclaration(ref TranslationContext ctu, const Node node) {
+	const nodeSource = ctu.source[node.start..node.end];
+	switch (node.type) {
+		case "field_identifier":
+		case "identifier":
+			if (string s = replaceIdentifier(nodeSource)) {
+				return s;
+			} else {
+				return nodeSource;
+			}
+		case "{":
+			if (node.parent.type == "initializer_list") {
+				return "[";
+			} else {
+				return null;
+			}
+		case "}":
+			if (node.parent.type == "initializer_list") {
+				return "]";
+			} else {
+				return null;
+			}
+		default: break;
+	}
+	return null;
+}
+
 /// modify C identifiers that are keywords in D
 string replaceIdentifier(string s) {
 	switch(s) {

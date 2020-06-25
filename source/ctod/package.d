@@ -5,6 +5,7 @@ import tree_sitter.api;
 extern(C) TSLanguage* tree_sitter_c();
 
 public {
+	import ctod.cdeclaration;
 	import ctod.cfunction;
 	import ctod.cpreproc;
 	import ctod.cinclude;

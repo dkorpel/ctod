@@ -25,7 +25,7 @@ struct Node {
 		}
 	}
 
-	Node parent() {
+	Node parent() const {
 		return Node(ts_node_parent(node));
 	}
 
@@ -37,7 +37,6 @@ struct Node {
 	Node namedChild(uint i) const {
 		return Node(ts_node_named_child(node, i));
 	}
-
 	Node childByField(string name) const {
 		return Node(ts_node_child_by_field_name(node, name.ptr, cast(int) name.length));
 	}

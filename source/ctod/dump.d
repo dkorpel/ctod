@@ -9,10 +9,6 @@ scope const(char)* str = ts_node_string(rootNode);
 scope(exit) free(cast(void*) str);
 
 
-
-
-
-
 version(none):
 
 string cToD(string input) {

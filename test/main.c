@@ -26,6 +26,7 @@ struct S {
 };
 
 static float x[8] = {0.5, 2.5};
+double z[4][3];
 
 int main(void) {
 	static int x;
@@ -35,5 +36,5 @@ int main(void) {
 }
 
 void foo(int x[], int (*y)(void)) {
-
+	int *z, y;
 }

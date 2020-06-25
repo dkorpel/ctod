@@ -17,3 +17,7 @@ string replacePrimitiveType(string original) {
 		default: return null;
 	}
 }
+
+string replaceSemantic() {
+	return null;
+}
