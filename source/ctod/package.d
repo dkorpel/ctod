@@ -6,7 +6,7 @@ extern(C) TSLanguage* tree_sitter_c();
 
 public {
 	import ctod.cfunction;
-	import ctod.cmacro;
+	import ctod.cpreproc;
 	import ctod.cinclude;
 	import ctod.ctype;
 }

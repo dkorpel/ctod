@@ -41,16 +41,16 @@ long ct_microseconds(ct_timer_t* timer, long ticks);
 // records the now-time in raw platform-specific units
 void cs_record(ct_timer_t* timer);
 
-enum x = 0;#define CUTE_TIME_WINDOWS	1
-enum x = 0;#define CUTE_TIME_MAC		2
-enum x = 0;#define CUTE_TIME_UNIX		3
+enum CUTE_TIME_WINDOWS	1
+enum CUTE_TIME_MAC		2
+enum CUTE_TIME_UNIX		3
 
 static if (defined(_WIN32)) {
-	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_WINDOWS
+	enum CUTE_TIME_PLATFORM CUTE_TIME_WINDOWS
 else static if defined(__APPLE__)
-	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_MAC
+	enum CUTE_TIME_PLATFORM CUTE_TIME_MAC
 else
-	enum x = 0;#define CUTE_TIME_PLATFORM CUTE_TIME_UNIX
+	enum CUTE_TIME_PLATFORM CUTE_TIME_UNIX
 }
 
 static if (CUTE_TIME_PLATFORM == CUTE_TIME_WINDOWS) {
@@ -65,12 +65,12 @@ else static if CUTE_TIME_PLATFORM == CUTE_TIME_MAC
 else
 }
 
-//#define CUTE_TIME_H
+enum CUTE_TIME_H
 }
 
 #ifdef CUTE_TIME_IMPLEMENTATION
 #ifndef CUTE_TIME_IMPLEMENTATION_ONCE
-//#define CUTE_TIME_IMPLEMENTATION_ONCE
+enum CUTE_TIME_IMPLEMENTATION_ONCE
 
 // These functions are intended be called from a single thread only. In a
 // multi-threaded environment make sure to call Time from the main thread only.
