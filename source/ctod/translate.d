@@ -14,7 +14,7 @@ extern(C): @nogc: nothrow:
 ///
 string translateFile(string source, string moduleName) {
 	string result = format(moduleHeader, moduleName);
-	Replacement[] replacements = CTranslationUnit("foo.c", source).convertToD();
+	Replacement[] replacements = TranslationContext("foo.c", source).convertToD();
 
 	import std.algorithm: sort;
 	replacements.sort!((a, b) => a.start < b.start);
@@ -32,7 +32,7 @@ string translateFile(string source, string moduleName) {
 }
 
 /// A single .c file
-struct CTranslationUnit {
+struct TranslationContext {
 
 	string fileName;
 	string source;
@@ -74,7 +74,7 @@ struct CTranslationUnit {
 	}
 }
 
-void getReplacements(ref CTranslationUnit ctu, const Node node, ref Replacement[] replacements) {
+void getReplacements(ref TranslationContext ctu, const Node node, ref Replacement[] replacements) {
 	const nodeSource = ctu.source[node.start..node.end];
 	const count = node.numChildren;
 	foreach(uint i; 0..count) {
@@ -85,52 +85,6 @@ void getReplacements(ref CTranslationUnit ctu, const Node node, ref Replacement[
 		return;
 	}
 	switch (node.type) {
-		/+
-		case "preproc_if":
-			//replacements ~= Replacement(node.start, node.start + "#if".length, "static if");
-			if (auto conditionNode = node.childByField("condition")) {
-				replacements ~= Replacement(conditionNode.start, conditionNode.start, "(");
-				replacements ~= Replacement(conditionNode.end, conditionNode.end, ") {");
-			}
-			//replacements ~= Replacement(node.end - "#endif".length, node.end, "}");
-			break;
-		case "#endif":
-			replacements ~= Replacement(node.start, node.end, "}");
-			break;
-		case "#elif":
-			replacements ~= Replacement(node.start, node.end, "else static if");
-			break;
-		case "#else":
-			replacements ~= Replacement(node.start, node.end, "else");
-			break;
-		case "#if":
-			replacements ~= Replacement(node.start, node.end, "static if");
-			break;
-		case "preproc_include":
-			//replacements ~= Replacement(node.start, node.start + "#include".length, "import");
-			break;
-		case "#include":
-			replacements ~= Replacement(node.start, node.end, "import");
-			break;
-		case "preproc_def":
-			//TSNode valueNode = ts_node_child_by_field_name(node, "value".ptr, "value".length);
-			if (auto valueNode = node.childByField("value")) {
-				// todo
-				replacements ~= Replacement(node.start, node.start, "enum x = 0;");
-			} else {
-				replacements ~= Replacement(node.start, node.start, "//");
-			}
-			break;
-		case "system_lib_string":
-			string lib = nodeSource[1..$-1]; // slice to strip off angle brackets in <stdio.h>
-			if (string importName = translateSysLib(lib)) {
-				replacements ~= Replacement(node.start, node.end, importName~";");
-			} else {
-				//assert(0, nodeSource);
-			}
-			break;
-		+/
-
 		//case "sized_type_specifier":
 		case "unsigned":
 			replacements ~= Replacement(node.start, node.end, "u");

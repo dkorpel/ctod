@@ -2,6 +2,22 @@
 #include <string.h>
 #include <stdio.h>
 
+#define TEST
+#define PI 3.14159265
+#define SQR(x) (x*x)
+
+#ifdef TEST
+// whoo
+#else
+// whoo
+#endif
+
+#if 0
+// whoo
+#elif defined(TEST)
+// whoo
+#endif
+
 unsigned int x;
 
 struct S {
@@ -12,6 +28,7 @@ struct S {
 static float x[8] = {0.5, 2.5};
 
 int main(void) {
+	static int x;
 	int a[2];
 	foo(a, main);
 	return 0;

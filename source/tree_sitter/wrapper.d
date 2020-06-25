@@ -30,8 +30,12 @@ struct Node {
 	}
 
 	int numChildren() const {return ts_node_child_count(node);}
+	int numNamedChildren() const {return ts_node_named_child_count(node);}
 	Node child(uint i) const {
 		return Node(ts_node_child(node, i));
+	}
+	Node namedChild(uint i) const {
+		return Node(ts_node_named_child(node, i));
 	}
 
 	Node childByField(string name) const {

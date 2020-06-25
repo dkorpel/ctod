@@ -7,7 +7,7 @@ import ctod.translate;
 import tree_sitter.wrapper;
 
 /// Returns: true if a replacement was added
-bool preprocReplacements(ref CTranslationUnit ctu, const Node node, ref Replacement[] replacements) {
+bool preprocReplacements(ref TranslationContext ctu, const Node node, ref Replacement[] replacements) {
 	const nodeSource = ctu.source[node.start..node.end];
 	switch (node.type) {
 		case "preproc_if":

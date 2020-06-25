@@ -9,17 +9,18 @@ import std.exception;
 import ctod.translate;
 
 int main(string[] args) {
-	if (args.length < 2) {
-		return -1;
-	} else {
+	try {
+		enforce(args.length >= 2, "give a file argument");
 		import std.path: baseName, extension, withExtension, stripExtension;
 		import std.file: read, write;
-
 		const fname = args[1];
 		enforce(fname.extension == ".c");
 		const source = cast(string) read(fname);
 		const moduleName = fname.baseName.stripExtension;
 		write(fname.withExtension(".d"), translateFile(source, moduleName));
+	} catch (Exception e) {
+		writeln(e.msg);
+		return -1;
 	}
 	return 0;
 }
