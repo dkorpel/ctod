@@ -1,5 +1,24 @@
 # C to D code converter
 
+There's already dpp and dstep for translating C headers to D.
+This tool attempts to translate C source code to D.
+
+### Why?
+Dub is unable to compile C projects.
+What if I want to use a C library for my D project, such as GLFW?
+You could include a pre-compiled `glfw.dll` and `libglfw.so` in the git repository, and use a dynamic loader like bindbc-glfw.
+This is a bit clumsy.
+`sourceFiles `
+
+But what if I want to translate source files
+- sometimes, dstep gives an error
+
+Instead of using libclang (the LLVM C parser api) it uses the tree-sitter parser for C.
+tree-sitter is a parser generator with a focus on incremental parsing and error recovery, useful for IDE tools.
+The latter property is also useful for this tool: if you want, you can convert broken C code to similarly broken D code.
+
+
+
 https://tree-sitter.github.io/tree-sitter/playground
 
 ```

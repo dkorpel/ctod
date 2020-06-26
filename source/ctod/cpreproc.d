@@ -3,79 +3,113 @@ Translate C macros
 */
 module ctod.cpreproc;
 
+import std.stdio;
 import ctod.translate;
 import tree_sitter.wrapper;
 
 bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
-	const nodeSource = ctu.source[node.start..node.end];
 	switch (node.type) {
-			// return translateNodeChildren(ctu, node) ~ ") {";
+
+		case "#else":
+			return node.replace("} else {");
 		case "#endif":
 			return node.replace("}");
 		case "#elif":
-			return node.replace("} else static if (");
-		case "#else":
-			return node.replace("} else {");
+			return node.replace("} else static if");
+		/+
 		case "#if":
 			return node.replace("static if (");
 		case "#ifdef":
 			return node.replace("version(");
+		+/
+
 		case "#include":
-			return node.replace("import");
-		case "identifier":
-			// semicolon after version = X translation
-			version(none)
-			switch (node.parent.type) {
-				case "preproc_def":
-					if (ctu.macroType == MacroType.versionId) {
-						return nodeSource ~ ";";
-					}
-					break;
-				case "preproc_function_def":
-					return nodeSource ~ "(T)";
-				case "preproc_ifdef":
-					return nodeSource ~ ") {";
-				default: break;
-			}
-			return false;
+			return node.replace("public import");
 		case "preproc_def":
-			//if (auto valueNode = node.childByField("value")) {
-			version(none)
-			if (true) {
-				ctu.macroType = MacroType.manifestConstant;
+			if (auto valueNode = node.childField("value")) {
+				if (auto c = node.firstChildType("#define")) {
+					c.replace("enum");
+				}
+				if (auto c = node.firstChildType("preproc_arg")) {
+					c.replace(" ="~c.source~";");
+				}
+
 			} else {
-				ctu.macroType = MacroType.versionId;
+				if (auto c = node.firstChildType("#define")) {
+					c.replace("version =");
+				}
+				if (auto c = node.childField("name")) {
+					c.replace(c.source~";");
+				}
 			}
 			break;
-		case "preproc_arg":
-			version(none)
-			with(MacroType) switch (ctu.macroType) {
-				case manifestConstant: return "=" ~ nodeSource ~ ";";
-				case inlineFunc: return "{return "~nodeSource~";}";
-				default: break;
-			}
-			return false;
 		case "preproc_function_def":
-			ctu.macroType = MacroType.inlineFunc;
+			if (auto c = node.firstChildType("#define")) {
+				c.replace("auto");
+			}
+			if (auto c = node.firstChildType("preproc_arg")) {
+				c.replace("{return"~c.source~";}");
+			}
+			if (auto c = node.childField("parameters")) {
+				/+
+				import std.conv, std.algorithm, std.range;
+				int paramCount = 0;
+				foreach(ref param; c.children) {
+					if (param.type == "identifier") {
+						param.prepend("T"~paramCount.text~" ");
+						paramCount++;
+					}
+				}
+				c.prepend("(" ~ iota(0, paramCount).map!(x => "T" ~ x.text~ (x==paramCount-1) ? ", " : "").joiner.text ~ ")");
+				+/
+			}
+			break;
+		case "preproc_ifdef":
+			if (auto c = node.firstChildType("#ifdef")) {
+				c.replace("version");
+			}
+			if (auto c = node.childField("name")) {
+				c.prepend("(");
+				c.append(") {");
+				if (string s = findVersion(c.source)) {
+					c.replace(s);
+				}
+			}
+			break;
+		case "preproc_defined":
+			if (auto c = node.firstChildType("identifier")) {
+				if (string s = findVersion(c.source)) {
+					c.replace(s);
+				} else {
+					translateNode(ctu, *c);
+				}
+				ctu.needsHasVersion = true;
+				return node.replace(`HasVersion!"` ~ c.replacement ~ `"`);
+			}
 			break;
 		case "preproc_if":
+			if (auto c = node.childField("condition")) {
+				c.prepend("(");
+				c.append(") {");
+			}
+			if (auto c = node.firstChildType("#if")) {
+				c.replace("static if");
+			}
+			break;
 		case "preproc_elif":
-			// TODO
+			if (auto c = node.childField("condition")) {
+				c.prepend("(");
+				c.append(") {");
+				return false;
+			}
 			break;
 		case "preproc_params":
 			break;
-		case "#define":
-			with(MacroType) switch (ctu.macroType) {
-				case manifestConstant: return node.replace("enum");
-				case inlineFunc: return node.replace("auto");
-				case versionId: return node.replace("version =");
-				default: return false;
-			}
 		case "system_lib_string":
-			if (nodeSource.length < "<>".length) {
+			if (node.source.length < "<>".length) {
 				return false; // to short to slice
 			}
-			string lib = nodeSource[1..$-1]; // slice to strip off angle brackets in <stdio.h>
+			string lib = node.source[1..$-1]; // slice to strip off angle brackets in <stdio.h>
 			if (string importName = translateSysLib(lib)) {
 				return node.replace(importName~";");
 			} else {
@@ -83,6 +117,11 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 				return node.replace(lib.stripExtension~";");
 			}
 		case "preproc_include":
+			//if (auto c = node.firstChildType("string_literal")) {
+			if (auto c = node.childField("path")) {
+				c.replace(translateIncludePath(c.source));
+			}
+			break;
 		default: break;
 	}
 	return false;
@@ -96,6 +135,12 @@ string findVersion(string s) {
 		case "__cplusplus": return "none";
 		default: return null;
 	}
+}
+
+string translateIncludePath(string s) {
+	import std.array: replace;
+	if (s.length < 5) return s;
+	return s[1..$-3].replace("/", ".") ~ ";";
 }
 
 /// translate #include<> to an import in druntime.

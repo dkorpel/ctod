@@ -10,7 +10,7 @@ Node parseCtree(string source) {
 	TSLanguage* language = tree_sitter_c();
 	assert(ts_parser_set_language(parser, language));
 	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
-	scope(exit) ts_tree_delete(tree);
+	//scope(exit) ts_tree_delete(tree);
 	return Node(ts_tree_root_node(tree), source, null);
 }
 
@@ -32,12 +32,15 @@ struct Node {
 
 	/// D code to replace source with for this node
 	string replacement;
+	string prefix;
+	string suffix;
 
 	/// tree relations
 	Node* parent;
 	Node[] children;
 
 	bool isNone = true;
+	bool inFuncBody = false; // whether we are under a function definition node
 
 	this(TSNode node, string source, Node* parent = null, size_t cursor = 0) {
 		this.tsnode = node;
@@ -65,12 +68,18 @@ struct Node {
 	}
 
 	bool replace(string s) {
+		children.length = 0;
 		replacement = s;
 		return true;
 	}
 
 	bool prepend(string s) {
-		replacement = s ~ replacement;
+		prefix = s ~ prefix;
+		return false;
+	}
+
+	bool append(string s) {
+		suffix ~= s;
 		return false;
 	}
 
@@ -90,22 +99,38 @@ struct Node {
 		string result = "";
 		void append(const ref Node node) {
 			if (node.children.length == 0) {
-				//result ~= node.type;
-				result ~= /+"[" ~+/ node.layout /+~ "]"+/;
-				result ~= /+"{" ~+/ node.replacement /+~ "}"+/;
+				result ~= node.layout;
+				result ~= node.prefix;
+				result ~= node.replacement;
 			} else {
+				result ~= node.prefix;
 				foreach(ref c; node.children) {
 					append(c);
 				}
 			}
+			result ~= node.suffix;
 		}
 		append(this);
 		return result;
 	}
 
-	version(none):
-	Node* childByField(string name) const {
-		return Node(ts_node_child_by_field_name(node, name.ptr, cast(int) name.length));
+	inout(Node)* childField(string name) inout {
+		auto f = ts_node_child_by_field_name(tsnode, name.ptr, cast(int) name.length);
+		foreach(ref c; children) {
+			if (ts_node_eq(c.tsnode, f)) {
+				return &c;
+			}
+		}
+		return null;
+		/+
+		while (ts_node_is_null(curr)) {
+			i++;
+			auto prev = ts_node_prev_sibling(curr);
+			curr = prev;
+		}
+		=?
+		return (i == 0) ? null : &children[i-1];
+		+/
 	}
 
 	/+

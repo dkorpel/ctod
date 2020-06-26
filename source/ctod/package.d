@@ -4,7 +4,7 @@ public {
 	import ctod.cdeclaration;
 	import ctod.cfunction;
 	import ctod.cpreproc;
-	import ctod.cinclude;
+	import ctod.translate;
 	import ctod.ctype;
 }
 

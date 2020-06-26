@@ -11,6 +11,12 @@ module %s;
 extern(C): @nogc: nothrow:
 ";
 
+private immutable hasVersion = q{
+template HasVersion(string versionId) {
+	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
+}
+};
+
 ///
 string translateFile(string source, string moduleName) {
 	Node root = parseCtree(source);
@@ -36,8 +42,7 @@ package struct TranslationContext {
 
 	string moduleName;
 
-	// current macro type
-	MacroType macroType;
+	bool needsHasVersion = false; // HasVersion(string) template is needed
 
 	// context
 	const(char)[] parentType = "";

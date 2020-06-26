@@ -12,9 +12,29 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 				return node.replace(s);
 			}
 			return true;
+		case "declaration":
+			if (auto c = node.firstChildType("static")) {
+				c.replace("private");
+			}
+			break;
+		case "storage_class_specifier":
+			if (!node.inFuncBody) {
+				if (node.source == "static") {
+					return node.replace("private");
+				}
+			}
+			break;
+		case "initializer_list":
+			if (auto c = node.firstChildType("{")) {
+				c.replace("[");
+			}
+			if (auto c = node.firstChildType("}")) {
+				c.replace("]");
+			}
+			break;
 		/+
 		case "{":
-			if (node.parent.type == "initializer_list") {
+			if (node.parent.type == ) {
 				return "[";
 			} else {
 				return null;
@@ -45,6 +65,6 @@ string replaceIdentifier(string s) {
 		case "foreach": return "foreach_";
 		case "pragma": return "pragma_";
 
-		default: return null;
+		default: return s;
 	}
 }
