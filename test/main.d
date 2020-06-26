@@ -6,11 +6,11 @@ import core.stdc.assert_;
 import core.stdc.string;
 import core.stdc.stdio;
 
-version = TEST;
-enum PI= 3.14159265;
-auto SQR(T)(x){return  (x*x);}
+#define TEST
+#define PI 3.14159265
+auto SQR(x) (x*x)
 
-version( TEST) {
+version( TEST
 // whoo
 } else {
 // whoo
@@ -29,7 +29,7 @@ struct S {
 	int out_;
 };
 
-static float x[8] = [0.5, 2.5];
+static float x[8] = {0.5, 2.5};
 double z[4][3];
 
 int main(void) {

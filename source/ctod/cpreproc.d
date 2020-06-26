@@ -6,24 +6,25 @@ module ctod.cpreproc;
 import ctod.translate;
 import tree_sitter.wrapper;
 
-string tryTranslatePreprocessor(ref TranslationContext ctu, const Node node) {
+bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 	const nodeSource = ctu.source[node.start..node.end];
 	switch (node.type) {
 			// return translateNodeChildren(ctu, node) ~ ") {";
 		case "#endif":
-			return "}";
+			return node.replace("}");
 		case "#elif":
-			return "} else static if (";
+			return node.replace("} else static if (");
 		case "#else":
-			return "} else {";
+			return node.replace("} else {");
 		case "#if":
-			return "static if (";
+			return node.replace("static if (");
 		case "#ifdef":
-			return "version(";
+			return node.replace("version(");
 		case "#include":
-			return "import";
+			return node.replace("import");
 		case "identifier":
 			// semicolon after version = X translation
+			version(none)
 			switch (node.parent.type) {
 				case "preproc_def":
 					if (ctu.macroType == MacroType.versionId) {
@@ -36,21 +37,24 @@ string tryTranslatePreprocessor(ref TranslationContext ctu, const Node node) {
 					return nodeSource ~ ") {";
 				default: break;
 			}
-			return null;
+			return false;
 		case "preproc_def":
-			if (auto valueNode = node.childByField("value")) {
+			//if (auto valueNode = node.childByField("value")) {
+			version(none)
+			if (true) {
 				ctu.macroType = MacroType.manifestConstant;
 			} else {
 				ctu.macroType = MacroType.versionId;
 			}
 			break;
 		case "preproc_arg":
+			version(none)
 			with(MacroType) switch (ctu.macroType) {
 				case manifestConstant: return "=" ~ nodeSource ~ ";";
 				case inlineFunc: return "{return "~nodeSource~";}";
 				default: break;
 			}
-			return null;
+			return false;
 		case "preproc_function_def":
 			ctu.macroType = MacroType.inlineFunc;
 			break;
@@ -62,26 +66,26 @@ string tryTranslatePreprocessor(ref TranslationContext ctu, const Node node) {
 			break;
 		case "#define":
 			with(MacroType) switch (ctu.macroType) {
-				case manifestConstant: return "enum";
-				case inlineFunc: return "auto";
-				case versionId: return "version =";
-				default: return null;
+				case manifestConstant: return node.replace("enum");
+				case inlineFunc: return node.replace("auto");
+				case versionId: return node.replace("version =");
+				default: return false;
 			}
 		case "system_lib_string":
 			if (nodeSource.length < "<>".length) {
-				return nodeSource; // to short to slice
+				return false; // to short to slice
 			}
 			string lib = nodeSource[1..$-1]; // slice to strip off angle brackets in <stdio.h>
 			if (string importName = translateSysLib(lib)) {
-				return importName~";";
+				return node.replace(importName~";");
 			} else {
 				import std.path: stripExtension;
-				return lib.stripExtension~";";
+				return node.replace(lib.stripExtension~";");
 			}
 		case "preproc_include":
-		default: return null;
+		default: break;
 	}
-	return null;
+	return false;
 }
 
 /// Find version string to e.g. replace `#ifdef _WIN32` with `version(Windows)`

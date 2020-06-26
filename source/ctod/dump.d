@@ -9,6 +9,11 @@ scope const(char)* str = ts_node_string(rootNode);
 scope(exit) free(cast(void*) str);
 
 
+		import core.stdc.stdio: fopen, FILE, fclose;
+		FILE* file = fopen("test.dot", "w");
+		ts_tree_print_dot_graph(tree, file);
+		fclose(file);
+
 version(none):
 
 string cToD(string input) {

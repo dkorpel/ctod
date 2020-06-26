@@ -34,17 +34,16 @@ dub -- ../test/cute_time.c
 23. update
 
 ### C Language symbols
-0. end
-1. identifier
-2. #include
-3.
-
-4. #define
-5. (
-6. ...
-7. ,
-8. )
-9. #if
+ 0. end
+ 1. identifier
+ 2. #include
+ 3. "\n"
+ 4. #define
+ 5. (
+ 6. ...
+ 7. ,
+ 8. )
+ 9. #if
 10. #endif
 11. #ifdef
 12. #ifndef

@@ -1,9 +1,5 @@
 module ctod;
 
-/// Returns: C language parser for tree-sitter
-import tree_sitter.api;
-extern(C) TSLanguage* tree_sitter_c();
-
 public {
 	import ctod.cdeclaration;
 	import ctod.cfunction;
