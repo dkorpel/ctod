@@ -12,17 +12,23 @@ extern(C): @nogc: nothrow:
 ";
 
 private immutable hasVersion = q{
-template HasVersion(string versionId) {
+private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
 };
 
 ///
 string translateFile(string source, string moduleName) {
-	Node root = parseCtree(source);
+	Node* root = parseCtree(source);
+	assert(root);
 	auto ctx = TranslationContext("foo.c", source);
-	translateNode(ctx, root);
-	return format(moduleHeader, moduleName) ~ root.output;
+	translateNode(ctx, *root);
+	string result = format(moduleHeader, moduleName);
+	if (ctx.needsHasVersion) {
+		result ~= hasVersion;
+	}
+	result ~=root.output;
+	return result;
 }
 
 /// What the C macro is for
@@ -47,12 +53,16 @@ package struct TranslationContext {
 	// context
 	const(char)[] parentType = "";
 
+	/// global variables and function declarations
+	string[string] symbolTable;
+
 	this(string fileName, string source) {
 		this.fileName = fileName;
 		this.source = source;
 	}
 }
 
+///
 void translateNode(ref TranslationContext ctu, ref Node node) {
 	if (tryTranslatePreprocessor(ctu, node)) {
 		return;
@@ -75,11 +85,6 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 
 bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
-		//case "sized_type_specifier":
-		case "unsigned":
-			return node.replace("");
-		case "signed":
-			return node.replace("");
 		case "primitive_type":
 			if (string s = replacePrimitiveType(node.source)) {
 				node.replace(s);
@@ -91,25 +96,6 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 		case "typedef":
 			return node.replace("alias");
 		/+
-		case "struct_specifier":
-
-			// todo: the actual check should be whether you are in a type expression
-			// struct Opaque; should be allowed
-			if (auto bodyNode = node.childByField("body")) {
-
-			} else {
-				//replacements ~= Replacement(node.start, node.start + "struct".length, "");
-			}
-			break;
-		case "struct":
-			if (ctu.parentType == "TODO") {
-				return "";
-			} else {
-				return nodeSource;
-			}
-		case "void":
-			// remove void in e.g. int main(void);
-			return ctu.parentType == "parameter_declaration" ? "" : nodeSource;
 		case "sizeof_expression":
 			// sizeof(x) => x.sizeof
 			//if (auto typeNode = node.childByField("type")) {
@@ -131,23 +117,3 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	}
 	return false;
 }
-/+
-package string translateNodeChildren(ref TranslationContext ctu, const Node node) {
-	string result = "";
-	size_t cursor = node.start;
-	foreach(uint i; 0..node.numChildren) {
-		Node child = node.child(i);
-		result ~= ctu.source[cursor..child.start];
-		result ~= translateNode(ctu, child); //ctu.source[child.start..child.end];
-		cursor = child.end;
-	}
-	result ~= ctu.source[cursor..node.end];
-	return result;
-}
-
-const(char)[] nodeType(TSNode node) {
-	import core.stdc.string: strlen;
-	const c = ts_node_type(node);
-	return c[0..strlen(c)];
-}
-+/

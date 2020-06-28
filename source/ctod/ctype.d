@@ -53,6 +53,9 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node) {
 			if (longCount == 1 && primitive == "") {
 				primitive = "int";
 			}
+			if (longCount == 2 && primitive == "") {
+				primitive = "long";
+			}
 			if (!signed && primitive.length && primitive[0] != 'u') {
 				primitive = "u" ~ primitive;
 			}

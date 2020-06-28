@@ -28,8 +28,6 @@
 	#define CUTE_TIME_PLATFORM CUTE_TIME_UNIX
 #endif
 
-unsigned int x;
-
 struct S {
 	int in;
 	int out;
@@ -40,6 +38,16 @@ typedef struct S S;
 typedef struct T {
 	S *ptr;
 } T;
+
+unsigned int x0;
+long x1;
+long long x2;
+unsigned long x3;
+float x4;
+double x5;
+long double x6;
+struct S x7;
+S x8;
 
 static float x[8] = {0.5, 2.5};
 double z[4][3];

@@ -1,6 +1,6 @@
 module ctod.cdeclaration;
 
-import ctod.translate;
+import ctod;
 import tree_sitter.wrapper;
 
 bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
@@ -12,9 +12,15 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 				return node.replace(s);
 			}
 			return true;
+		//case "function_definition":
 		case "declaration":
 			if (auto c = node.firstChildType("static")) {
 				c.replace("private");
+			}
+			if (auto c = node.childField("type")) {
+				if (auto s = parseTypeNode(ctu, *c)) {
+					c.replace(s);
+				}
 			}
 			break;
 		case "storage_class_specifier":
@@ -32,20 +38,6 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 				c.replace("]");
 			}
 			break;
-		/+
-		case "{":
-			if (node.parent.type == ) {
-				return "[";
-			} else {
-				return null;
-			}
-		case "}":
-			if (node.parent.type == "initializer_list") {
-				return "]";
-			} else {
-				return null;
-			}
-		+/
 		default: break;
 	}
 	return false;
