@@ -18,7 +18,7 @@ tree-sitter is a parser generator with a focus on incremental parsing and error 
 The latter property is also useful for this tool: if you want, you can convert broken C code to similarly broken D code.
 
 
-
+To get familiar with how tree-sitter parses C code and how it names its nodes, try out the playground:
 https://tree-sitter.github.io/tree-sitter/playground
 
 ```

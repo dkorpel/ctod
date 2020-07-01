@@ -39,7 +39,11 @@ static if (HasVersion!"Windows") {
 struct S {
 	int in_;
 	int out_;
-};
+}
+
+union U {
+	char x;
+}
 
 alias struct S S;
 
@@ -71,7 +75,7 @@ int*[7][6] a4;
 int*[9][8]* a5;
 int**[9][8] a6;
 
-void function(int x, float) f;
+void function(int x, float, char*, char*, char*) f;
 void[5] function()[4] f;
 
 pragma(inline, true) extern int e0;
@@ -82,6 +86,11 @@ double[3][4] z;
 int main() {
 	static int xx;
 	static int x = cast(int) 3.5;
+	int so0 = short.sizeof;
+	int so1 = int.sizeof;
+	int so2 = typeof(4).sizeof;
+	int so2 = typeof((4)).sizeof;
+	int so3 = typeof((cast(short) 3 + 4L)).sizeof;
 	int[2] a;
 	foo(a, main);
 	return 0;

@@ -33,6 +33,10 @@ struct S {
 	int out;
 };
 
+union U {
+	char x;
+};
+
 typedef struct S S;
 
 typedef struct T {
@@ -63,7 +67,7 @@ int *a4[6][7];
 int *(*a5)[8][9];
 int **a6[8][9];
 
-void (*f)(int x, float);
+void (*f)(int x, float, char*, char[], char*[]);
 void (*f[4])(void)[5];
 
 extern inline int e0;
@@ -74,6 +78,11 @@ double z[4][3];
 int main(void) {
 	static register int xx;
 	static int x = (int) 3.5;
+	int so0 = sizeof short;
+	int so1 = sizeof(int);
+	int so2 = sizeof 4;
+	int so2 = sizeof (4);
+	int so3 = sizeof((short) 3 + 4L);
 	int a[2];
 	foo(a, main);
 	return 0;

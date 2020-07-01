@@ -227,6 +227,11 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 				return true;
 			}
 			break;
+		case "abstract_array_declarator":
+		case "abstract_pointer_declarator":
+			// void foo(float*, float[])
+			decl.type = CType.pointer(decl.type);
+			return true;
 		case "array_declarator":
 			// static array
 			if (auto sizeNode = node.childField("size")) {

@@ -55,6 +55,7 @@ package struct TranslationContext {
 
 	/// global variables and function declarations
 	string[string] symbolTable;
+	string[string] localSymbolTable;
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
@@ -95,14 +96,25 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			return node.replace("null");
 		case "typedef":
 			return node.replace("alias");
-		/+
+
 		case "sizeof_expression":
-			// sizeof(x) => x.sizeof
-			//if (auto typeNode = node.childByField("type")) {
-				//replacements ~= Replacement(node.start, node.end, ctu.source[typeNode.start..typeNode.end] ~ ".sizeof");
-			//}
+			if (auto typeNode = node.childField("type")) {
+				// sizeof(short) => (short).sizeof
+				translateNode(ctu, *typeNode);
+				node.replace("" ~ typeNode.output ~ ".sizeof");
+			} else if (auto valueNode = node.childField("value")) {
+				translateNode(ctu, *valueNode);
+				// `sizeof short` => `short.sizeof`
+				if (valueNode.type == "identifier") {
+					node.replace("" ~ valueNode.output ~ ".sizeof");
+				} else {
+					// sizeof(3) => typeof(3).sizeof
+					// brackets may be redundant
+					node.replace("typeof(" ~ valueNode.output ~ ").sizeof");
+				}
+			}
 			break;
-		+/
+
 		case "->":
 			return node.replace(".");
 		case "cast_expression":
@@ -110,9 +122,18 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				return c.replace("cast(");
 			}
 			return false;
-		case "type_definition":
+		case "struct_specifier":
+			// todo: I want to remove the trialing ;, but it seems to be a hidden node
+			break;
 		case "translation_unit":
-		case "initializer_list":
+			// these are trailing ; after union and struct definitions.
+			// we don't want them in D
+			foreach(ref c; node.children) {
+				if (c.type == ";") {
+					c.replace("");
+				}
+			}
+			break;
 		default: break;
 	}
 	return false;
