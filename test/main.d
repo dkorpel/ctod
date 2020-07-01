@@ -71,10 +71,15 @@ int*[7][6] a4;
 int*[9][8]* a5;
 int**[9][8] a6;
 
+void function(int x, float) f;
+void[5] function()[4] f;
+
+pragma(inline, true) extern int e0;
+
 static float[8] x = [0.5, 2.5];
 double[3][4] z;
 
-int main(void) {
+int main() {
 	static int xx;
 	static int x = cast(int) 3.5;
 	int[2] a;
@@ -82,6 +87,6 @@ int main(void) {
 	return 0;
 }
 
-void foo(int x[], int (*y)(void)) {
+void foo(int* x;, int function() y;) {
 	int* z;int y;
 }

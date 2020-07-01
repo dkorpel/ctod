@@ -63,6 +63,11 @@ int *a4[6][7];
 int *(*a5)[8][9];
 int **a6[8][9];
 
+void (*f)(int x, float);
+void (*f[4])(void)[5];
+
+extern inline int e0;
+
 static float x[8] = {0.5, 2.5};
 double z[4][3];
 

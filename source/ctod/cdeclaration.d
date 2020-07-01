@@ -13,12 +13,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 			}
 			return true;
 		//case "function_definition":
-        //case "parameter_declaration":
+        case "parameter_declaration":
         case "field_declaration": // struct field
 		case "declaration": // global / local variable
-			if (auto c = node.firstChildType("static")) {
-				c.replace("private");
-			}
             Decl[] decls = parseDecls(ctu, node);
             string result = "";
             foreach(d; decls) {

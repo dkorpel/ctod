@@ -18,7 +18,10 @@ struct Decl {
 	string initializer = "";
 
 	string toString() const {
-		auto result = storageClasses ~ type.toString() ~ " " ~ identifier;
+		auto result = storageClasses ~ type.toString();
+		if (identifier.length > 0) {
+			result ~= " " ~ identifier;
+		}
 		if (initializer.length > 0) {
 			result ~= " = " ~ initializer;
 		}
@@ -106,7 +109,7 @@ struct CQuals {
 	}
 }
 
-bool parseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals quals) {
+bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals quals) {
 	if (node.type == "type_qualifier") switch (node.source) {
 		case "const": quals.const_ = true; return true;
 		case "volatile": quals.volatile_ = true; return true;
@@ -125,16 +128,18 @@ bool parseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals quals) 
 	return false;
 }
 
+/// Parse declarations
+/// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
+/// declarations since in D you can't declare differently typed variables in one declaration
 Decl[] parseDecls(ref TranslationContext ctu, ref Node node) {
-	bool isConst = false;
 	if (auto typeNode = node.childField("type")) {
 		auto primitiveType = parseTypeNode(ctu, *typeNode);
 
 		// there may be multiple type_qualifier fields
-		//if (auto qualNode = node.childField("type_qualifier"))
+		// if (auto qualNode = node.childField("type_qualifier"))
 		CQuals quals;
 		foreach(ref c; node.children) {
-			cast(void) parseTypeQual(ctu, c, quals);
+			cast(void) tryParseTypeQual(ctu, c, quals);
 		}
 		if (quals.const_) {
 			primitiveType = "const(" ~ primitiveType ~ ")";
@@ -143,15 +148,20 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node) {
 		Decl[] result;
 		foreach(ref c; node.children) {
 			Decl decl = Decl(quals.toString(), baseType, "", "");
-			//CType type = baseType;
-			//string identifier;
 			if (parseCtype(ctu, c, decl)) {
-				result ~= decl; //Decl(quals.toString(), type, identifier);
+				result ~= decl;
 			}
 		}
+		// parameters can have no identifier, e.g. `foo(int named, float)`
+		// if this is called for a parameter declaration, you still want to get an anonymous declaration back
+		// the only exception is empty parameter lists, which in C are declared like `void main(void)`
+		if (result.length == 0 && primitiveType != "void") {
+			result = [Decl(quals.toString(), baseType, "", "")];
+		}
 		return result;
+	} else {
+		import dbg; dprint(node.source, "has no type field");
 	}
-	//if (auto c = node.childField("declarator")) {	}
 	return null;
 }
 
@@ -188,14 +198,21 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 			break;
 		case "abstract_function_declarator":
 		case "function_declarator":
-			if (auto c = node.childField("type")) {
-				parseCtype(ctu, *c, decl);
-				version(todo)
-				if (auto d = node.childField("declarator")) {
-					CType next = parseCtype(ctu, node, identifier, primitiveType);
+			Decl[] paramDecls = [];
+			if (auto paramNode = node.childField("parameters")) {
+				foreach(ref c; paramNode.children) {
+					if (c.type == "parameter_declaration") {
+						paramDecls ~= parseDecls(ctu, c);
+					}
+					//import dbg; dprint(c.type, c.source);
 				}
 			}
-			break;
+			if (auto declNode = node.childField("declarator")) {
+				// TODO
+				decl.type = CType.funcDecl(decl.type, paramDecls);
+				parseCtype(ctu, *declNode, decl);
+			}
+			return true;
 		case "field_identifier":
 		case "identifier":
 			decl.identifier = replaceIdentifier(node.source);
@@ -250,6 +267,7 @@ struct CType {
 		named,
 	}
 	CType[] next = [];
+	Decl[] params; // parameter declarations
 	union {
 		string name; // name of decl for parameters
 		string countExpr; // for static arrays. Note: not per se a number literal
@@ -282,9 +300,10 @@ struct CType {
 		return result;
 	}
 
-	static CType funcDecl(CType ret, CType[] args) {
+	static CType funcDecl(CType ret, Decl[] params) {
 		CType result;
-		result.next = [ret] ~ args;
+		result.next = [ret];
+		result.params = params;
 		result.tag = Tag.funcDecl;
 		return result;
 	}
@@ -294,7 +313,7 @@ struct CType {
 		with(Tag) switch(tag) {
 			case pointer:
 				if (next[0].tag == Tag.funcDecl) {
-					return format("%s function(%(%s, %))", next[0].next[0], next[0].next[1..$]);
+					return format("%s function(%(%s, %))", next[0].next[0], next[0].params);
 				} else {
 					return format("%s*", next[0]);
 				}
@@ -302,7 +321,7 @@ struct CType {
 				return format("%s[%s]", next[0], countExpr);
 			//case funcDef://				return
 			case funcDecl:
-				return format("%s FUNC(%(%s, %))", next[0], next[1..$]);
+				return format("%s FUNC(%(%s, %))", next[0], params);
 			case named:
 				return name;
 			case none:
