@@ -41,19 +41,34 @@ typedef struct T {
 
 unsigned int x0;
 long x1;
-long long x2;
-unsigned long x3;
-float x4;
-double x5;
-long double x6;
-struct S x7;
-S x8;
+unsigned long x2;
+long long x3;
+unsigned long long x4;
+unsigned long x5;
+float x6;
+double x7;
+long double x8;
+struct S x9;
+S xA;
+
+const char *p0;
+char const *p1;
+char *const p2;
+
+int a0[1];
+int *a1[2];
+int (*a2)[3];
+int a3[4][5];
+int *a4[6][7];
+int *(*a5)[8][9];
+int **a6[8][9];
 
 static float x[8] = {0.5, 2.5};
 double z[4][3];
 
 int main(void) {
-	static int x = cast(int) 3.5;
+	static register int xx;
+	static int x = (int) 3.5;
 	int a[2];
 	foo(a, main);
 	return 0;

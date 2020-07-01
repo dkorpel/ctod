@@ -44,29 +44,44 @@ struct S {
 alias struct S S;
 
 alias struct T {
-	S *ptr;
+	S* ptr;
 } T;
 
 uint x0;
 int x1;
-long x2;
-uint x3;
-float x4;
-double x5;
-real x6;
-S x7;
-S x8;
+uint x2;
+long x3;
+ulong x4;
+uint x5;
+float x6;
+double x7;
+real x8;
+S x9;
+S xA;
 
-private float x[8] = [0.5, 2.5];
-double z[4][3];
+const(char)* p0;
+const(char)* p1;
+char* p2;
+
+int[1] a0;
+int*[2] a1;
+int[3]* a2;
+int[5][4] a3;
+int*[7][6] a4;
+int*[9][8]* a5;
+int**[9][8] a6;
+
+static float[8] x = [0.5, 2.5];
+double[3][4] z;
 
 int main(void) {
-	private int x = cast(int) 3.5;
-	int a[2];
+	static int xx;
+	static int x = cast(int) 3.5;
+	int[2] a;
 	foo(a, main);
 	return 0;
 }
 
 void foo(int x[], int (*y)(void)) {
-	int *z, y;
+	int* z;int y;
 }

@@ -9,20 +9,12 @@ import tree_sitter.wrapper;
 
 bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
-
 		case "#else":
 			return node.replace("} else {");
 		case "#endif":
 			return node.replace("}");
 		case "#elif":
 			return node.replace("} else static if");
-		/+
-		case "#if":
-			return node.replace("static if (");
-		case "#ifdef":
-			return node.replace("version(");
-		+/
-
 		case "#include":
 			return node.replace("public import");
 		case "preproc_def":
@@ -132,6 +124,7 @@ string findVersion(string s) {
 	switch (s) {
 		case "_WIN32": return "Windows"; // Win32, Win64?
 		case "__APPLE__": return "OSX"; // MacOS?
+		case "__CYGWIN__": return "Cygwin";
 		case "__cplusplus": return "none";
 		default: return null;
 	}
