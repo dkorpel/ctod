@@ -17,6 +17,17 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 			return node.replace("} else static if");
 		case "#include":
 			return node.replace("public import");
+		case "preproc_call":
+			if (auto directive = node.childField("directive")) {
+				if (directive.source == "#error") {
+					directive.replace("static assert");
+					if (auto argument = node.childField("argument")) {
+						argument.prepend("(0, ");
+						argument.append(")");
+					}
+				}
+			}
+			return true;
 		case "preproc_def":
 			if (auto valueNode = node.childField("value")) {
 				if (auto c = node.firstChildType("#define")) {

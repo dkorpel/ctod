@@ -8,6 +8,12 @@
 #define PI 3.14159265
 #define SQR(x) (x*x)
 
+#define _GLFW_CONCAT_VERSION(m, n, r) #m "." #n "." #r
+#define _GLFW_MAKE_VERSION(m, n, r) _GLFW_CONCAT_VERSION(m, n, r)
+#define _GLFW_VERSION_NUMBER _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
+                                                GLFW_VERSION_MINOR, \
+                                                GLFW_VERSION_REVISION)
+
 #ifdef TEST
 // whoo
 #else
@@ -15,7 +21,7 @@
 #endif
 
 #if 0
-// whoo
+#error "error message"
 #elif defined(TEST)
 // whoo
 #endif
@@ -38,6 +44,7 @@ union U {
 };
 
 typedef struct S S;
+typedef struct X Y;
 
 typedef struct T {
 	S *ptr;
@@ -55,7 +62,7 @@ long double x8;
 struct S x9;
 S xA;
 
-const char *p0;
+const char *p0 = "con" "cat" "enated";
 char const *p1;
 char *const p2;
 
@@ -68,7 +75,7 @@ int *(*a5)[8][9];
 int **a6[8][9];
 
 void (*f)(int x, float, char*, char[], char*[]);
-void (*f[4])(void)[5];
+int (*f[4])(void)[5];
 
 extern inline int e0;
 
@@ -78,6 +85,7 @@ double z[4][3];
 int main(void) {
 	static register int xx;
 	static int x = (int) 3.5;
+	static int x = (void(*)()) NULL;
 	int so0 = sizeof short;
 	int so1 = sizeof(int);
 	int so2 = sizeof 4;
@@ -88,6 +96,8 @@ int main(void) {
 	return 0;
 }
 
-void foo(int x[], int (*y)(void)) {
+inline static void foo(int x[], int (*y)(void));
+
+inline static void foo(int x[], int (*y)(void)) {
 	int *z, y;
 }

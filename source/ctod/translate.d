@@ -86,6 +86,19 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 
 bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
+		case "concatenated_string":
+			// "a" "b" "c" => "a"~"b"~"c"
+			bool first = true;
+			foreach(ref c; node.children) {
+				if (c.type == "string_literal") {
+					if (first) {
+						first = false;
+					} else {
+						c.prepend("~ ");
+					}
+				}
+			}
+			return true;
 		case "primitive_type":
 			if (string s = replacePrimitiveType(node.source)) {
 				node.replace(s);
@@ -94,9 +107,32 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			return false;
 		case "null":
 			return node.replace("null");
+
+		case "type_definition":
+			// Decl[] decls = parseDecls(ctu, *c);
+
+			// typedef struct X X; => uncomment, not applicable to D
+			if (auto typeField = node.childField("type")) {
+				if (auto structId = typeField.childField("name")) {
+					if (typeField.type == "struct_specifier") {
+						if (auto bodyField = typeField.childField("body")) {
+
+						} else if (auto declaratorField = node.childField("declarator")) {
+							if (declaratorField.type == "type_identifier") {
+								if (declaratorField.source == structId.source) {
+									node.prepend("/+");
+									node.append("+/");
+									return true;
+								}
+							}
+						}
+					}
+
+				}
+			}
+			break;
 		case "typedef":
 			return node.replace("alias");
-
 		case "sizeof_expression":
 			if (auto typeNode = node.childField("type")) {
 				// sizeof(short) => (short).sizeof
@@ -119,7 +155,13 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			return node.replace(".");
 		case "cast_expression":
 			if (auto c = node.firstChildType("(")) {
-				return c.replace("cast(");
+				c.replace("cast(");
+			}
+			if (auto c = node.childField("type")) {
+				Decl[] decls = parseDecls(ctu, *c); //tryTranslateDeclaration();
+				if (decls.length == 1) {
+					c.replace(decls[0].toString());
+				}
 			}
 			return false;
 		case "struct_specifier":

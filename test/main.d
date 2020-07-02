@@ -16,6 +16,12 @@ version = TEST
 enum PI = 3.14159265;
 auto SQR(x){return (x*x);}
 
+auto _GLFW_CONCAT_VERSION(m, n, r){return #m "." #n "." #r;}
+auto _GLFW_MAKE_VERSION(m, n, r){return _GLFW_CONCAT_VERSION(m, n, r);}
+enum _GLFW_VERSION_NUMBER = _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
+                                                GLFW_VERSION_MINOR, \
+                                                GLFW_VERSION_REVISION);
+
 version (TEST) {
 // whoo
 } else {
@@ -23,7 +29,7 @@ version (TEST) {
 }
 
 static if (0) {
-// whoo
+static assert(0,  "error message")
 } else static if (HasVersion!"TEST") {
 // whoo
 }
@@ -45,7 +51,8 @@ union U {
 	char x;
 }
 
-alias struct S S;
+/+typedef struct S S;+/
+alias struct X Y;
 
 alias struct T {
 	S* ptr;
@@ -63,7 +70,7 @@ real x8;
 S x9;
 S xA;
 
-const(char)* p0;
+const(char)* p0 = "con" ~ "cat" ~ "enated";
 const(char)* p1;
 char* p2;
 
@@ -76,7 +83,7 @@ int*[9][8]* a5;
 int**[9][8] a6;
 
 void function(int x, float, char*, char*, char*) f;
-void[5] function()[4] f;
+int[5] function()[4] f;
 
 pragma(inline, true) extern int e0;
 
@@ -86,16 +93,19 @@ double[3][4] z;
 int main() {
 	static int xx;
 	static int x = cast(int) 3.5;
+	static int x = cast(void function()) null;
 	int so0 = short.sizeof;
 	int so1 = int.sizeof;
 	int so2 = typeof(4).sizeof;
 	int so2 = typeof((4)).sizeof;
-	int so3 = typeof((cast(short) 3 + 4L)).sizeof;
+	int so3 = typeof((cast() 3 + 4L)).sizeof;
 	int[2] a;
 	foo(a, main);
 	return 0;
 }
 
-void foo(int* x;, int function() y;) {
+pragma(inline, true) static void foo(int* x, int function() y);
+
+pragma(inline, true) private void foo(int* x, int function() y) {
 	int* z;int y;
 }

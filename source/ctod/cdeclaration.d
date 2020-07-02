@@ -18,8 +18,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		case "declaration": // global / local variable
             Decl[] decls = parseDecls(ctu, node);
             string result = "";
+            string suffix = node.type == "parameter_declaration" ? "" : ";";
             foreach(d; decls) {
-                result ~= d.toString() ~ ";";
+                result ~= d.toString() ~ suffix;
             }
             node.replace(result);
             /+
@@ -47,6 +48,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 			if (!node.inFuncBody) {
 				if (node.source == "static") {
 					return node.replace("private");
+				}
+                if (node.source == "inline") {
+					return node.replace("pragma(inline, true)");
 				}
 			}
 			break;

@@ -18,12 +18,21 @@ struct Decl {
 	string initializer = "";
 
 	string toString() const {
-		auto result = storageClasses ~ type.toString();
-		if (identifier.length > 0) {
-			result ~= " " ~ identifier;
-		}
-		if (initializer.length > 0) {
-			result ~= " = " ~ initializer;
+		import std.string: format;
+		string result = storageClasses;
+
+		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
+		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
+		if (type.tag == CType.Tag.funcDecl) {
+			result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
+		} else {
+			result ~= type.toString();
+			if (identifier.length > 0) {
+				result ~= " " ~ identifier;
+			}
+			if (initializer.length > 0) {
+				result ~= " = " ~ initializer;
+			}
 		}
 		return result;
 	}
@@ -204,12 +213,13 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 					if (c.type == "parameter_declaration") {
 						paramDecls ~= parseDecls(ctu, c);
 					}
-					//import dbg; dprint(c.type, c.source);
 				}
 			}
 			if (auto declNode = node.childField("declarator")) {
-				// TODO
 				decl.type = CType.funcDecl(decl.type, paramDecls);
+				if (node.type == "abstract_function_declarator") {
+					decl.type = CType.pointer(decl.type);
+				}
 				parseCtype(ctu, *declNode, decl);
 			}
 			return true;
