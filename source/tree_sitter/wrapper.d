@@ -21,7 +21,11 @@ Node* parseCtree(string source) {
 	return &new Node(ts_tree_root_node(tree), source, null, "").findChildren(source);
 }
 
-Node* CtreeFromCursor(const(TSTree)* tree, string source) {
+/// The idea is to use the cursor api to get field names
+/// This is because a declaration node can have multiple declarator fields, but the node API
+/// only allows retrieving the first one
+/// It's incomplete though, the cursor api seems to generate a different tree than the node api
+Node* cTreeFromCursor(const(TSTree)* tree, string source) {
 	TSTreeCursor cursor = ts_tree_cursor_new(ts_tree_root_node(tree));
 	scope(exit) ts_tree_cursor_delete(&cursor);
 	Node* cursorParent = null;
@@ -71,8 +75,9 @@ struct Node {
 	Node* parent;
 	Node[] children;
 
-	bool isNone = true;
-	bool inFuncBody = false; // whether we are under a function definition node
+	bool isNone = true; /// whether this is a null value
+	bool inFuncBody = false; /// whether we are under a function definition node
+	bool isTranslated = false; /// if translation has already been done
 
 	this(TSNode node, string fullSource, Node* parent = null, const(char)[] fieldName = "") {
 		this.tsnode = node; //

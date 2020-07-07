@@ -3,63 +3,78 @@ module ctod.cdeclaration;
 import ctod;
 import tree_sitter.wrapper;
 
+/// Returns: true if a declaration was matched and replaced
 bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 	const nodeSource = ctu.source[node.start..node.end];
+
+	InlineType[] inlinetypes;
+
+	bool translateDecl(string suffix) {
+		Decl[] decls = parseDecls(ctu, node, inlinetypes);
+		string result = "";
+		foreach(s; inlinetypes) {
+			result ~= s.toString();
+		}
+		foreach(d; decls) {
+			result ~= d.toString() ~ suffix;
+			ctu.symbolTable[d.identifier] = d;
+		}
+		node.replace(result);
+		return true;
+	}
+
 	switch (node.type) {
 		case "field_identifier":
+		case "type_identifier":
 		case "identifier":
 			if (string s = replaceIdentifier(nodeSource)) {
 				return node.replace(s);
 			}
 			return true;
-		//case "function_definition":
-        case "parameter_declaration":
-        case "field_declaration": // struct field
+		case "function_definition":
+			if (node.type == "function_definition") {
+				if (auto bodyNode = node.childField("body")) {
+					//ctu.inFunction = "?";
+					translateNode(ctu, *bodyNode);
+					//ctu.inFunction = null;
+					return translateDecl(" " ~ bodyNode.output());
+				}
+			}
+			break;
+		case "parameter_declaration":
+			return translateDecl("");
+		case "field_declaration": // struct / union field
+			if (auto bitNode = node.firstChildType("bitfield_clause")) {
+				translateNode(ctu, *bitNode);
+				node.append("/+"~bitNode.output~" !!+/");
+			}
+			return translateDecl(";");
 		case "declaration": // global / local variable
-            Decl[] decls = parseDecls(ctu, node);
-            string result = "";
-            string suffix = node.type == "parameter_declaration" ? "" : ";";
-            foreach(d; decls) {
-                result ~= d.toString() ~ suffix;
-            }
-            node.replace(result);
-            /+
-			if (auto c = node.childField("type")) {
-				if (auto s = parseTypeNode(ctu, *c)) {
-					c.replace(s);
+			return translateDecl(";");
+		case "type_definition":
+			Decl[] decls = parseDecls(ctu, node, inlinetypes);
+			string result = ""; // todo: anonymous types
+			foreach(s; inlinetypes) {
+				result ~= s.toString();
+			}
+			foreach(d; decls) {
+				if (d.type == CType.named(d.identifier)) {
+					result ~= "/+alias " ~ d.toString() ~ ";+/";
+				} else {
+					result ~= "alias " ~ d.toString() ~ ";";
 				}
 			}
-			foreach(ref c; node.children) {
-				switch(c.type) {
-					case "type_qualifier":
-						break;
-					default:
-						break;
-				}
-			}
-            +/
-			break;
-		case "storage_class_specifier":
-			//"extern"
-			//"static"
-			//"auto"
-			//"register"
-			//"inline"
-			if (!node.inFuncBody) {
-				if (node.source == "static") {
-					return node.replace("private");
-				}
-                if (node.source == "inline") {
-					return node.replace("pragma(inline, true)");
-				}
-			}
-			break;
+			node.replace(result);
+			return true;
 		case "initializer_list":
-			if (auto c = node.firstChildType("{")) {
-				c.replace("[");
-			}
-			if (auto c = node.firstChildType("}")) {
-				c.replace("]");
+			// TODO: check if not struct initializer
+			if (true) {
+				if (auto c = node.firstChildType("{")) {
+					c.replace("[");
+				}
+				if (auto c = node.firstChildType("}")) {
+					c.replace("]");
+				}
 			}
 			break;
 		default: break;
@@ -92,74 +107,74 @@ string replaceIdentifier(string s) {
 // C identifiers that are keywords in D
 // Does not include keywords that are in both C and D (static, if, switch) or have similar meaning (null, true, assert)
 immutable dKeywords = [
-    "abstract",
-    "alias",
-    "align",
-    "asm",
-    "auto",
-    "bool",
-    "byte",
-    "cast",
-    "catch",
-    "cdouble",
-    "cent",
-    "cfloat",
-    "char",
-    "class",
-    "creal",
-    "dchar",
-    "debug",
-    "delegate",
-    "deprecated",
-    "export",
-    "final",
-    "finally",
-    "foreach",
-    "foreach_reverse",
-    "function",
-    "idouble",
-    "ifloat",
-    "immutable",
-    "import",
-    "in",
-    "inout",
-    "interface",
-    "invariant",
-    "ireal",
-    "is",
-    "lazy",
-    "macro",
-    "mixin",
-    "module",
-    "new",
-    "nothrow",
-    "out",
-    "override",
-    "package",
-    "pragma",
-    "private",
-    "protected",
-    "public",
-    "pure",
-    "real",
-    "ref",
-    "scope",
-    "shared",
-    "super",
-    "synchronized",
-    "template",
-    "this",
-    "throw",
-    "try",
-    "typeid",
-    "typeof",
-    "ubyte",
-    "ucent",
-    "uint",
-    "ulong",
-    "unittest",
-    "ushort",
-    "version",
-    "wchar",
-    "with",
+	"abstract",
+	"alias",
+	"align",
+	"asm",
+	"auto",
+	"bool",
+	"byte",
+	"cast",
+	"catch",
+	"cdouble",
+	"cent",
+	"cfloat",
+	"char",
+	"class",
+	"creal",
+	"dchar",
+	"debug",
+	"delegate",
+	"deprecated",
+	"export",
+	"final",
+	"finally",
+	"foreach",
+	"foreach_reverse",
+	"function",
+	"idouble",
+	"ifloat",
+	"immutable",
+	"import",
+	"in",
+	"inout",
+	"interface",
+	"invariant",
+	"ireal",
+	"is",
+	"lazy",
+	"macro",
+	"mixin",
+	"module",
+	"new",
+	"nothrow",
+	"out",
+	"override",
+	"package",
+	"pragma",
+	"private",
+	"protected",
+	"public",
+	"pure",
+	"real",
+	"ref",
+	"scope",
+	"shared",
+	"super",
+	"synchronized",
+	"template",
+	"this",
+	"throw",
+	"try",
+	"typeid",
+	"typeof",
+	"ubyte",
+	"ucent",
+	"uint",
+	"ulong",
+	"unittest",
+	"ushort",
+	"version",
+	"wchar",
+	"with",
 ];

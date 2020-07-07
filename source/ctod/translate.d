@@ -40,31 +40,46 @@ enum MacroType {
 	staticIf,
 }
 
+package struct Scope {
+	Scope* parent = null;
+	Decl[string] table;
+}
+
 /// A single .c file
 package struct TranslationContext {
 
 	string fileName;
 	string source;
-
 	string moduleName;
 
 	bool needsHasVersion = false; // HasVersion(string) template is needed
 
-	// context
-	const(char)[] parentType = "";
-
 	/// global variables and function declarations
-	string[string] symbolTable;
-	string[string] localSymbolTable;
+	Decl[string] symbolTable;
+	Decl[string] localSymbolTable;
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
 		this.source = source;
 	}
+
+	int uniqueIdCounter = 0;
+	string uniqueIdentifier(string suggestion = null) {
+		import std.conv: text;
+		import std.ascii: toUpper;
+		if (suggestion.length > 0) {
+			return "_" ~ suggestion[0].toUpper ~ suggestion[1..$];
+		} else {
+			return "_I"~(uniqueIdCounter++).text;
+		}
+	}
 }
 
 ///
 void translateNode(ref TranslationContext ctu, ref Node node) {
+	if (node.isTranslated) {
+		return;
+	}
 	if (tryTranslatePreprocessor(ctu, node)) {
 		return;
 	}
@@ -78,6 +93,7 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	foreach(ref c; node.children) {
 		translateNode(ctu, c);
 	}
+	node.isTranslated = true;
 	/+
 	return "";
 	//writefln("> %20s: %s", node.type, "..."); // nodeSource(node, )
@@ -110,24 +126,29 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 
 		case "type_definition":
 			// Decl[] decls = parseDecls(ctu, *c);
-
-			// typedef struct X X; => uncomment, not applicable to D
-			if (auto typeField = node.childField("type")) {
-				if (auto structId = typeField.childField("name")) {
-					if (typeField.type == "struct_specifier") {
-						if (auto bodyField = typeField.childField("body")) {
-
-						} else if (auto declaratorField = node.childField("declarator")) {
-							if (declaratorField.type == "type_identifier") {
-								if (declaratorField.source == structId.source) {
-									node.prepend("/+");
-									node.append("+/");
-									return true;
-								}
-							}
-						}
+			auto typeField = node.childField("type");
+			auto declaratorField = node.childField("declarator");
+			if (!declaratorField || !typeField) {
+				return true;
+			}
+			if (auto structId = typeField.childField("name")) {
+				if (typeField.type == "struct_specifier" || typeField.type == "union_specifier") {
+					if (auto bodyNode = typeField.childField("body")) {
+						translateNode(ctu, *bodyNode);
+					} if (declaratorField.type == "type_identifier" && declaratorField.source == structId.source) {
+						// typedef struct X X; => uncomment, not applicable to D
+						node.prepend("/+");
+						node.append("+/");
+						return true;
 					}
+				}
+				if (typeField.type == "enum_specifier") {
+					if (auto bodyNode = typeField.childField("body")) {
+						translateNode(ctu, *bodyNode);
+					}
+					if (auto nameNode = typeField.childField("name")) {
 
+					}
 				}
 			}
 			break;
@@ -158,14 +179,28 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				c.replace("cast(");
 			}
 			if (auto c = node.childField("type")) {
-				Decl[] decls = parseDecls(ctu, *c); //tryTranslateDeclaration();
+				InlineType[] inlineTypes;
+				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
 					c.replace(decls[0].toString());
 				}
 			}
 			return false;
+		case "expression_statement":
+			// ; as empty statement not allowed in D, for(;;); => for(;;) {}
+			if (node.source == ";") {
+				return node.replace("{}");
+			}
+			break;
 		case "struct_specifier":
-			// todo: I want to remove the trialing ;, but it seems to be a hidden node
+		case "union_specifier":
+			// Trailing ; are children of the translation unit, and they are removed
+			// However, opaque structs/unions still need them
+			if (auto bodyNode = node.childField("body")) {
+				//
+			} else {
+				node.append(";");
+			}
 			break;
 		case "translation_unit":
 			// these are trailing ; after union and struct definitions.
@@ -175,6 +210,10 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 					c.replace("");
 				}
 			}
+			break;
+		case "call_expression":
+			// TODO: append .ptr to array parameters
+			// prepend & to functions converted to function pointers
 			break;
 		default: break;
 	}

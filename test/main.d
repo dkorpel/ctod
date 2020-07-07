@@ -2,61 +2,42 @@
 module main;
 
 extern(C): @nogc: nothrow:
-
-private template HasVersion(string versionId) {
-	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
-}
-public import core.stdc.assert_;
-public import core.stdc.string;
-public import core.stdc.stdio;
-
-public import ...include.glfw;
-
-version = TEST
-enum PI = 3.14159265;
-auto SQR(x){return (x*x);}
-
-auto _GLFW_CONCAT_VERSION(m, n, r){return #m "." #n "." #r;}
-auto _GLFW_MAKE_VERSION(m, n, r){return _GLFW_CONCAT_VERSION(m, n, r);}
-enum _GLFW_VERSION_NUMBER = _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
-                                                GLFW_VERSION_MINOR, \
-                                                GLFW_VERSION_REVISION);
-
-version (TEST) {
-// whoo
-} else {
-// whoo
-}
-
-static if (0) {
-static assert(0,  "error message")
-} else static if (HasVersion!"TEST") {
-// whoo
-}
-
-static if (HasVersion!"Windows") {
-	enum CUTE_TIME_PLATFORM = CUTE_TIME_WINDOWS;
-} else static if (HasVersion!"OSX") {
-	enum CUTE_TIME_PLATFORM = CUTE_TIME_MAC;
-} else {
-	enum CUTE_TIME_PLATFORM = CUTE_TIME_UNIX;
-}
-
 struct S {
 	int in_;
-	int out_;
+	int[2] out_;
 }
+
+struct _Bitfields{
+	 x;/+: 12 !!+/
+     y;/+: int.sizeof !!+/
+}_Bitfields bitfields;
 
 union U {
-	char x;
+	char tag;
+
+	union _Overlapped{
+		int[2] x;
+		enum _Y{one, two}_Y y;
+	}_Overlapped overlapped;
 }
 
-/+typedef struct S S;+/
-alias struct X Y;
+/+alias S S;+/
+/+alias U U;+/
+alias S0 S1;
+alias U0 U1;
+alias int[3] intArr;alias int intScalar;
+struct OpaqueS;
+union OpaqueU;
 
-alias struct T {
+struct T{
 	S* ptr;
-} T;
+	int[3] arr;
+}/+alias T T;+/
+
+enum AnEnum{
+	one = 1000123000,
+	two = 0x7FFFFFFF
+}/+alias AnEnum AnEnum;+/
 
 uint x0;
 int x1;
@@ -82,8 +63,9 @@ int*[7][6] a4;
 int*[9][8]* a5;
 int**[9][8] a6;
 
-void function(int x, float, char*, char*, char*) f;
-int[5] function()[4] f;
+void function(int x, float, char*, char, char*, char***) f0;
+int function()[4] f1;
+enum _Param0{a}struct _Param1{int x;}int function(_Param0 param0, _Param1 param1) f2;
 
 pragma(inline, true) extern int e0;
 
@@ -94,7 +76,7 @@ int main() {
 	static int xx;
 	static int x = cast(int) 3.5;
 	static int x = cast(void function()) null;
-	int so0 = short.sizeof;
+	//int so0 = sizeof short;
 	int so1 = int.sizeof;
 	int so2 = typeof(4).sizeof;
 	int so2 = typeof((4)).sizeof;
@@ -104,8 +86,16 @@ int main() {
 	return 0;
 }
 
+uint* bar() {
+	while(x) {
+	}
+	for(;;){}
+	T* t;
+	return t.ptr;
+}
+
 pragma(inline, true) static void foo(int* x, int function() y);
 
-pragma(inline, true) private void foo(int* x, int function() y) {
+pragma(inline, true) static void foo(int* x, int function() y) {
 	int* z;int y;
 }

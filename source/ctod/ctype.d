@@ -7,15 +7,12 @@ import std.stdio, std.range, std.algorithm;
 import ctod;
 import tree_sitter.wrapper;
 
-// int (*f[3][4])(void))
-// int function()[3][4]
-
 /// Declaration
 struct Decl {
 	string storageClasses;
 	CType type;
-	string identifier = "";
-	string initializer = "";
+	string identifier = ""; /// name of variable / function
+	string initializer = ""; /// expression that initializes the variable
 
 	string toString() const {
 		import std.string: format;
@@ -38,11 +35,25 @@ struct Decl {
 	}
 }
 
+/// inline type
+struct InlineType {
+	string keyword;
+	string name = null;
+	string body_;
+	string toString() const {
+		return keyword ~ " " ~ name ~ "" ~ body_;
+	}
+}
+
 /// C declarations are declared this way:
 /// First, a 'base type' which is a primitive type or identifier
 /// Then, one or more expressions that should evaluate to a value of 'base type'
-
-string parseTypeNode(ref TranslationContext ctu, ref Node node) {
+///
+/// Note: the base-type can be an (anonymous) struct / union / enum, which is not allowed in D.
+/// Therefor, the second return value is a type declaration that the primitive type depends on.
+///
+/// Returns: [primitive type, dependent type]
+string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlinetypes) {
 	switch(node.type) {
 		case "primitive_type":
 			return replacePrimitiveType(node.source);
@@ -67,29 +78,40 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node) {
 					default: break;
 				}
 			}
+
 			if (longCount > 0 && primitive == "double") {
-				return "real";
-			}
-			if (longCount == 1 && primitive == "") {
+				primitive = "real";
+			} else if (longCount == 1 && primitive == "") {
 				primitive = "int";
-			}
-			if (longCount == 2 && primitive == "") {
+			} else if (longCount == 2 && primitive == "") {
 				primitive = "long";
 			}
+
 			if (!signed && primitive.length && primitive[0] != 'u') {
 				primitive = "u" ~ primitive;
 			}
 			return primitive;
 		case "struct_specifier":
-			if (auto c = node.childField("name")) {
-				return c.source;
+		case "union_specifier":
+		case "enum_specifier":
+			const string keyword = node.type[0..$-"_specifier".length].idup;
+			auto nameNode = node.childField("name");
+			//import dbg; dprint(node.source);
+			if (auto c = node.childField("body")) {
+				translateNode(ctu, *c);
+				string name = nameNode ? nameNode.source : null; //ctu.uniqueIdentifier();
+				inlinetypes ~= InlineType(keyword, name, c.output);
+				return name;
+			} else if (nameNode) {
+				return nameNode.source;
 			}
-			return "@@errstruct";
+			return "@@err"~__LINE__.stringof;
 		default: break;
 	}
 	return null;
 }
 
+/// Qualifiers for a C declaration
 struct CQuals {
 	bool const_;
 	bool volatile_;
@@ -110,7 +132,7 @@ struct CQuals {
 		// D has transitive const unlike C
 		// it must surround the primitive type, e.g. const int* => const(int)*
 		// if (const_) result ~= "const ";
-		if (auto_) result ~= "pragma(inline, true) ";
+		if (auto_) result ~= "auto ";
 		if (volatile_) result ~= "/*volatile*/ ";
 		if (restrict) result ~= "/*restrict*/ ";
 		if (atomic) result ~= "/*atomic*/ ";
@@ -118,6 +140,8 @@ struct CQuals {
 	}
 }
 
+/// Look for type qualifiers in this node, set the corresponding booleans
+/// Unknown qualifiers are ignored, though the function is supposed to catch all of them.
 bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals quals) {
 	if (node.type == "type_qualifier") switch (node.source) {
 		case "const": quals.const_ = true; return true;
@@ -140,9 +164,11 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref TranslationContext ctu, ref Node node) {
+Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlinetypes) {
 	if (auto typeNode = node.childField("type")) {
-		auto primitiveType = parseTypeNode(ctu, *typeNode);
+
+		const oldLen = inlinetypes.length;
+		auto primitiveType = parseTypeNode(ctu, *typeNode, inlinetypes);
 
 		// there may be multiple type_qualifier fields
 		// if (auto qualNode = node.childField("type_qualifier"))
@@ -150,17 +176,25 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node) {
 		foreach(ref c; node.children) {
 			cast(void) tryParseTypeQual(ctu, c, quals);
 		}
-		if (quals.const_) {
-			primitiveType = "const(" ~ primitiveType ~ ")";
-		}
 		CType baseType = CType.named(primitiveType);
+		baseType.setConst(quals.const_);
 		Decl[] result;
 		foreach(ref c; node.children) {
+			if (&c == typeNode) {
+				// the type field may pass as a declarator, resulting in e.g.
+				// T* t; => T T; T* t;
+				continue;
+			}
 			Decl decl = Decl(quals.toString(), baseType, "", "");
-			if (parseCtype(ctu, c, decl)) {
+			if (parseCtype(ctu, c, decl, inlinetypes)) {
+				if (primitiveType.length == 0 && inlinetypes.length > oldLen && inlinetypes[$-1].name.length == 0) {
+					inlinetypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
+					decl.type.setName(inlinetypes[$-1].name);
+				}
 				result ~= decl;
 			}
 		}
+
 		// parameters can have no identifier, e.g. `foo(int named, float)`
 		// if this is called for a parameter declaration, you still want to get an anonymous declaration back
 		// the only exception is empty parameter lists, which in C are declared like `void main(void)`
@@ -168,29 +202,14 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node) {
 			result = [Decl(quals.toString(), baseType, "", "")];
 		}
 		return result;
-	} else {
-		import dbg; dprint(node.source, "has no type field");
 	}
 	return null;
 }
 
-/// parse parameter list node, turn into decls
-Decl[] parseParameters(ref TranslationContext ctu, ref Node node) {
-	assert(node.type == "parameter_list");
-	Decl[] result;
-	foreach(ref c; node.children) {
-		if (c.type == "parameter_declaration") {
-			result ~= parseDecls(ctu, c);
-		}
-	}
-	return result;
-}
-
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
-bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
+bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlinetypes) {
 	switch(node.type) {
-		// (*(x));
 		case "init_declarator":
 			if (auto valueNode = node.childField("value")) {
 				translateNode(ctu, *valueNode);
@@ -198,9 +217,10 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 			}
 			goto case;
 		case "parenthesized_declarator":
+			// (*(x));
 			foreach(ref c; node.children) {
 				if (c.type != "comment" && c.type != "(") {
-					parseCtype(ctu, c, decl);
+					parseCtype(ctu, c, decl, inlinetypes);
 					return true;
 				}
 			}
@@ -211,7 +231,8 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 			if (auto paramNode = node.childField("parameters")) {
 				foreach(ref c; paramNode.children) {
 					if (c.type == "parameter_declaration") {
-						paramDecls ~= parseDecls(ctu, c);
+						auto d = parseDecls(ctu, c, inlinetypes);
+						paramDecls ~= d;
 					}
 				}
 			}
@@ -220,52 +241,47 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl) {
 				if (node.type == "abstract_function_declarator") {
 					decl.type = CType.pointer(decl.type);
 				}
-				parseCtype(ctu, *declNode, decl);
+				parseCtype(ctu, *declNode, decl, inlinetypes);
 			}
 			return true;
-		case "field_identifier":
-		case "identifier":
+		case "field_identifier": // int x;
+		case "type_identifier": // typedef X Y;
+		case "identifier": // ??
 			decl.identifier = replaceIdentifier(node.source);
 			return true;
-		case "parameter_list":
-			// TODO
-			break;
+		// pointer/array declarators always have a declarator field.
+		// abstract declarators maybe not, for example: void foo(float*, float[])
+		// however, nested pointers/array (`float[][]` or `float**`) do have it until you reach the 'leaf'
 		case "pointer_declarator":
-			if (auto c = node.childField("declarator")) {
-				decl.type = CType.pointer(decl.type);
-				parseCtype(ctu, *c, decl);
-				return true;
-			}
-			break;
-		case "abstract_array_declarator":
 		case "abstract_pointer_declarator":
-			// void foo(float*, float[])
 			decl.type = CType.pointer(decl.type);
+			if (auto c = node.firstChildType("type_qualifier")) {
+				if (c.source == "const" && decl.type.next[0].isConst) {
+					decl.type.setConst();
+					decl.type.next[0].setConst(false); // D has transitive const, so no need for `const(const(int)*)`
+				}
+			}
+			if (auto c = node.childField("declarator")) {
+				parseCtype(ctu, *c, decl, inlinetypes);
+			}
 			return true;
 		case "array_declarator":
+		case "abstract_array_declarator":
 			// static array
 			if (auto sizeNode = node.childField("size")) {
 				translateNode(ctu, *sizeNode);
+				decl.type = CType.array(decl.type, sizeNode.output);
 				if (auto c1 = node.childField("declarator")) {
-					decl.type = CType.array(decl.type, sizeNode.output);
-					parseCtype(ctu, *c1, decl);
-					return true;
+					parseCtype(ctu, *c1, decl, inlinetypes);
 				}
 			} else {
 				// unsized array is simply a pointer
 				if (auto c1 = node.childField("declarator")) {
 					decl.type = CType.pointer(decl.type);
-					parseCtype(ctu, *c1, decl);
-					return true;
+					parseCtype(ctu, *c1, decl, inlinetypes);
 				}
 			}
-			break;
-		/+case "struct_specifier":
-			if (auto c1 = node.childField("name")) {
-				return CType.named(replaceIdentifier(c1.source));
-			}
-			break;
-		+/
+			return true;
 		default:
 			break;
 	}
@@ -281,16 +297,36 @@ struct CType {
 		funcDecl,
 		named,
 	}
+	/// For a pointer / array, the element type.
+	/// For a function, the return type.
+	/// Always length 1.
 	CType[] next = [];
 	Decl[] params; // parameter declarations
 	union {
 		string name; // name of decl for parameters
-		string countExpr; // for static arrays. Note: not per se a number literal
+		string countExpr; // for static arrays. Note: need not be a number literal
 	}
 	Tag tag = Tag.none;
+	bool isConst = false;
 	enum none = CType.init;
 	bool opCast() const {
 		return tag != Tag.none;
+	}
+
+	void setConst(bool value = true) {
+		isConst = value;
+	}
+
+	// replace the eventual name of this type
+	// used for giving anonymous structs/unions/enums a name afterwards, based on variable names
+	void setName(string name) {
+		if (tag == Tag.named) {
+			this.name = name;
+		} else if (next.length > 0) {
+			next[0].setName(name);
+		} else {
+
+		}
 	}
 
 	static CType pointer(CType to) {
@@ -330,7 +366,7 @@ struct CType {
 				if (next[0].tag == Tag.funcDecl) {
 					return format("%s function(%(%s, %))", next[0].next[0], next[0].params);
 				} else {
-					return format("%s*", next[0]);
+					return format(isConst ? "const(%s*)" : "%s*", next[0]);
 				}
 			case staticArray:
 				return format("%s[%s]", next[0], countExpr);
@@ -338,7 +374,7 @@ struct CType {
 			case funcDecl:
 				return format("%s FUNC(%(%s, %))", next[0], params);
 			case named:
-				return name;
+				return format(isConst ? "const(%s)" : "%s", name);
 			case none:
 				return "none";
 			default: return "errType";
@@ -348,6 +384,7 @@ struct CType {
 
 unittest {
 	assert(CType.array(CType.array(CType.named("float"), "2"), "10").toString() == "float[2][10]");
+	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
 
 /// replace C primitive types

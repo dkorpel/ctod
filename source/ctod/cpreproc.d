@@ -13,18 +13,28 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 			return node.replace("} else {");
 		case "#endif":
 			return node.replace("}");
-		case "#elif":
-			return node.replace("} else static if");
 		case "#include":
 			return node.replace("public import");
 		case "preproc_call":
+			auto argument = node.childField("argument");
 			if (auto directive = node.childField("directive")) {
-				if (directive.source == "#error") {
-					directive.replace("static assert");
-					if (auto argument = node.childField("argument")) {
-						argument.prepend("(0, ");
-						argument.append(")");
-					}
+				switch(directive.source) {
+					case "#error":
+						directive.replace("static assert");
+						if (argument) {
+							argument.prepend("(0,");
+							argument.append(");");
+						}
+						break;
+					case "#pragma":
+						// preceeding whitespace is part of the argument node
+						if (argument && argument.source.length >= 4 && argument.source[$-4..$] == "once") {
+							node.prepend("//");
+							return true;
+						}
+						break;
+					default:
+						break;
 				}
 			}
 			return true;
@@ -42,70 +52,100 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 					c.replace("version =");
 				}
 				if (auto c = node.childField("name")) {
-					c.replace(c.source~";");
+					c.append(";");
 				}
 			}
 			break;
 		case "preproc_function_def":
+			auto nameNode = node.childField("name");
+			auto parametersNode = node.childField("parameters");
+			auto valueNode = node.childField("value");
+			if (!nameNode || !parametersNode) {
+				return true;
+			}
+			if (!valueNode) {
+				node.prepend("//");
+				return true;
+			}
 			if (auto c = node.firstChildType("#define")) {
-				c.replace("auto");
+				c.replace("enum string");
 			}
-			if (auto c = node.firstChildType("preproc_arg")) {
-				c.replace("{return"~c.source~";}");
-			}
-			if (auto c = node.childField("parameters")) {
-				/+
-				import std.conv, std.algorithm, std.range;
-				int paramCount = 0;
-				foreach(ref param; c.children) {
-					if (param.type == "identifier") {
-						param.prepend("T"~paramCount.text~" ");
-						paramCount++;
-					}
+			string[] params;
+			foreach(ref param; parametersNode.children) {
+				if (param.type == "identifier") {
+					params ~= param.source;
+					param.prepend("string ");
 				}
-				c.prepend("(" ~ iota(0, paramCount).map!(x => "T" ~ x.text~ (x==paramCount-1) ? ", " : "").joiner.text ~ ")");
-				+/
 			}
+
+			const result = lexMacroText(valueNode.source);
+			valueNode.replace(" = " ~ result ~ ";");
+			/+
+			import std.conv, std.algorithm, std.range;
+			int paramCount = 0;
+			c.prepend("(" ~ iota(0, paramCount).map!(x => "T" ~ x.text~ (x==paramCount-1) ? ", " : "").joiner.text ~ ")");
+			+/
 			break;
 		case "preproc_ifdef":
+			auto nameNode = node.childField("name");
+			if (!nameNode) {
+				return true;
+			}
+			if (string s = findVersion(nameNode.source)) {
+				nameNode.replace(s);
+			}
 			if (auto c = node.firstChildType("#ifdef")) {
 				c.replace("version");
-			}
-			if (auto c = node.childField("name")) {
-				c.prepend("(");
-				c.append(") {");
-				if (string s = findVersion(c.source)) {
-					c.replace(s);
-				}
+				nameNode.prepend("(");
+				nameNode.append(") {");
+			} else if (auto c = node.firstChildType("#ifndef")) {
+				c.replace("version");
+				nameNode.prepend("(");
+				nameNode.append(") {} else {");
 			}
 			break;
 		case "preproc_defined":
-			if (auto c = node.firstChildType("identifier")) {
-				if (string s = findVersion(c.source)) {
-					c.replace(s);
-				} else {
-					translateNode(ctu, *c);
-				}
-				ctu.needsHasVersion = true;
-				return node.replace(`HasVersion!"` ~ c.replacement ~ `"`);
-			}
-			break;
+			return replaceDefined(ctu, node, false);
 		case "preproc_if":
-			if (auto c = node.childField("condition")) {
+			auto c = node.childField("condition");
+			auto ifnode = node.firstChildType("#if");
+			if (!c || !ifnode) {
+				return true;
+			}
+
+			if (c.type == "preproc_defined") {
+				ifnode.replace("version");
+				replaceDefined(ctu, *c, true);
+				c.isTranslated = true;
 				c.prepend("(");
 				c.append(") {");
-			}
-			if (auto c = node.firstChildType("#if")) {
-				c.replace("static if");
+			} else {
+				if (c.source == "0") {
+					ifnode.replace("version");
+					c.replace("(none) {");
+				} else {
+					ifnode.replace("static if");
+					c.prepend("(");
+					c.append(") {");
+				}
 			}
 			break;
 		case "preproc_elif":
 			if (auto c = node.childField("condition")) {
 				c.prepend("(");
 				c.append(") {");
-				return false;
+				if (auto ifnode = node.firstChildType("#elif")) {
+					if (c.type == "preproc_defined") {
+						ifnode.replace("} else version");
+						replaceDefined(ctu, *c, true);
+						c.isTranslated = true;
+					} else {
+						ifnode.replace("} else static if");
+					}
+					//c.replace("} else static if");
+				}
 			}
-			break;
+			return false;
 		case "preproc_params":
 			break;
 		case "system_lib_string":
@@ -126,6 +166,99 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		default: break;
+	}
+	return false;
+}
+
+string lexMacroText(string s) {
+
+	enum TokType { id, stringLit, other }
+
+	string next() {
+		// import std.regex:
+		scope(exit) s = s[$..$];
+		return s;
+		/+
+		while(i < s.length) {
+			switch(s[i]) {
+				case '\n', '\r', '\t', ' ':
+					break;
+				case '\\':
+
+					break;
+				default:
+					break;
+			}
+		}
+		+/
+	}
+
+	string result = "`";
+	while(s.length) {
+		result ~= next();
+	}
+	return result ~ "`";
+	// notes: #x turns x into string literal
+	// x in string literal not replaced
+	/+
+	import std.ascii: isAlphaNum;
+	string s = valueNode.source;
+	string result = "";
+
+	bool bound = isAlphaNum(s[0]);
+	size_t wordBegin = 0;
+	foreach(i; 1..s.length) {
+
+		const n = isAlphaNum(s[i]);
+		if (n != bound) {
+			const word = s[wordBegin..i];
+			wordBegin = i;
+			result ~= word;
+		}
+	}
+	result ~= s[wordBegin..$];
+	string result = "";
+	size_t wordIndex = 0;
+	for (size_t i = 0; i < s.length; i++) {
+		bool inWord = false;
+		switch(s[i]) {
+			case 'a': .. case 'z':
+			case 'A': .. case 'Z':
+			case '0': .. case '9':
+			case '_':
+				inWord = true;
+				goto default;
+				// identifier
+			case '#':
+				// string
+				break;
+			case '\\':
+				//if (i + 1 < s.length) switch (s[i+1])
+				break;
+			case '"':
+				// in / out string literal
+				goto default;
+			default:
+				result ~= s[i];
+		}
+	}
+	+/
+}
+
+/// replace a defined(__WIN32__) to either `HasVersion!"Windows"` (in a `static if`) or just `Windows` (in a `version()`)
+bool replaceDefined(ref TranslationContext ctu, ref Node node, bool inVersionStatement) {
+	if (auto c = node.firstChildType("identifier")) {
+		if (string s = findVersion(c.source)) {
+			c.replace(s); // known #define translation
+		} else {
+			translateNode(ctu, *c); // reserved identifier replacement
+		}
+		if (inVersionStatement) {
+			return node.replace(c.replacement);
+		} else {
+			ctu.needsHasVersion = true;
+			return node.replace(`HasVersion!"` ~ c.replacement ~ `"`);
+		}
 	}
 	return false;
 }

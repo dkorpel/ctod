@@ -1,7 +1,18 @@
-/// Translated from C to D
-module medium;
+extern (C):
 
-extern(C): @nogc: nothrow:
-void foo() {
+struct S
+{
+    struct _Anonymous_0
+    {
+        int y;
+    }
 
-}<@>
+    _Anonymous_0 yy;
+}
+
+struct _Anonymous_1
+{
+    int x;
+}
+
+void foo (_Anonymous_1* x);

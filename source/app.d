@@ -14,7 +14,7 @@ int main(string[] args) {
 		import std.path: baseName, extension, withExtension, stripExtension;
 		import std.file: read, write;
 		const fname = args[1];
-		enforce(fname.extension == ".c");
+		enforce(fname.extension == ".c" || fname.extension == ".h");
 		const source = cast(string) read(fname);
 		const moduleName = fname.baseName.stripExtension;
 		write(fname.withExtension(".d"), translateFile(source, moduleName));

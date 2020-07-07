@@ -1,1 +1,1 @@
-#define YO
+char *const x;
