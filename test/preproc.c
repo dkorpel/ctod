@@ -31,3 +31,5 @@
 #if !defined(_WIN32)
 	#define CUTE_TIME_PLATFORM CUTE_TIME_WINDOWS
 #endif
+
+#undef X

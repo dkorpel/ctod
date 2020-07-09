@@ -25,6 +25,19 @@ https://tree-sitter.github.io/tree-sitter/playground
 dub -- ../test/cute_time.c
 ```
 
+### Todo
+- #undef
+- wchar_t => import core.stdc.stddef: wchar_t;
+- #define can be alias, not only enum
+- number literals such as 1.f => 1.0f
+- passing function pointers or static arrays to functions
+- don't always use [] initializers
+- convert arrays in functions to static arrays instead of pointers
+
+??
+__declspec(dllexport) == export
+__stdcall == extern(System)
+
 ### C Language fields
 
 0. (null)

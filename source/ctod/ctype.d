@@ -41,7 +41,7 @@ struct InlineType {
 	string name = null;
 	string body_;
 	string toString() const {
-		return keyword ~ " " ~ name ~ "" ~ body_;
+		return keyword ~ " " ~ name ~ " " ~ body_;
 	}
 }
 
@@ -53,7 +53,7 @@ struct InlineType {
 /// Therefor, the second return value is a type declaration that the primitive type depends on.
 ///
 /// Returns: [primitive type, dependent type]
-string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlinetypes) {
+string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
 	switch(node.type) {
 		case "primitive_type":
 			return replacePrimitiveType(node.source);
@@ -75,6 +75,9 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 					case "primitive_type":
 						primitive = replacePrimitiveType(c.source);
 						break;
+					case "short": // not a primitive_type apparently
+						primitive = "short";
+						break;
 					default: break;
 				}
 			}
@@ -82,13 +85,18 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 			if (longCount > 0 && primitive == "double") {
 				primitive = "real";
 			} else if (longCount == 1 && primitive == "") {
-				primitive = "int";
+				primitive = "c_long";
+				ctu.needsClong = true;
 			} else if (longCount == 2 && primitive == "") {
 				primitive = "long";
 			}
 
 			if (!signed && primitive.length && primitive[0] != 'u') {
-				primitive = "u" ~ primitive;
+				switch(primitive) {
+					case "char": primitive = "ubyte";
+					case "c_long": primitive = "c_ulong";
+					default: primitive = "u" ~ primitive;
+				}
 			}
 			return primitive;
 		case "struct_specifier":
@@ -100,9 +108,10 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 			if (auto c = node.childField("body")) {
 				translateNode(ctu, *c);
 				string name = nameNode ? nameNode.source : null; //ctu.uniqueIdentifier();
-				inlinetypes ~= InlineType(keyword, name, c.output);
+				inlineTypes ~= InlineType(keyword, name, c.output);
 				return name;
 			} else if (nameNode) {
+				inlineTypes ~= InlineType(keyword, nameNode.source, ";");
 				return nameNode.source;
 			}
 			return "@@err"~__LINE__.stringof;
@@ -164,11 +173,11 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlinetypes) {
+Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
 	if (auto typeNode = node.childField("type")) {
 
-		const oldLen = inlinetypes.length;
-		auto primitiveType = parseTypeNode(ctu, *typeNode, inlinetypes);
+		const oldLen = inlineTypes.length;
+		auto primitiveType = parseTypeNode(ctu, *typeNode, inlineTypes);
 
 		// there may be multiple type_qualifier fields
 		// if (auto qualNode = node.childField("type_qualifier"))
@@ -186,10 +195,10 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 				continue;
 			}
 			Decl decl = Decl(quals.toString(), baseType, "", "");
-			if (parseCtype(ctu, c, decl, inlinetypes)) {
-				if (primitiveType.length == 0 && inlinetypes.length > oldLen && inlinetypes[$-1].name.length == 0) {
-					inlinetypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
-					decl.type.setName(inlinetypes[$-1].name);
+			if (parseCtype(ctu, c, decl, inlineTypes)) {
+				if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
+					inlineTypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
+					decl.type.setName(inlineTypes[$-1].name);
 				}
 				result ~= decl;
 			}
@@ -208,7 +217,7 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
-bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlinetypes) {
+bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
 	switch(node.type) {
 		case "init_declarator":
 			if (auto valueNode = node.childField("value")) {
@@ -220,7 +229,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 			// (*(x));
 			foreach(ref c; node.children) {
 				if (c.type != "comment" && c.type != "(") {
-					parseCtype(ctu, c, decl, inlinetypes);
+					parseCtype(ctu, c, decl, inlineTypes);
 					return true;
 				}
 			}
@@ -231,7 +240,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 			if (auto paramNode = node.childField("parameters")) {
 				foreach(ref c; paramNode.children) {
 					if (c.type == "parameter_declaration") {
-						auto d = parseDecls(ctu, c, inlinetypes);
+						auto d = parseDecls(ctu, c, inlineTypes);
 						paramDecls ~= d;
 					}
 				}
@@ -241,7 +250,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				if (node.type == "abstract_function_declarator") {
 					decl.type = CType.pointer(decl.type);
 				}
-				parseCtype(ctu, *declNode, decl, inlinetypes);
+				parseCtype(ctu, *declNode, decl, inlineTypes);
 			}
 			return true;
 		case "field_identifier": // int x;
@@ -262,7 +271,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				}
 			}
 			if (auto c = node.childField("declarator")) {
-				parseCtype(ctu, *c, decl, inlinetypes);
+				parseCtype(ctu, *c, decl, inlineTypes);
 			}
 			return true;
 		case "array_declarator":
@@ -272,13 +281,13 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				translateNode(ctu, *sizeNode);
 				decl.type = CType.array(decl.type, sizeNode.output);
 				if (auto c1 = node.childField("declarator")) {
-					parseCtype(ctu, *c1, decl, inlinetypes);
+					parseCtype(ctu, *c1, decl, inlineTypes);
 				}
 			} else {
 				// unsized array is simply a pointer
 				if (auto c1 = node.childField("declarator")) {
 					decl.type = CType.pointer(decl.type);
-					parseCtype(ctu, *c1, decl, inlinetypes);
+					parseCtype(ctu, *c1, decl, inlineTypes);
 				}
 			}
 			return true;

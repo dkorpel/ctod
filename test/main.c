@@ -1,7 +1,7 @@
 
 struct S {
 	int in;
-	int out[2];
+	unsigned char out[2];
 };
 
 struct {
@@ -12,7 +12,8 @@ struct {
 union U {
 	char tag;
 
-	union {
+	union
+	{
 		int x[2];
 		enum {one, two} y;
 	} overlapped;
@@ -96,4 +97,5 @@ inline static void foo(int x[], int (*y)(void));
 
 inline static void foo(int x[], int (*y)(void)) {
 	int *z, y;
+	float x = 1.f;
 }

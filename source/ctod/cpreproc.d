@@ -33,7 +33,12 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 							return true;
 						}
 						break;
+					case "#undef":
+						node.replace("");
+						break;
 					default:
+						// unrecognized call
+						node.prepend("//! ");
 						break;
 				}
 			}
@@ -266,7 +271,12 @@ bool replaceDefined(ref TranslationContext ctu, ref Node node, bool inVersionSta
 /// Find version string to e.g. replace `#ifdef _WIN32` with `version(Windows)`
 string findVersion(string s) {
 	switch (s) {
+		case "__WIN32__":
+		case "WIN32":
+		case "__MINGW32__":
 		case "_WIN32": return "Windows"; // Win32, Win64?
+
+		case "__linux__": return "Linux";
 		case "__APPLE__": return "OSX"; // MacOS?
 		case "__CYGWIN__": return "Cygwin";
 		case "__cplusplus": return "none";
@@ -340,6 +350,32 @@ string translateSysLib(string s) {
 		case "ucontext.h": return "core.sys.posix.ucontext";
 		case "unistd.h": return "core.sys.posix.unistd";
 		case "utime.h": return "core.sys.posix.utime";
+
+		// todo: verify
+		case "sys/inotify.h": return "core.sys.linux.sys.inotify";
+		case "linux/limits": return "core.stdc.limits;";
+
+		case "sys/filio.h": return "core.sys.posix.sys.filio";
+		case "sys/ioccom.h": return "core.sys.posix.sys.ioccom";
+		case "sys/ioctl.h": return "core.sys.posix.sys.ioctl";
+		case "sys/ipc.h": return "core.sys.posix.sys.ipc";
+		case "sys/mman.h": return "core.sys.posix.sys.mman";
+		case "sys/msg.h": return "core.sys.posix.sys.msg";
+		case "sys/resource.h": return "core.sys.posix.sys.resource";
+		case "sys/select.h": return "core.sys.posix.sys.select";
+		case "sys/shm.h": return "core.sys.posix.sys.shm";
+		case "sys/socket.h": return "core.sys.posix.sys.socket";
+		case "sys/stat.h": return "core.sys.posix.sys.stat";
+		case "sys/statvfs.h": return "core.sys.posix.sys.statvfs";
+		case "sys/time.h": return "core.sys.posix.sys.time";
+		case "sys/ttycom.h": return "core.sys.posix.sys.ttycom";
+		case "sys/types.h": return "core.sys.posix.sys.types";
+		case "sys/uio.h": return "core.sys.posix.sys.uio";
+		case "sys/un.h": return "core.sys.posix.sys.un";
+		case "sys/utsname.h": return "core.sys.posix.sys.utsname";
+		case "sys/wait.h": return "core.sys.posix.sys.wait";
+
+		//?? case "linux/input": return "";
 
 		default: return null;
 	}

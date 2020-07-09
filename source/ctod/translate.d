@@ -8,7 +8,7 @@ import std.stdio;
 private immutable moduleHeader = "/// Translated from C to D
 module %s;
 
-extern(C): @nogc: nothrow:
+extern(C): @nogc: nothrow: __gshared:
 ";
 
 private immutable hasVersion = q{
@@ -26,6 +26,12 @@ string translateFile(string source, string moduleName) {
 	string result = format(moduleHeader, moduleName);
 	if (ctx.needsHasVersion) {
 		result ~= hasVersion;
+	}
+	if (ctx.needsClong) {
+		result ~= "import core.stdc.config: c_long, c_ulong;\n";
+	}
+	if (ctx.needsWchar) {
+		result ~= "import core.stdc.stddef: wchar_t;";
 	}
 	result ~=root.output;
 	return result;
@@ -53,6 +59,8 @@ package struct TranslationContext {
 	string moduleName;
 
 	bool needsHasVersion = false; // HasVersion(string) template is needed
+	bool needsClong = false; // needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
+	bool needsWchar = false; // needs wchar_t type (wchar on Windows, dchar on Linux)
 
 	/// global variables and function declarations
 	Decl[string] symbolTable;
@@ -102,6 +110,14 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 
 bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
+		case "number_literal":
+			if (node.source.length >= 2) {
+				const suffix = node.source[$-2..$];
+				if (suffix == ".f" || suffix == ".F") {
+					node.replace(node.source[0..$-2]~".0f");
+				}
+
+			}
 		case "concatenated_string":
 			// "a" "b" "c" => "a"~"b"~"c"
 			bool first = true;
