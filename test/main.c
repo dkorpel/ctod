@@ -53,6 +53,7 @@ S xA;
 const char *p0 = "con" "cat" "enated";
 char const *p1;
 char *const p2;
+wchar_t p3;
 
 int a0[1];
 int *a1[2];
@@ -68,7 +69,7 @@ int (*f2)(enum {a} param0, struct {int x;} param1);
 
 extern inline int e0;
 
-static float x[8] = {0.5, 2.5};
+static float x[8] = {1.f, 2.5};
 double z[4][3];
 
 int main(void) {
@@ -77,18 +78,21 @@ int main(void) {
 	static int x = (void(*)()) NULL;
 	//int so0 = sizeof short;
 	int so1 = sizeof(int);
-	int so2 = sizeof 4;
+	int so2 = sizeof 4lu;
 	int so2 = sizeof (4);
-	int so3 = sizeof((short) 3 + 4L);
+	int so3 = sizeof((short) 3 + 4l);
 	int a[2];
 	foo(a, main);
 	return 0;
 }
 
-unsigned long *bar() {
+unsigned long *bar(long y, ...) {
 	while(x) {
 	}
 	for(;;);
+	switch (0) {
+		case 1: break;
+	}
 	T *t;
 	return t->ptr;
 }

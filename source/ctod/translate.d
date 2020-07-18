@@ -31,7 +31,7 @@ string translateFile(string source, string moduleName) {
 		result ~= "import core.stdc.config: c_long, c_ulong;\n";
 	}
 	if (ctx.needsWchar) {
-		result ~= "import core.stdc.stddef: wchar_t;";
+		result ~= "import core.stdc.stddef: wchar_t;\n";
 	}
 	result ~=root.output;
 	return result;
@@ -110,14 +110,21 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 
 bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
-		case "number_literal":
-			if (node.source.length >= 2) {
-				const suffix = node.source[$-2..$];
-				if (suffix == ".f" || suffix == ".F") {
-					node.replace(node.source[0..$-2]~".0f");
+		case "switch_statement":
+			// D mandates `default` case in `switch`
+			// note: switch statements can have `case` statements in the weirdest places
+			// we can be a bit conservative here and only check the common switch pattern
+			if (auto bodyNode = node.childField("body")) {
+				if (bodyNode.type == "compound_statement") {
+					// TODO
 				}
-
 			}
+			break;
+		case "number_literal":
+			import std.array: replace;
+			// long specifier must be capitalized in D, 1llu => 1LLu
+			// float must have digits after dot, 1.f => 1.0f
+			return node.replace(node.source.replace("l", "L").replace(".f", ".0f").replace(".F", ".0F"));
 		case "concatenated_string":
 			// "a" "b" "c" => "a"~"b"~"c"
 			bool first = true;

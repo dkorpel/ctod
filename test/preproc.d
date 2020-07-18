@@ -1,7 +1,7 @@
 /// Translated from C to D
 module preproc;
 
-extern(C): @nogc: nothrow:
+extern(C): @nogc: nothrow: __gshared:
 
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
@@ -30,7 +30,7 @@ version (_WIN32) {
 // no test
 }
 
-version (none) {
+version 0
 static assert(0, "error message");
 } else version (OSX) {
 // whoo
@@ -39,3 +39,4 @@ static assert(0, "error message");
 static if (!HasVersion!"Windows") {
 	enum CUTE_TIME_PLATFORM = CUTE_TIME_WINDOWS;
 }
+

@@ -58,6 +58,9 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 		case "primitive_type":
 			return replacePrimitiveType(node.source);
 		case "type_identifier":
+			if (node.source == "wchar_t") {
+				ctu.needsWchar = true;
+			}
 			return replaceIdentifier(node.source);
 		case "sized_type_specifier":
 			bool signed = true;
@@ -93,8 +96,12 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 
 			if (!signed && primitive.length && primitive[0] != 'u') {
 				switch(primitive) {
-					case "char": primitive = "ubyte";
-					case "c_long": primitive = "c_ulong";
+					case "char":
+						primitive = "ubyte";
+						break;
+					case "c_long":
+						primitive = "c_ulong";
+						break;
 					default: primitive = "u" ~ primitive;
 				}
 			}
@@ -242,6 +249,9 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 					if (c.type == "parameter_declaration") {
 						auto d = parseDecls(ctu, c, inlineTypes);
 						paramDecls ~= d;
+					} else if (c.type == "...") {
+						// variadic args
+						paramDecls ~= Decl("", CType.named("..."), "", "");
 					}
 				}
 			}

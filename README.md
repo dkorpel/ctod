@@ -26,13 +26,11 @@ dub -- ../test/cute_time.c
 ```
 
 ### Todo
-- #undef
-- wchar_t => import core.stdc.stddef: wchar_t;
 - #define can be alias, not only enum
-- number literals such as 1.f => 1.0f
 - passing function pointers or static arrays to functions
 - don't always use [] initializers
 - convert arrays in functions to static arrays instead of pointers
+- switch statement => add default case if needed
 
 ??
 __declspec(dllexport) == export

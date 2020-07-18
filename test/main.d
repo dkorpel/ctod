@@ -1,7 +1,9 @@
 /// Translated from C to D
 module main;
 
-extern(C): @nogc: nothrow:
+extern(C): @nogc: nothrow: __gshared:
+import core.stdc.config: c_long, c_ulong;
+import core.stdc.stddef: wchar_t;
 struct S {
 	int in_;
 	ubyte[2] out_;
@@ -40,11 +42,11 @@ enum AnEnum {
 }/+alias AnEnum AnEnum;+/
 
 uint x0;
-int x1;
-uint x2;
+c_long x1;
+c_ulong x2;
 long x3;
 ulong x4;
-uint x5;
+c_ulong x5;
 float x6;
 double x7;
 real x8;
@@ -54,6 +56,7 @@ S xA;
 const(char)* p0 = "con" ~ "cat" ~ "enated";
 const(char)* p1;
 char* p2;
+wchar_t p3;
 
 int[1] a0;
 int*[2] a1;
@@ -69,7 +72,7 @@ enum _Param0 {a}struct _Param1 {int x;}int function(_Param0 param0, _Param1 para
 
 pragma(inline, true) extern int e0;
 
-static float[8] x = [0.5, 2.5];
+static float[8] x = [1.0f, 2.5];
 double[3][4] z;
 
 int main() {
@@ -78,7 +81,7 @@ int main() {
 	static int x = cast(void function()) null;
 	//int so0 = sizeof short;
 	int so1 = int.sizeof;
-	int so2 = typeof(4).sizeof;
+	int so2 = typeof(4Lu).sizeof;
 	int so2 = typeof((4)).sizeof;
 	int so3 = typeof((cast(short) 3 + 4L)).sizeof;
 	int[2] a;
@@ -86,10 +89,13 @@ int main() {
 	return 0;
 }
 
-uint* bar() {
+c_ulong* bar(c_long y, ...) {
 	while(x) {
 	}
 	for(;;){}
+	switch (0) {
+		case 1: break;
+	}
 	T* t;
 	return t.ptr;
 }
@@ -98,4 +104,5 @@ pragma(inline, true) static void foo(int* x, int function() y);
 
 pragma(inline, true) static void foo(int* x, int function() y) {
 	int* z;int y;
+	float x = 1.0f;
 }
