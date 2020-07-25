@@ -10,3 +10,4 @@ workingDirectory "build"
 buildRequirements "allowWarnings"
 
 dependency "bitops" path="../bitops"
+dflags "-preview=dip1000" "-preview=dip25" "-preview=intpromote" "-preview=markdown"

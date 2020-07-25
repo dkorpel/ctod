@@ -17,7 +17,7 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		}
 		foreach(d; decls) {
 			result ~= d.toString() ~ suffix;
-			ctu.symbolTable[d.identifier] = d;
+			ctu.registerDecl(d);
 		}
 		node.replace(result);
 		return true;
@@ -34,9 +34,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		case "function_definition":
 			if (node.type == "function_definition") {
 				if (auto bodyNode = node.childField("body")) {
-					//ctu.inFunction = "?";
+					ctu.inFunction = "???";
 					translateNode(ctu, *bodyNode);
-					//ctu.inFunction = null;
+					ctu.inFunction = null;
 					return translateDecl(" " ~ bodyNode.output());
 				}
 			}

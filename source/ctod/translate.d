@@ -65,10 +65,31 @@ package struct TranslationContext {
 	/// global variables and function declarations
 	Decl[string] symbolTable;
 	Decl[string] localSymbolTable;
+	string inFunction = null;
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
 		this.source = source;
+	}
+
+	Decl lookupDecl(string id) {
+		if (auto local = id in localSymbolTable) {
+			return *local;
+		} else if (auto global = id in symbolTable) {
+			return *global;
+		} else {
+			return Decl.none;
+		}
+	}
+
+	void registerDecl(Decl decl) {
+		if (decl.identifier) {
+			if (inFunction) {
+				localSymbolTable[decl.identifier] = decl;
+			} else {
+				symbolTable[decl.identifier] = decl;
+			}
+		}
 	}
 
 	int uniqueIdCounter = 0;
@@ -186,15 +207,21 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				translateNode(ctu, *valueNode);
 				// `sizeof short` => `short.sizeof`
 				if (valueNode.type == "identifier") {
-					node.replace("" ~ valueNode.output ~ ".sizeof");
-				} else {
+					node.replace(valueNode.output ~ ".sizeof");
+				} else if (valueNode.type == "parenthesized_expression") {
 					// sizeof(3) => typeof(3).sizeof
-					// brackets may be redundant
-					node.replace("typeof(" ~ valueNode.output ~ ").sizeof");
+					// sizeof(T) => T.sizeof
+					if (auto parenValue = valueNode.firstChildType("identifier")) {
+						valueNode = parenValue;
+					}
+					if (valueNode.type == "identifier") {
+						return node.replace(valueNode.output ~ ".sizeof");
+					} else {
+						return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
+					}
 				}
 			}
 			break;
-
 		case "->":
 			return node.replace(".");
 		case "cast_expression":
@@ -235,6 +262,41 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		case "call_expression":
+			if (auto funcNode = node.childField("function")) {
+				// C allows implicit conversions between pointer types
+				// while ctod does not do a semantic translations in general,
+				// implicit pointer casts from malloc and friends are common
+				if (node.parent.type == "init_declarator" || node.parent.type == "assignment_expression") {
+					if (funcNode.type == "identifier") {
+						switch (funcNode.source) {
+							case "malloc":
+							case "calloc":
+							case "realloc":
+								funcNode.prepend("cast(#FIXME)");
+								break;
+							default: break;
+						}
+					}
+				} else {
+					// TODO: parent nodes are not set correctly?
+				}
+			}
+			if (auto argsNode = node.childField("arguments")) {
+				if (argsNode.type == "argument_list") {
+					foreach(ref c; argsNode.children) {
+						if (c.type != "identifier") {
+							continue;
+						}
+						if (Decl decl = ctu.lookupDecl(c.source)) {
+							if (decl.type.isStaticArray) {
+								c.append(".ptr");
+							} else if (decl.type.isFunction) {
+								c.prepend("&");
+							}
+						}
+					}
+				}
+			}
 			// TODO: append .ptr to array parameters
 			// prepend & to functions converted to function pointers
 			break;

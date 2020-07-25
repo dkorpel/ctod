@@ -72,6 +72,18 @@ extern inline int e0;
 static float x[8] = {1.f, 2.5};
 double z[4][3];
 
+unsigned long *bar(long y, ...) {
+	while(x) {
+	}
+	for(;;);
+	for(unsigned short x = 0;;);
+	switch (0) {
+		case 1: break;
+	}
+	T *t;
+	return t->ptr;
+}
+
 int main(void) {
 	static int xx;
 	static int x = (int) 3.5;
@@ -81,21 +93,16 @@ int main(void) {
 	int so2 = sizeof 4lu;
 	int so2 = sizeof (4);
 	int so3 = sizeof((short) 3 + 4l);
-	int a[2];
-	foo(a, main);
+	int so4 = sizeof(unsigned short);
+	int so5 = sizeof(GLFWvidmode);
+	int so6 = ((size_t) _glfw.monitorCount - 1) * sizeof(_GLFWmonitor*);
+	int a[2], (*b)[2];
+	foo(a, b, bar);
+	int* a = malloc(4);
+	a = calloc(4);
 	return 0;
 }
 
-unsigned long *bar(long y, ...) {
-	while(x) {
-	}
-	for(;;);
-	switch (0) {
-		case 1: break;
-	}
-	T *t;
-	return t->ptr;
-}
 
 inline static void foo(int x[], int (*y)(void));
 

@@ -75,30 +75,37 @@ pragma(inline, true) extern int e0;
 static float[8] x = [1.0f, 2.5];
 double[3][4] z;
 
-int main() {
-	static int xx;
-	static int x = cast(int) 3.5;
-	static int x = cast(void function()) null;
-	//int so0 = sizeof short;
-	int so1 = int.sizeof;
-	int so2 = typeof(4Lu).sizeof;
-	int so2 = typeof((4)).sizeof;
-	int so3 = typeof((cast(short) 3 + 4L)).sizeof;
-	int[2] a;
-	foo(a, main);
-	return 0;
-}
-
 c_ulong* bar(c_long y, ...) {
 	while(x) {
 	}
 	for(;;){}
+	for(ushort x = 0;;){}
 	switch (0) {
 		case 1: break;
 	}
 	T* t;
 	return t.ptr;
 }
+
+int main() {
+	static int xx;
+	static int x = cast(int) 3.5;
+	static int x = cast(void function()) null;
+	//int so0 = sizeof short;
+	int so1 = int.sizeof;
+	int so2 = sizeof 4Lu;
+	int so2 = typeof(4).sizeof;
+	int so3 = typeof(cast(short) 3 + 4L).sizeof;
+	int so4 = unsigned short.sizeof;
+	int so5 = GLFWvidmode.sizeof;
+	int so6 = (cast(size_t) _glfw.monitorCount - 1) * _GLFWmonitor*.sizeof;
+	int[2] a;int[2]* b;
+	foo(a.ptr, b, &bar);
+	int* a = malloc(4);
+	a = calloc(4);
+	return 0;
+}
+
 
 pragma(inline, true) static void foo(int* x, int function() y);
 

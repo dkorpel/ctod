@@ -10,7 +10,7 @@ import tree_sitter.wrapper;
 /// Declaration
 struct Decl {
 	string storageClasses;
-	CType type;
+	CType type = CType.none;
 	string identifier = ""; /// name of variable / function
 	string initializer = ""; /// expression that initializes the variable
 
@@ -32,6 +32,12 @@ struct Decl {
 			}
 		}
 		return result;
+	}
+
+	enum none = Decl.init;
+
+	bool opCast() const {
+		return type != CType.none;
 	}
 }
 
@@ -331,6 +337,8 @@ struct CType {
 	bool opCast() const {
 		return tag != Tag.none;
 	}
+	bool isFunction() const {return tag == Tag.funcDecl;}
+	bool isStaticArray() const {return tag == Tag.staticArray;}
 
 	void setConst(bool value = true) {
 		isConst = value;
