@@ -6,11 +6,12 @@ extern(C): @nogc: nothrow: __gshared:
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
+ 
 //#pragma once
 
-public import core.stdc.assert_;
-public import core.stdc.string;
-public import core.stdc.stdio;
+public import assert;
+public import string;
+public import stdio;
 public import small;
 
 version = TEST;
@@ -24,13 +25,19 @@ enum _GLFW_VERSION_NUMBER = _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
                                                 GLFW_VERSION_MINOR, \
                                                 GLFW_VERSION_REVISION);
 
-version (_WIN32) {
+version (Windows) {
 // test
 } else {
 // no test
 }
 
-version 0
+version (linux) {
+// test
+} else version (OSX) {
+// no test
+}
+
+version (none) {
 static assert(0, "error message");
 } else version (OSX) {
 // whoo

@@ -55,7 +55,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 			Decl[] decls = parseDecls(ctu, node, inlinetypes);
 			string result = ""; // todo: anonymous types
 			foreach(s; inlinetypes) {
-				result ~= s.toString();
+				if (s.hasBody()) {
+					result ~= s.toString();
+				}
 			}
 			foreach(d; decls) {
 				if (d.type == CType.named(d.identifier)) {

@@ -114,6 +114,7 @@ struct Node {
 
 	bool replace(string s) {
 		children.length = 0;
+		isTranslated = true;
 		replacement = s;
 		return true;
 	}

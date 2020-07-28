@@ -65,6 +65,7 @@ package struct TranslationContext {
 	/// global variables and function declarations
 	Decl[string] symbolTable;
 	Decl[string] localSymbolTable;
+	MacroType[string] macroTable;
 	string inFunction = null;
 
 	this(string fileName, string source) {
@@ -138,6 +139,7 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			if (auto bodyNode = node.childField("body")) {
 				if (bodyNode.type == "compound_statement") {
 					// TODO
+					bodyNode.children[$-1].prepend("default: break;");
 				}
 			}
 			break;
@@ -253,15 +255,58 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		case "translation_unit":
-			// these are trailing ; after union and struct definitions.
-			// we don't want them in D
-			foreach(ref c; node.children) {
-				if (c.type == ";") {
-					c.replace("");
+			// try to remove header guard
+			// #ifdef NAME_H
+			// #define NAME_H
+			// ...actual code
+			// #endif
+			import dbg;
+			if (auto ifdefNode = node.firstChildType("preproc_ifdef")) {
+				bool foundHeaderGuard = false;
+				string id = null;
+			headerGuardSearch:
+				foreach(i; 0..ifdefNode.children.length) {
+					switch (ifdefNode.children[i].type) {
+						case "comment": continue;
+						case "preproc_def":
+							if (auto defIdNode = ifdefNode.children[i].childField("name")) {
+								// #define matches the #ifndef
+								if (defIdNode.source == id) {
+									foundHeaderGuard = true;
+									// put remaining children under translation unit instead of the ifdef
+									foreach(j; 0..ifdefNode.children.length) {
+										if (j <= i || j + 1 == ifdefNode.children.length) {
+											ifdefNode.children[j].replace("");
+										} else {
+											translateNode(ctu, ifdefNode.children[j]);
+										}
+									}
+									return true;
+								}
+							}
+							break headerGuardSearch;
+						case "identifier":
+							if (id == null) {
+								id = ifdefNode.children[i].source;
+							} else {
+								break headerGuardSearch;
+							}
+							continue;
+						default:
+							break;
+					}
+				}
+				if (foundHeaderGuard) {
+					return true;
 				}
 			}
+			removeSemicolons(node);
+			break;
+		case "assignment_expression":
+
 			break;
 		case "call_expression":
+			version(todo)
 			if (auto funcNode = node.childField("function")) {
 				// C allows implicit conversions between pointer types
 				// while ctod does not do a semantic translations in general,
@@ -303,4 +348,15 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 		default: break;
 	}
 	return false;
+}
+
+// In C there are trailing ; after union and struct definitions.
+// We don't want them in D
+// This should be called on a translation_unit or preproc_if(def) node
+void removeSemicolons(ref Node node) {
+	foreach(ref c; node.children) {
+		if (c.type == ";") {
+			c.replace("");
+		}
+	}
 }

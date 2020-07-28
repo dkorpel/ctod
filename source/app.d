@@ -5,19 +5,24 @@ import core.stdc.string: strlen;
 
 import std.stdio;
 import std.exception;
+import std.path: baseName, extension, withExtension, stripExtension;
+import std.file: read, write;
 
 import ctod.translate;
 
 int main(string[] args) {
 	try {
-		enforce(args.length >= 2, "give a file argument");
-		import std.path: baseName, extension, withExtension, stripExtension;
-		import std.file: read, write;
-		const fname = args[1];
-		enforce(fname.extension == ".c" || fname.extension == ".h");
-		const source = cast(string) read(fname);
-		const moduleName = fname.baseName.stripExtension;
-		write(fname.withExtension(".d"), translateFile(source, moduleName));
+		enforce(args.length >= 2, "give at least one file argument");
+		foreach(i; 1..args.length) {
+			const fname = args[i];
+			enforce(
+				fname.extension == ".c" || fname.extension == ".h",
+				"file shoud have .c or .h extension, not "~fname.extension
+			);
+			const source = cast(string) read(fname);
+			const moduleName = fname.baseName.stripExtension;
+			write(fname.withExtension(".d"), translateFile(source, moduleName));
+		}
 	} catch (Exception e) {
 		writeln(e.msg);
 		return -1;

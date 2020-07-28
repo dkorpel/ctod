@@ -1,3 +1,6 @@
+#ifndef HEADER_GUARD
+#define HEADER_GUARD
+
 #pragma once
 
 #include <assert.h>
@@ -22,6 +25,12 @@
 // no test
 #endif
 
+#ifdef __linux__
+// test
+#elif defined(__MACH__)
+// no test
+#endif
+
 #if 0
 #error "error message"
 #elif defined(__APPLE__)
@@ -33,3 +42,5 @@
 #endif
 
 #undef X
+
+#endif

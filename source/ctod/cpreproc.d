@@ -48,6 +48,10 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 				if (auto c = node.firstChildType("#define")) {
 					c.replace("enum");
 				}
+				if (auto c = node.childField("name")) {
+					translateNode(ctu, *c);
+					ctu.macroTable[c.output] = MacroType.manifestConstant;
+				}
 				if (auto c = node.firstChildType("preproc_arg")) {
 					c.replace(" ="~c.source~";");
 				}
@@ -58,10 +62,13 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 				}
 				if (auto c = node.childField("name")) {
 					c.append(";");
+					translateNode(ctu, *c);
+					ctu.macroTable[c.output] = MacroType.versionId;
 				}
 			}
 			break;
 		case "preproc_function_def":
+			removeSemicolons(node);
 			auto nameNode = node.childField("name");
 			auto parametersNode = node.childField("parameters");
 			auto valueNode = node.childField("value");
@@ -75,6 +82,9 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 			if (auto c = node.firstChildType("#define")) {
 				c.replace("enum string");
 			}
+			translateNode(ctu, *nameNode);
+			ctu.macroTable[nameNode.output] = MacroType.inlineFunc;
+
 			string[] params;
 			foreach(ref param; parametersNode.children) {
 				if (param.type == "identifier") {
@@ -92,6 +102,7 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 			+/
 			break;
 		case "preproc_ifdef":
+			removeSemicolons(node);
 			auto nameNode = node.childField("name");
 			if (!nameNode) {
 				return true;
@@ -108,7 +119,8 @@ bool tryTranslatePreprocessor(ref TranslationContext ctu, ref Node node) {
 				nameNode.prepend("(");
 				nameNode.append(") {} else {");
 			}
-			break;
+			nameNode.isTranslated = true;
+			return false; // name node should not be translated as an identifier, but other children must be translated still
 		case "preproc_defined":
 			return replaceDefined(ctu, node, false);
 		case "preproc_if":
@@ -276,7 +288,8 @@ string findVersion(string s) {
 		case "__MINGW32__":
 		case "_WIN32": return "Windows"; // Win32, Win64?
 
-		case "__linux__": return "Linux";
+		case "__linux__": return "linux";
+		case "__MACH__":
 		case "__APPLE__": return "OSX"; // MacOS?
 		case "__CYGWIN__": return "Cygwin";
 		case "__cplusplus": return "none";
@@ -353,6 +366,7 @@ string translateSysLib(string s) {
 
 		// todo: verify
 		case "sys/inotify.h": return "core.sys.linux.sys.inotify";
+		case "sys/timerfd": return "core.sys.linux.sys.timerfd";
 		case "linux/limits": return "core.stdc.limits;";
 
 		case "sys/filio.h": return "core.sys.posix.sys.filio";
