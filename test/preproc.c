@@ -1,4 +1,7 @@
+/* a comment outside the header guard */
+
 #ifndef HEADER_GUARD
+// comment here
 #define HEADER_GUARD
 
 #pragma once

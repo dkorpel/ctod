@@ -6,7 +6,10 @@ extern(C): @nogc: nothrow: __gshared:
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
+/* a comment outside the header guard */
+
  
+
 //#pragma once
 
 public import assert;

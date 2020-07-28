@@ -262,17 +262,23 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			// #endif
 			import dbg;
 			if (auto ifdefNode = node.firstChildType("preproc_ifdef")) {
-				bool foundHeaderGuard = false;
+				int commentCount = 0;
 				string id = null;
 			headerGuardSearch:
 				foreach(i; 0..ifdefNode.children.length) {
 					switch (ifdefNode.children[i].type) {
-						case "comment": continue;
+						case "comment":
+							commentCount++;
+							continue;
 						case "preproc_def":
+							// preproc can only be preceded by comments, or else it's no header guard
+							// 2 for #ifdef and identifier tokens
+							if (i > commentCount + 2) {
+								break headerGuardSearch;
+							}
 							if (auto defIdNode = ifdefNode.children[i].childField("name")) {
 								// #define matches the #ifndef
 								if (defIdNode.source == id) {
-									foundHeaderGuard = true;
 									// put remaining children under translation unit instead of the ifdef
 									foreach(j; 0..ifdefNode.children.length) {
 										if (j <= i || j + 1 == ifdefNode.children.length) {
@@ -295,9 +301,6 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 						default:
 							break;
 					}
-				}
-				if (foundHeaderGuard) {
-					return true;
 				}
 			}
 			removeSemicolons(node);
