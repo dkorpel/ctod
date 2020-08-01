@@ -48,7 +48,7 @@ struct InlineType {
 	string body_;
 	bool hasBody() const {return body_.length > 0;}
 	string toString() const {
-		return keyword ~ " " ~ name ~ " " ~ body_;
+		return keyword ~ " " ~ name ~ (hasBoy() ? " " ~ body_ : "");
 	}
 }
 

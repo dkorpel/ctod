@@ -29,3 +29,7 @@ int main(string[] args) {
 	}
 	return 0;
 }
+
+void printHelp() {
+	printf("Usage: %s [FILES]\n");
+}

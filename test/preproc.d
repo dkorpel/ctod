@@ -12,9 +12,9 @@ private template HasVersion(string versionId) {
 
 //#pragma once
 
-public import assert;
-public import string;
-public import stdio;
+public import core.stdc.assert_;
+public import core.stdc.string;
+public import core.stdc.stdio;
 public import small;
 
 version = TEST;

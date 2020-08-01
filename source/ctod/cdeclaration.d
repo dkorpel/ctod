@@ -13,7 +13,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		Decl[] decls = parseDecls(ctu, node, inlinetypes);
 		string result = "";
 		foreach(s; inlinetypes) {
-			result ~= s.toString();
+			if (s.hasBody()) {
+				result ~= s.toString();
+			}
 		}
 		foreach(d; decls) {
 			result ~= d.toString() ~ suffix;
@@ -34,9 +36,9 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		case "function_definition":
 			if (node.type == "function_definition") {
 				if (auto bodyNode = node.childField("body")) {
-					ctu.inFunction = "???";
+					ctu.enterFunction("???");
 					translateNode(ctu, *bodyNode);
-					ctu.inFunction = null;
+					ctu.leaveFunction();
 					return translateDecl(" " ~ bodyNode.output());
 				}
 			}
@@ -55,9 +57,7 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 			Decl[] decls = parseDecls(ctu, node, inlinetypes);
 			string result = ""; // todo: anonymous types
 			foreach(s; inlinetypes) {
-				if (s.hasBody()) {
-					result ~= s.toString();
-				}
+				result ~= s.toString();
 			}
 			foreach(d; decls) {
 				if (d.type == CType.named(d.identifier)) {

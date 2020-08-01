@@ -62,6 +62,8 @@ package struct TranslationContext {
 	bool needsClong = false; // needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
 	bool needsWchar = false; // needs wchar_t type (wchar on Windows, dchar on Linux)
 
+	bool stripComments = false;
+
 	/// global variables and function declarations
 	Decl[string] symbolTable;
 	Decl[string] localSymbolTable;
@@ -71,6 +73,15 @@ package struct TranslationContext {
 	this(string fileName, string source) {
 		this.fileName = fileName;
 		this.source = source;
+	}
+
+	void enterFunction(string functionName) {
+		inFunction = functionName;
+	}
+
+	void leaveFunction() {
+		inFunction = null;
+		localSymbolTable.clear();
 	}
 
 	Decl lookupDecl(string id) {
@@ -132,6 +143,12 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 
 bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	switch (node.type) {
+		case "comment":
+			// todo: maybe convert doxygen to Ddoc?
+			if (ctu.stripComments) {
+				node.replace("");
+			}
+			return true;
 		case "switch_statement":
 			// D mandates `default` case in `switch`
 			// note: switch statements can have `case` statements in the weirdest places
