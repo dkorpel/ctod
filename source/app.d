@@ -13,15 +13,21 @@ import ctod.translate;
 int main(string[] args) {
 	try {
 		enforce(args.length >= 2, "give at least one file argument");
+		//printHelp(args[0]);
+		bool stripComments = false;
 		foreach(i; 1..args.length) {
-			const fname = args[i];
-			enforce(
-				fname.extension == ".c" || fname.extension == ".h",
-				"file shoud have .c or .h extension, not "~fname.extension
-			);
-			const source = cast(string) read(fname);
-			const moduleName = fname.baseName.stripExtension;
-			write(fname.withExtension(".d"), translateFile(source, moduleName));
+			if (args[i] == "--strip") {
+				stripComments = true;
+			} else {
+				const fname = args[i];
+				enforce(
+					fname.extension == ".c" || fname.extension == ".h",
+					"file shoud have .c or .h extension, not "~fname.extension
+				);
+				const source = cast(string) read(fname);
+				const moduleName = fname.baseName.stripExtension;
+				write(fname.withExtension(".d"), translateFile(source, moduleName, stripComments));
+			}
 		}
 	} catch (Exception e) {
 		writeln(e.msg);
@@ -30,6 +36,6 @@ int main(string[] args) {
 	return 0;
 }
 
-void printHelp() {
-	printf("Usage: %s [FILES]\n");
+void printHelp(string name) {
+	writefln("Usage: %s [FILES]\nOptions:\n  --strip  strip comments", name);
 }

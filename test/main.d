@@ -58,6 +58,8 @@ const(char)* p1;
 char* p2;
 wchar_t p3;
 
+char* function(int)[5]* bar;
+
 int[1] a0;
 int*[2] a1;
 int[3]* a2;
@@ -82,7 +84,7 @@ c_ulong* bar(c_long y, ...) {
 	for(ushort x = 0;;){}
 	switch (0) {
 		case 1: break;
-	}
+	default: break;}
 	T* t;
 	return t.ptr;
 }

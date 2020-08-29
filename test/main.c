@@ -55,6 +55,8 @@ char const *p1;
 char *const p2;
 wchar_t p3;
 
+char * const(*(* const bar)[5])(int);
+
 int a0[1];
 int *a1[2];
 int (*a2)[3];

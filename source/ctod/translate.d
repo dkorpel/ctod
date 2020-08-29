@@ -18,10 +18,11 @@ private template HasVersion(string versionId) {
 };
 
 ///
-string translateFile(string source, string moduleName) {
+string translateFile(string source, string moduleName, bool stripComments) {
 	Node* root = parseCtree(source);
 	assert(root);
 	auto ctx = TranslationContext("foo.c", source);
+	ctx.stripComments = stripComments;
 	translateNode(ctx, *root);
 	string result = format(moduleHeader, moduleName);
 	if (ctx.needsHasVersion) {
