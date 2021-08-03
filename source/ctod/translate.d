@@ -5,26 +5,32 @@ import tree_sitter.api, tree_sitter.wrapper;
 import std.format;
 import std.stdio;
 
-private immutable moduleHeader = "/// Translated from C to D
-module %s;
-
-extern(C): @nogc: nothrow: __gshared:
-";
-
 private immutable hasVersion = q{
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
 };
 
+struct TranslationSettings {
+	bool includeHeader = true;
+	bool stripComments = false;
+}
+
 ///
-string translateFile(string source, string moduleName, bool stripComments) {
+string translateFile(string source, string moduleName, ref TranslationSettings settings) {
 	Node* root = parseCtree(source);
 	assert(root);
 	auto ctx = TranslationContext("foo.c", source);
-	ctx.stripComments = stripComments;
+	ctx.stripComments = settings.stripComments;
 	translateNode(ctx, *root);
-	string result = format(moduleHeader, moduleName);
+
+	string result = "";
+
+	if (settings.includeHeader) {
+		result ~= "module "~moduleName~";\n";
+		result ~= "extern(C): @nogc: nothrow: __gshared:\n";
+	}
+
 	if (ctx.needsHasVersion) {
 		result ~= hasVersion;
 	}
@@ -34,7 +40,7 @@ string translateFile(string source, string moduleName, bool stripComments) {
 	if (ctx.needsWchar) {
 		result ~= "import core.stdc.stddef: wchar_t;\n";
 	}
-	result ~=root.output;
+	result ~= root.output;
 	return result;
 }
 

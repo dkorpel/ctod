@@ -162,7 +162,11 @@ struct CQuals {
 		string result;
 		if (inline) result ~= "pragma(inline, true) ";
 		if (extern_) result ~= "extern ";
-		if (static_) result ~= "static ";
+		// C's static meaning 'private to the translation unit' doesn't exist in D
+		// The closest thing is `private extern(D)` which restricts access and avoids name conflicts, but still emits a symbol
+		// However, we don't do extern(D) since that changes abi as well
+		// Also: static can also mean 'array of length at least X'
+		if (static_) result ~= "private ";
 		// D has transitive const unlike C
 		// it must surround the primitive type, e.g. const int* => const(int)*
 		// if (const_) result ~= "const ";

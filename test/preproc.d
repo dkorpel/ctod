@@ -1,6 +1,4 @@
-/// Translated from C to D
 module preproc;
-
 extern(C): @nogc: nothrow: __gshared:
 
 private template HasVersion(string versionId) {

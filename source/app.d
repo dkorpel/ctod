@@ -16,8 +16,9 @@ int main(string[] args) {
 		//printHelp(args[0]);
 		bool stripComments = false;
 		foreach(i; 1..args.length) {
+			TranslationSettings settings;
 			if (args[i] == "--strip") {
-				stripComments = true;
+				settings.stripComments = true;
 			} else {
 				const fname = args[i];
 				enforce(
@@ -26,7 +27,7 @@ int main(string[] args) {
 				);
 				const source = cast(string) read(fname);
 				const moduleName = fname.baseName.stripExtension;
-				write(fname.withExtension(".d"), translateFile(source, moduleName, stripComments));
+				write(fname.withExtension(".d"), translateFile(source, moduleName, settings));
 			}
 		}
 	} catch (Exception e) {
