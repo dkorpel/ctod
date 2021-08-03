@@ -25,6 +25,11 @@ https://tree-sitter.github.io/tree-sitter/playground
 dub -- ../test/cute_time.c
 ```
 
+```
+dub build
+sudo cp build/ctod /usr/local/bin/
+```
+
 ### Todo
 - #define can be alias, not only enum
 - passing function pointers or static arrays to functions

@@ -67,8 +67,19 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 		case "type_identifier":
 			if (node.source == "wchar_t") {
 				ctu.needsWchar = true;
+				return node.source;
+			} else {
+				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
+				// so also do replacePrimitiveType here.
+				const replacement = replacePrimitiveType(node.source);
+				if (replacement == node.source) {
+					// no replacement to a D-type, so escape keywords (out => out_)
+					return replaceIdentifier(node.source);
+				} else {
+					// replacement to a D-type , e.g. __u8 => ubyte, no escaping
+					return replacement;
+				}
 			}
-			return replaceIdentifier(node.source);
 		case "sized_type_specifier":
 			bool signed = true;
 			int longCount = 0;
@@ -415,9 +426,13 @@ unittest {
 	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
 
-/// replace C primitive types
+/// Replace known C primitive types to D-types
+///
+/// C code often used macros for integer types of standard sizes, which is not needed for D
 string replacePrimitiveType(string original) {
-	switch(original) {
+	import std.uni: toLower;
+	switch(original.toLower) {
+		// These are standard in C
 		case "int8_t": return "byte";
 		case "uint8_t": return "ubyte";
 		case "int16_t": return "short";
@@ -427,10 +442,39 @@ string replacePrimitiveType(string original) {
 		case "int64_t": return "long";
 		case "uint64_t": return "ulong";
 
-		case "char": return "char";
-		case "short": return "short";
-		case "int": return "int";
+		// Also used sometimes
+		case "int8": return "byte";
+		case "uint8": return "ubyte";
+		case "int16": return "short";
+		case "uint16": return "ushort";
+		case "int32": return "int";
+		case "uint32": return "uint";
+		case "int64": return "long";
+		case "uint64": return "ulong";
+
+		// These are used in v4l2
+		case "__s8": return "byte";
+		case "__u8": return "ubyte";
+		case "__s16": return "short";
+		case "__u16": return "ushort";
+		case "__s32": return "int";
+		case "__u32": return "uint";
+		case "__s64": return "long";
+		case "__u64": return "ulong";
+
+		// https://docs.microsoft.com/en-us/cpp/cpp/int8-int16-int32-int64?view=msvc-160
+		case "__int8": return "byte";
+		case "__int16": return "short";
+		case "__int32": return "int";
+		case "__int64": return "long";
+
+		case "char16_t": return "wchar";
+		case "char32_t": return "dchar";
 
 		default: return original;
 	}
+}
+
+unittest {
+	assert(replacePrimitiveType("int16_t") == "short");
 }

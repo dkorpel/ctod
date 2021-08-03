@@ -34,6 +34,8 @@ union OpaqueU;
 struct T {
 	S* ptr;
 	int[3] arr;
+	int capacity;
+	ubyte type;
 }/+alias T T;+/
 
 enum AnEnum {

@@ -30,6 +30,8 @@ union OpaqueU;
 typedef struct T {
 	S *ptr;
 	int arr[3];
+	int32_t capacity;
+	__u8 type;
 } T;
 
 typedef enum AnEnum
