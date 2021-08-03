@@ -43,13 +43,44 @@ private void test(string c, string d) {
 	test("inline static void foo(int x);", "pragma(inline, true) private void foo(int x);");
 }
 
+@("struct") unittest {
+	test("
+typedef struct T {
+	S *ptr;
+	int arr[3];
+	int32_t capacity;
+	__u8 type;
+} T;
+", "
+struct T {
+	S* ptr;
+	int[3] arr;
+	int capacity;
+	ubyte type;
+}
+");
+}
+
+@("enum") unittest {
+	test("typedef enum AnEnum
+{
+	one = 1000123000,
+	two = 0x7FFFFFFF
+} AnEnum;", "enum AnEnum {
+	one = 1000123000,
+	two = 0x7FFFFFFF
+}");
+}
+
 @("sizeof") unittest {
 	test("int so1 = sizeof(int);", "int so1 = int.sizeof;");
-	test("int so2 = sizeof 4lu;", "int so2 = sizeof 4Lu;");
 	test("int so2 = sizeof (4);", "int so2 = typeof(4).sizeof;");
 	test("int so3 = sizeof((short) 3 + 4l);", "int so3 = typeof(cast(short) 3 + 4L).sizeof;");
 	test("int so4 = sizeof(unsigned short);", "int so4 = unsigned short.sizeof;");
 	test("int so5 = sizeof(GLFWvidmode);", "int so5 = GLFWvidmode.sizeof;");
+
+	// TODO
+	// test("int so2 = sizeof 4lu;", "int so2 = (4Lu).sizeof;");
 }
 
 @("cast") unittest {
@@ -57,7 +88,48 @@ private void test(string c, string d) {
 	test("int x = (void(*)()) NULL;", "int x = cast(void function()) null;");
 }
 
-@("preproc") unittest {
+@("function") unittest {
+	test("
+int *bar(int y, ...) {
+	while(x) {
+	}
+	for(;;);
+	for(unsigned short x = 0;;);
+	switch (0) {
+		case 1: break;
+	}
+	T *t;
+	return t->ptr;
+}", "
+int* bar(int y, ...) {
+	while(x) {
+	}
+	for(;;){}
+	for(ushort x = 0;;){}
+	switch (0) {
+		case 1: break;
+	default: break;}
+	T* t;
+	return t.ptr;
+}");
+
+}
+
+@("strings") unittest {
+	test(`
+const char *p0 = "con" "cat" "enated";
+char const *p1;
+char *const p2;
+`, `
+const(char)* p0 = "con" ~ "cat" ~ "enated";
+const(char)* p1;
+char* p2;
+`);
+
+	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");
+}
+
+@("preprocessor") unittest {
 	test("
 #include <assert.h>
 #include <string.h>
@@ -133,9 +205,5 @@ static assert(0, \"error message\");
 // whoo
 }
 ");
-
-
-
-
 
 }

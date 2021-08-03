@@ -1,6 +1,4 @@
-/// Translated from C to D
 module main;
-
 extern(C): @nogc: nothrow: __gshared:
 import core.stdc.config: c_long, c_ulong;
 import core.stdc.stddef: wchar_t;
@@ -23,8 +21,8 @@ union U {
 	}_Overlapped overlapped;
 }
 
-struct S ;/+alias S S;+/
-union U ;/+alias U U;+/
+struct S ;
+union U ;
 struct S0 ;alias S0 S1;
 union U0 ;alias U0 U1;
 alias int[3] intArr;alias int intScalar;
@@ -36,12 +34,12 @@ struct T {
 	int[3] arr;
 	int capacity;
 	ubyte type;
-}/+alias T T;+/
+}
 
 enum AnEnum {
 	one = 1000123000,
 	two = 0x7FFFFFFF
-}/+alias AnEnum AnEnum;+/
+}
 
 uint x0;
 c_long x1;
@@ -76,7 +74,7 @@ enum _Param0 {a}struct _Param1 {int x;}int function(_Param0 param0, _Param1 para
 
 pragma(inline, true) extern int e0;
 
-static float[8] x = [1.0f, 2.5];
+private float[8] x = [1.0f, 2.5];
 double[3][4] z;
 
 c_ulong* bar(c_long y, ...) {
@@ -111,9 +109,9 @@ int main() {
 }
 
 
-pragma(inline, true) static void foo(int* x, int function() y);
+pragma(inline, true) private void foo(int* x, int function() y);
 
-pragma(inline, true) static void foo(int* x, int function() y) {
+pragma(inline, true) private void foo(int* x, int function() y) {
 	int* z;int y;
 	float x = 1.0f;
 }

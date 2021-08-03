@@ -1,7 +1,5 @@
-/// Translated from C to D
-module test.internal;
-
-extern(C): @nogc: nothrow:
+module internal;
+extern(C): @nogc: nothrow: __gshared:
 
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
@@ -68,21 +66,21 @@ enum _GLFW_MESSAGE_SIZE =      1024;
 
 alias int GLFWbool;
 
-/+alias _GLFWerror _GLFWerror;+/
-/+alias _GLFWinitconfig _GLFWinitconfig;+/
-/+alias _GLFWwndconfig _GLFWwndconfig;+/
-/+alias _GLFWctxconfig _GLFWctxconfig;+/
-/+alias _GLFWfbconfig _GLFWfbconfig;+/
-/+alias _GLFWcontext _GLFWcontext;+/
-/+alias _GLFWwindow _GLFWwindow;+/
-/+alias _GLFWlibrary _GLFWlibrary;+/
-/+alias _GLFWmonitor _GLFWmonitor;+/
-/+alias _GLFWcursor _GLFWcursor;+/
-/+alias _GLFWmapelement _GLFWmapelement;+/
-/+alias _GLFWmapping _GLFWmapping;+/
-/+alias _GLFWjoystick _GLFWjoystick;+/
-/+alias _GLFWtls _GLFWtls;+/
-/+alias _GLFWmutex _GLFWmutex;+/
+struct _GLFWerror ;
+struct _GLFWinitconfig ;
+struct _GLFWwndconfig ;
+struct _GLFWctxconfig ;
+struct _GLFWfbconfig ;
+struct _GLFWcontext ;
+struct _GLFWwindow ;
+struct _GLFWlibrary ;
+struct _GLFWmonitor ;
+struct _GLFWcursor ;
+struct _GLFWmapelement ;
+struct _GLFWmapping ;
+struct _GLFWjoystick ;
+struct _GLFWtls ;
+struct _GLFWmutex ;
 
 alias void function(_GLFWwindow*) _GLFWmakecontextcurrentfun;
 alias void function(_GLFWwindow*) _GLFWswapbuffersfun;
@@ -114,7 +112,7 @@ alias int GLint;
 alias uint GLuint;
 alias uint GLenum;
 alias uint GLbitfield;
-alias uchar GLubyte;
+alias ubyte GLubyte;
 
 alias void (GLbitfield);
 alias const(GLubyte)* (GLenum);
@@ -137,7 +135,7 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
     VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000217000,
     VK_STRUCTURE_TYPE_MAX_ENUM = 0x7FFFFFFF
-}/+alias VkStructureType VkStructureType;+/
+}
 
 enum VkResult {
     VK_SUCCESS = 0,
@@ -164,14 +162,14 @@ enum VkResult {
     VK_ERROR_NATIVE_WINDOW_IN_USE_KHR = -1000000001,
     VK_ERROR_VALIDATION_FAILED_EXT = -1000011001,
     VK_RESULT_MAX_ENUM = 0x7FFFFFFF
-}/+alias VkResult VkResult;+/
+}
 
-/+alias VkAllocationCallbacks VkAllocationCallbacks;+/
+struct VkAllocationCallbacks ;
 
 struct VkExtensionProperties {
     char[256] extensionName;
     uint specVersion;
-}/+alias VkExtensionProperties VkExtensionProperties;+/
+}
 
 alias void ();
 
@@ -180,7 +178,7 @@ version (_GLFW_VULKAN_STATIC) {
   VkResult vkEnumerateInstanceExtensionProperties(const(char)*, uint*, VkExtensionProperties*);
 } else {
   alias  VkInstance;alias  const; char*){}
-  /+alias ;+/
+  
   enum vkEnumerateInstanceExtensionProperties = _glfw.vk.EnumerateInstanceExtensionProperties;
   enum vkGetInstanceProcAddr = _glfw.vk.GetInstanceProcAddr;
 }
@@ -245,10 +243,10 @@ struct _GLFWerror
 struct _GLFWinitconfig
 {
     GLFWbool hatButtons;
-    struct _I0 {
+    struct _Ns {
         GLFWbool menubar;
         GLFWbool chdir;
-    }_I0 ns;
+    }_Ns ns;
 }
 
 // Window configuration
@@ -272,14 +270,14 @@ struct _GLFWwndconfig
     GLFWbool centerCursor;
     GLFWbool focusOnShow;
     GLFWbool scaleToMonitor;
-    struct _I1 {
+    struct _Ns {
         GLFWbool retina;
         char[256] frameName;
-    }_I1 ns;
-    struct _I2 {
+    }_Ns ns;
+    struct _X11 {
         char[256] className;
         char[256] instanceName;
-    }_I2 x11;
+    }_X11 x11;
 }
 
 // Context configuration
@@ -301,9 +299,9 @@ struct _GLFWctxconfig
     int robustness;
     int release;
     _GLFWwindow* share;
-    struct _I3 {
+    struct _Nsgl {
         GLFWbool offline;
-    }_I3 nsgl;
+    }_Nsgl nsgl;
 }
 
 // Framebuffer configuration
@@ -370,7 +368,7 @@ struct _GLFWcontext
 //
 struct _GLFWwindow
 {
-    _GLFWwindow* next;
+    struct _GLFWwindow ;_GLFWwindow* next;
 
     // Window settings and state
     GLFWbool resizable;
@@ -400,7 +398,7 @@ struct _GLFWwindow
 
     _GLFWcontext context;
 
-    struct _I4 {
+    struct _Callbacks {
         GLFWwindowposfun pos;
         GLFWwindowsizefun size;
         GLFWwindowclosefun close;
@@ -418,7 +416,7 @@ struct _GLFWwindow
         GLFWcharfun character;
         GLFWcharmodsfun charmods;
         GLFWdropfun drop;
-    }_I4 callbacks;
+    }_Callbacks callbacks;
 
     // This is defined in the window API's platform.h
     _GLFW_PLATFORM_WINDOW_STATE;
@@ -485,9 +483,9 @@ struct _GLFWjoystick
     GLFWbool present;
     float* axes;
     int axisCount;
-    uchar* buttons;
+    ubyte* buttons;
     int buttonCount;
-    uchar* hats;
+    ubyte* hats;
     int hatCount;
     char* name;
     void* userPointer;
@@ -520,13 +518,13 @@ struct _GLFWlibrary
 {
     GLFWbool initialized;
 
-    struct _I5 {
+    struct _Hints {
         _GLFWinitconfig init;
         _GLFWfbconfig framebuffer;
         _GLFWwndconfig window;
         _GLFWctxconfig context;
         int refreshRate;
-    }_I5 hints;
+    }_Hints hints;
 
     _GLFWerror* errorListHead;
     _GLFWcursor* cursorListHead;
@@ -543,13 +541,13 @@ struct _GLFWlibrary
     _GLFWtls contextSlot;
     _GLFWmutex errorLock;
 
-    struct _I6 {
+    struct _Timer {
         ulong offset;
         // This is defined in the platform's time.h
         _GLFW_PLATFORM_LIBRARY_TIMER_STATE;
-    }_I6 timer;
+    }_Timer timer;
 
-    struct _I7 {
+    struct _Vk {
         GLFWbool available;
         void* handle;
         char*[2] extensions;
@@ -569,12 +567,12 @@ version (_GLFW_WIN32) {
 } else version (_GLFW_WAYLAND) {
         GLFWbool KHR_wayland_surface;
 }
-    }_I7 vk;
+    }_Vk vk;
 
-    struct _I8 {
+    struct _Callbacks {
         GLFWmonitorfun monitor;
         GLFWjoystickfun joystick;
-    }_I8 callbacks;
+    }_Callbacks callbacks;
 
     // This is defined in the window API's platform.h
     _GLFW_PLATFORM_LIBRARY_WINDOW_STATE;
@@ -716,9 +714,9 @@ void _glfwInputMonitor(_GLFWmonitor* monitor, int action, int placement);
 void _glfwInputMonitorWindow(_GLFWmonitor* monitor, _GLFWwindow* window);
 
 version (__GNUC__) {
-void _glfwInputError(int code, const(char)* format);
+void _glfwInputError(int code, const(char)* format, ...);
 } else {
-void _glfwInputError(int code, const(char)* format);
+void _glfwInputError(int code, const(char)* format, ...);
 }
 
 

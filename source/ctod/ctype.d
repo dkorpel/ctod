@@ -152,7 +152,8 @@ struct CQuals {
 	bool restrict;
 	bool atomic;
 
-	bool static_;
+	bool staticFunc; /// static at function scope (meaning the variable is global)
+	bool staticGlobal; /// static at global scope (meaning the symbol is private)
 	bool extern_;
 	bool auto_;
 	bool inline;
@@ -165,8 +166,9 @@ struct CQuals {
 		// C's static meaning 'private to the translation unit' doesn't exist in D
 		// The closest thing is `private extern(D)` which restricts access and avoids name conflicts, but still emits a symbol
 		// However, we don't do extern(D) since that changes abi as well
+		if (staticGlobal) result ~= "private ";
+		if (staticFunc) result ~= "static ";
 		// Also: static can also mean 'array of length at least X'
-		if (static_) result ~= "private ";
 		// D has transitive const unlike C
 		// it must surround the primitive type, e.g. const int* => const(int)*
 		// if (const_) result ~= "const ";
@@ -190,7 +192,13 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 	}
 	if (node.type == "storage_class_specifier") switch (node.source) {
     	case "extern": quals.extern_ = true; return true;
-    	case "static": quals.static_ = true; return true;
+    	case "static":
+			if (ctu.inFunction) {
+				quals.staticFunc = true;
+			} else {
+				quals.staticGlobal = true;
+			}
+			return true;
     	case "auto": quals.auto_ = true; return true;
     	case "register": quals.register = true; return true;
     	case "inline": quals.inline = true; return true;

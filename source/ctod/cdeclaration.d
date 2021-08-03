@@ -61,7 +61,7 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 			}
 			foreach(d; decls) {
 				if (d.type == CType.named(d.identifier)) {
-					result ~= "/+alias " ~ d.toString() ~ ";+/";
+					// result ~= "/+alias " ~ d.toString() ~ ";+/";
 				} else {
 					result ~= "alias " ~ d.toString() ~ ";";
 				}
