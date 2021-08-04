@@ -22,6 +22,11 @@ struct Decl {
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl) {
 			result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
+			//result ~= type.next[0].toString() ~ " " ~ identifier ~ "(";
+			//foreach(par; type.params) {
+			//	result ~= par;
+			//}
+			//result ~= ")";
 		} else {
 			result ~= type.toString();
 			if (identifier.length > 0) {

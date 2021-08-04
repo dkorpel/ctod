@@ -3,7 +3,6 @@ Translate C macros
 */
 module ctod.cpreproc;
 
-import std.stdio;
 import ctod.translate;
 import tree_sitter.wrapper;
 
@@ -199,7 +198,6 @@ string lexMacroText(string s) {
 	enum TokType { id, stringLit, other }
 
 	string next() {
-		// import std.regex:
 		scope(exit) s = s[$..$];
 		return s;
 		/+

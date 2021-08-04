@@ -2,8 +2,6 @@ module ctod.translate;
 
 import ctod;
 import tree_sitter.api, tree_sitter.wrapper;
-import std.format;
-import std.stdio;
 
 private immutable hasVersion = q{
 private template HasVersion(string versionId) {
