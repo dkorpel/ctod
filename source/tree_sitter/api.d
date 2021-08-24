@@ -6,6 +6,8 @@ extern(C):
 @nogc:
 nothrow:
 
+alias c_bool = int;
+
 /****************************/
 /* Section - ABI Versioning */
 /****************************/
@@ -152,7 +154,7 @@ void ts_parser_delete(TSParser* parser);
  * and compare it to this library's `TREE_SITTER_LANGUAGE_VERSION` and
  * `TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION` constants.
  */
-bool ts_parser_set_language(TSParser* self, const(TSLanguage)* language);
+c_bool ts_parser_set_language(TSParser* self, const(TSLanguage)* language);
 
 /**
  * Get the parser's current language.

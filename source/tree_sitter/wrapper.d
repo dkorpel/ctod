@@ -9,7 +9,8 @@ Node* parseCtree(string source) {
 	scope TSParser *parser = ts_parser_new();
 	scope(exit) ts_parser_delete(parser);
 	TSLanguage* language = tree_sitter_c();
-	assert(ts_parser_set_language(parser, language));
+	const success = ts_parser_set_language(parser, language);
+	assert(success);
 	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
 	//scope(exit) ts_tree_delete(tree);
 

@@ -73,6 +73,9 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 			if (node.source == "wchar_t") {
 				ctu.needsWchar = true;
 				return node.source;
+			} else if (node.source == "bool") {
+				ctu.needsCbool = true;
+				return "c_bool";
 			} else {
 				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
 				// so also do replacePrimitiveType here.
