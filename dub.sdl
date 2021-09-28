@@ -4,6 +4,8 @@ authors "dkorpel"
 copyright "Copyright © 2020, dkorpel"
 license "BSL-1.0"
 targetPath "build"
+
+//sourceFiles "source/ctod/c_parser_pre.c" // Awaits ImportC improvements
 sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a" platform="linux"
 sourceFiles "lib/libc-parser.obj" "lib/libtree-sitter.obj" platform="windows"
 workingDirectory "build"

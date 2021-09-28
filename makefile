@@ -5,15 +5,16 @@ else
     TARGET_EXT := ".a"
 endif
 
-#CC := clang
-CC := "zig cc"
+CC := clang
+#CC := "zig cc"
 
 .PHONY: all
 all: build-lib
 
 .PHONY: build-lib
 build-lib:
-	$(CC) -c -Isource source/c_parser.c -o lib/libc-parser$(TARGET_EXT) -O2 -fPIC
+	clang -E -P source/ctod/c_parser.c > source/ctod/c_parser_pre.c
+	$(CC) -c -Isource source/ctod/c_parser.c -o lib/libc-parser$(TARGET_EXT) -O2 -fPIC
 
 # $(CC) -Isource source/main.c lib/libc-parser.a lib/libtree-sitter$(TARGET_EXT) -o build/parser -O2
 # cd tree-sitter/lib/src

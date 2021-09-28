@@ -1,3 +1,5 @@
+module ctod.app;
+
 import tree_sitter.api;
 import core.stdc.stdio: printf;
 import core.stdc.stdlib: free;

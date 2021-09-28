@@ -1,19 +1,21 @@
 #include <tree_sitter/parser.h>
 
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#endif
+// #if defined(__GNUC__) || defined(__clang__)
+// #pragma GCC diagnostic push
+// #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+// #endif
 
-#define LANGUAGE_VERSION 11
-#define STATE_COUNT 1309
-#define LARGE_STATE_COUNT 357
-#define SYMBOL_COUNT 253
-#define ALIAS_COUNT 3
-#define TOKEN_COUNT 125
-#define EXTERNAL_TOKEN_COUNT 0
-#define FIELD_COUNT 24
-#define MAX_ALIAS_SEQUENCE_LENGTH 9
+enum {
+  LANGUAGE_VERSION = 11,
+  STATE_COUNT = 1309,
+  LARGE_STATE_COUNT = 357,
+  SYMBOL_COUNT = 253,
+  ALIAS_COUNT = 3,
+  TOKEN_COUNT = 125,
+  EXTERNAL_TOKEN_COUNT = 0,
+  FIELD_COUNT = 24,
+  MAX_ALIAS_SEQUENCE_LENGTH = 9
+};
 
 enum {
   sym_identifier = 1,
