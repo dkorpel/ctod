@@ -9,6 +9,7 @@ import std.path: baseName, extension, withExtension, stripExtension;
 import std.file: read, write;
 
 import ctod.translate;
+private:
 
 int main(string[] args) {
 	try {
@@ -19,6 +20,8 @@ int main(string[] args) {
 			TranslationSettings settings;
 			if (args[i] == "--strip") {
 				settings.stripComments = true;
+			} else if (args[i] == "--help") {
+				printHelp(args[0]);
 			} else {
 				const fname = args[i];
 				enforce(
