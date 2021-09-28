@@ -1,6 +1,6 @@
 module ctod.test;
 
-import bops.string.string: stripWhite;
+import bops.string.lex: stripWhite;
 import ctod.translate;
 
 private void test(string c, string d) {
