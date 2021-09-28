@@ -5,7 +5,8 @@ else
     TARGET_EXT := ".a"
 endif
 
-CC := clang
+#CC := clang
+CC := "zig cc"
 
 .PHONY: all
 all: build-lib

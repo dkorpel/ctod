@@ -38,6 +38,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	if (ctx.needsWchar) {
 		result ~= "import core.stdc.stddef: wchar_t;\n";
 	}
+	if (ctx.needsCbool) {
+		result ~= "alias c_bool = int;\n";
+	}
 	result ~= root.output;
 	return result;
 }
@@ -66,6 +69,7 @@ package struct TranslationContext {
 	bool needsHasVersion = false; // HasVersion(string) template is needed
 	bool needsClong = false; // needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
 	bool needsWchar = false; // needs wchar_t type (wchar on Windows, dchar on Linux)
+	bool needsCbool = false; // needs `alias c_bool = int;`
 
 	bool stripComments = false;
 
