@@ -1,21 +1,24 @@
 module ctod.app;
 
 import tree_sitter.api;
-import core.stdc.stdio: printf;
 import core.stdc.stdlib: free;
 import core.stdc.string: strlen;
 
-import std.stdio;
-import std.exception;
-import std.path: baseName, extension, withExtension, stripExtension;
+import bops.os.console: Stdout, Stderr, println;
+import std.path: withExtension;
 import std.file: read, write;
+import bops.os.file;
+import bops.os.file: baseName, fileExtension, readFile;
 
 import ctod.translate;
 private:
 
-int main(string[] args) {
+int main(string[] args)  {
+	if (args.length < 2) {
+		Stderr.println("give at least one file argument");
+		return -1;
+	}
 	try {
-		enforce(args.length >= 2, "give at least one file argument");
 		//printHelp(args[0]);
 		bool stripComments = false;
 		foreach(i; 1..args.length) {
@@ -26,22 +29,30 @@ int main(string[] args) {
 				printHelp(args[0]);
 			} else {
 				const fname = args[i];
-				enforce(
-					fname.extension == ".c" || fname.extension == ".h",
-					"file shoud have .c or .h extension, not "~fname.extension
-				);
-				const source = cast(string) read(fname);
-				const moduleName = fname.baseName.stripExtension;
+				if (!(fname.fileExtension == ".c" || fname.fileExtension == ".h")) {
+					Stderr.println("file shoud have .c or .h extension, not ", fname.fileExtension);
+					return -1;
+				}
+				//readFile(fname);
+				scope source = cast(string) read(fname);
+				scope(exit) {/*freeM(source)*/}
+
+				const moduleName = fname.baseName;
+
+				if (File f = File.open(fpath!"result", FileAccess.write, FileTranslation.text)) {
+
+				}
+
 				write(fname.withExtension(".d"), translateFile(source, moduleName, settings));
 			}
 		}
 	} catch (Exception e) {
-		writeln(e.msg);
+		Stdout.println(e.msg);
 		return -1;
 	}
 	return 0;
 }
 
 void printHelp(string name) {
-	writefln("Usage: %s [FILES]\nOptions:\n  --strip  strip comments", name);
+	Stdout.println("Usage: ", name, " [FILES]\nOptions:\n  --strip  strip comments");
 }

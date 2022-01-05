@@ -1,13 +1,14 @@
 module ctod.translate;
 
 import ctod;
+import dbg;
 import tree_sitter.api, tree_sitter.wrapper;
 
-private immutable hasVersion = q{
+private immutable hasVersion = `
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
-};
+`;
 
 struct TranslationSettings {
 	bool includeHeader = true;
@@ -66,10 +67,14 @@ package struct TranslationContext {
 	string source;
 	string moduleName;
 
-	bool needsHasVersion = false; // HasVersion(string) template is needed
-	bool needsClong = false; // needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
-	bool needsWchar = false; // needs wchar_t type (wchar on Windows, dchar on Linux)
-	bool needsCbool = false; // needs `alias c_bool = int;`
+	/// HasVersion(string) template is needed
+	bool needsHasVersion = false;
+	/// needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
+	bool needsClong = false;
+	/// needs wchar_t type (wchar on Windows, dchar on Linux)
+	bool needsWchar = false;
+	/// needs `alias c_bool = int;`
+	bool needsCbool = false;
 
 	bool stripComments = false;
 
@@ -114,13 +119,12 @@ package struct TranslationContext {
 	}
 
 	int uniqueIdCounter = 0;
-	string uniqueIdentifier(string suggestion = null) {
-		import std.conv: text;
-		import std.ascii: toUpper;
+	string uniqueIdentifier(string suggestion) {
+		import bops.string.lex: toUpper;
 		if (suggestion.length > 0) {
 			return "_" ~ suggestion[0].toUpper ~ suggestion[1..$];
 		} else {
-			return "_I"~(uniqueIdCounter++).text;
+			assert(0);
 		}
 	}
 }
@@ -144,41 +148,38 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 		translateNode(ctu, c);
 	}
 	node.isTranslated = true;
-	/+
-	return "";
-	//writefln("> %20s: %s", node.type, "..."); // nodeSource(node, )
-	+/
 }
 
-bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
-	switch (node.type) {
-		case "comment":
+package bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
+	import bops.tostring: toGcString;
+	switch(node.typeEnum) {
+		case Sym.comment:
 			// todo: maybe convert doxygen to Ddoc?
 			if (ctu.stripComments) {
 				node.replace("");
 			}
 			return true;
-		case "switch_statement":
+		case Sym.switch_statement:
 			// D mandates `default` case in `switch`
 			// note: switch statements can have `case` statements in the weirdest places
 			// we can be a bit conservative here and only check the common switch pattern
 			if (auto bodyNode = node.childField("body")) {
-				if (bodyNode.type == "compound_statement") {
+				if (bodyNode.typeEnum == Sym.compound_statement) {
 					// TODO
 					bodyNode.children[$-1].prepend("default: break;");
 				}
 			}
 			break;
-		case "number_literal":
+		case Sym.number_literal:
 			import std.array: replace;
 			// long specifier must be capitalized in D, 1llu => 1LLu
 			// float must have digits after dot, 1.f => 1.0f
 			return node.replace(node.source.replace("l", "L").replace(".f", ".0f").replace(".F", ".0F"));
-		case "concatenated_string":
+		case Sym.concatenated_string:
 			// "a" "b" "c" => "a"~"b"~"c"
 			bool first = true;
 			foreach(ref c; node.children) {
-				if (c.type == "string_literal") {
+				if (c.typeEnum == Sym.string_literal) {
 					if (first) {
 						first = false;
 					} else {
@@ -187,16 +188,16 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				}
 			}
 			return true;
-		case "primitive_type":
+		case Sym.primitive_type:
 			if (string s = replacePrimitiveType(node.source)) {
 				node.replace(s);
 				return true;
 			}
 			return false;
-		case "null":
+		case Sym.null_:
 			return node.replace("null");
 
-		case "type_definition":
+		case Sym.type_definition:
 			// Decl[] decls = parseDecls(ctu, *c);
 			auto typeField = node.childField("type");
 			auto declaratorField = node.childField("declarator");
@@ -204,17 +205,17 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				return true;
 			}
 			if (auto structId = typeField.childField("name")) {
-				if (typeField.type == "struct_specifier" || typeField.type == "union_specifier") {
+				if (typeField.typeEnum == Sym.struct_specifier || typeField.typeEnum == Sym.union_specifier) {
 					if (auto bodyNode = typeField.childField("body")) {
 						translateNode(ctu, *bodyNode);
-					} if (declaratorField.type == "type_identifier" && declaratorField.source == structId.source) {
+					} if (declaratorField.typeEnum == Sym.alias_type_identifier && declaratorField.source == structId.source) {
 						// typedef struct X X; => uncomment, not applicable to D
-						node.prepend("/+");
-						node.append("+/");
+						node.prepend("/*");
+						node.append("*/");
 						return true;
 					}
 				}
-				if (typeField.type == "enum_specifier") {
+				if (typeField.typeEnum == Sym.enum_specifier) {
 					if (auto bodyNode = typeField.childField("body")) {
 						translateNode(ctu, *bodyNode);
 					}
@@ -224,9 +225,9 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				}
 			}
 			break;
-		case "typedef":
+		case Sym.anon_typedef:
 			return node.replace("alias");
-		case "sizeof_expression":
+		case Sym.sizeof_expression:
 			if (auto typeNode = node.childField("type")) {
 				// sizeof(short) => (short).sizeof
 				translateNode(ctu, *typeNode);
@@ -234,15 +235,15 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			} else if (auto valueNode = node.childField("value")) {
 				translateNode(ctu, *valueNode);
 				// `sizeof short` => `short.sizeof`
-				if (valueNode.type == "identifier") {
+				if (valueNode.typeEnum == Sym.identifier) {
 					node.replace(valueNode.output ~ ".sizeof");
-				} else if (valueNode.type == "parenthesized_expression") {
+				} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
 					// sizeof(3) => typeof(3).sizeof
 					// sizeof(T) => T.sizeof
-					if (auto parenValue = valueNode.firstChildType("identifier")) {
+					if (auto parenValue = valueNode.firstChildType(Sym.identifier)) {
 						valueNode = parenValue;
 					}
-					if (valueNode.type == "identifier") {
+					if (valueNode.typeEnum == Sym.identifier) {
 						return node.replace(valueNode.output ~ ".sizeof");
 					} else {
 						return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
@@ -250,28 +251,28 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				}
 			}
 			break;
-		case "->":
-			return node.replace(".");
-		case "cast_expression":
-			if (auto c = node.firstChildType("(")) {
+		case Sym.anon_DASH_GT:
+			return node.replace("."); // s->field => s.field
+		case Sym.cast_expression:
+			if (auto c = node.firstChildType(Sym.anon_LPAREN)) {
 				c.replace("cast(");
 			}
 			if (auto c = node.childField("type")) {
 				InlineType[] inlineTypes;
 				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
-					c.replace(decls[0].toString());
+					c.replace(decls[0].toGcString());
 				}
 			}
 			return false;
-		case "expression_statement":
-			// ; as empty statement not allowed in D, for(;;); => for(;;) {}
+		case Sym.expression_statement:
+			// ; as empty statement not allowed in D, for (;;); => for (;;) {}
 			if (node.source == ";") {
 				return node.replace("{}");
 			}
 			break;
-		case "struct_specifier":
-		case "union_specifier":
+		case Sym.struct_specifier:
+		case Sym.union_specifier:
 			// Trailing ; are children of the translation unit, and they are removed
 			// However, opaque structs/unions still need them
 			if (auto bodyNode = node.childField("body")) {
@@ -280,23 +281,22 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				node.append(";");
 			}
 			break;
-		case "translation_unit":
+		case Sym.translation_unit:
 			// try to remove header guard
 			// #ifdef NAME_H
 			// #define NAME_H
 			// ...actual code
 			// #endif
-			import dbg;
-			if (auto ifdefNode = node.firstChildType("preproc_ifdef")) {
+			if (auto ifdefNode = node.firstChildType(Sym.preproc_ifdef)) {
 				int commentCount = 0;
 				string id = null;
 			headerGuardSearch:
 				foreach(i; 0..ifdefNode.children.length) {
-					switch (ifdefNode.children[i].type) {
-						case "comment":
+					switch(ifdefNode.children[i].typeEnum) {
+						case Sym.comment:
 							commentCount++;
 							continue;
-						case "preproc_def":
+						case Sym.preproc_def:
 							// preproc can only be preceded by comments, or else it's no header guard
 							// 2 for #ifdef and identifier tokens
 							if (i > commentCount + 2) {
@@ -317,7 +317,7 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 								}
 							}
 							break headerGuardSearch;
-						case "identifier":
+						case Sym.identifier:
 							if (id == null) {
 								id = ifdefNode.children[i].source;
 							} else {
@@ -331,34 +331,14 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			removeSemicolons(node);
 			break;
-		case "assignment_expression":
+		case Sym.assignment_expression:
 
 			break;
-		case "call_expression":
-			version(todo)
-			if (auto funcNode = node.childField("function")) {
-				// C allows implicit conversions between pointer types
-				// while ctod does not do a semantic translations in general,
-				// implicit pointer casts from malloc and friends are common
-				if (node.parent.type == "init_declarator" || node.parent.type == "assignment_expression") {
-					if (funcNode.type == "identifier") {
-						switch (funcNode.source) {
-							case "malloc":
-							case "calloc":
-							case "realloc":
-								funcNode.prepend("cast(#FIXME)");
-								break;
-							default: break;
-						}
-					}
-				} else {
-					// TODO: parent nodes are not set correctly?
-				}
-			}
+		case Sym.call_expression:
 			if (auto argsNode = node.childField("arguments")) {
-				if (argsNode.type == "argument_list") {
+				if (argsNode.typeEnum == Sym.argument_list) {
 					foreach(ref c; argsNode.children) {
-						if (c.type != "identifier") {
+						if (c.typeEnum != Sym.identifier) {
 							continue;
 						}
 						if (Decl decl = ctu.lookupDecl(c.source)) {
@@ -379,13 +359,64 @@ bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 	return false;
 }
 
-// In C there are trailing ; after union and struct definitions.
-// We don't want them in D
-// This should be called on a translation_unit or preproc_if(def) node
-void removeSemicolons(ref Node node) {
+/// In C there are trailing ; after union and struct definitions.
+/// We don't want them in D
+/// This should be called on a translation_unit or preproc_if(def) node
+package void removeSemicolons(ref Node node) {
 	foreach(ref c; node.children) {
-		if (c.type == ";") {
+		if (c.typeEnum == Sym.anon_SEMI) {
 			c.replace("");
 		}
 	}
+}
+
+private immutable string[2][] limitMap = [
+	["DBL_DIG", "double.dig"],
+	["DBL_EPSILON", "double.epsilon"],
+	["DBL_MANT_DIG", "double.mant_dig"],
+	["DBL_MAX_10_EXP", "double.max_10_exp"],
+	["DBL_MAX_EXP", "double.max_exp"],
+	["DBL_MAX", "double.max"],
+	["DBL_MIN_10_EXP", "double.min_10_exp"],
+	["DBL_MIN_EXP", "double.min_exp"],
+	["DBL_MIN", "double.min"],
+	["FLT_DIG", "float.dig"],
+	["FLT_EPSILON", "float.epsilon"],
+	["FLT_MANT_DIG", "float.mant_dig"],
+	["FLT_MAX_10_EXP", "float.max_10_exp"],
+	["FLT_MAX_EXP", "float.max_exp"],
+	["FLT_MAX", "float.max"],
+	["FLT_MIN_10_EXP", "float.min_10_exp"],
+	["FLT_MIN_EXP", "float.min_exp"],
+	["FLT_MIN", "float.min"],
+	["LDBL_DIG", "real.dig"],
+	["LDBL_EPSILON", "real.epsilon"],
+	["LDBL_MANT_DIG", "real.mant_dig"],
+	["LDBL_MAX_10_EXP", "real.max_10_exp"],
+	["LDBL_MAX_EXP", "real.max_exp"],
+	["LDBL_MAX", "real.max"],
+	["LDBL_MIN_10_EXP", "real.min_10_exp"],
+	["LDBL_MIN_EXP", "real.min_exp"],
+	["LDBL_MIN", "real.min"],
+	//["FLT_EVAL_METHOD", ""],
+	//["FLT_ROUNDS", ""],
+	//["FLT_RADIX", ""],
+	//["DECIMAL_DIG", ""],
+];
+
+/// Params:
+///   str = macro from <float.h>
+/// Returns: corresponding D type property, or `null` if no match
+string translateLimit(string str) {
+	switch(str) {
+		static foreach(p; limitMap) {
+			case p[0]: return p[1];
+		}
+		case "FIXME": return null; // remove string switch
+		default: return null;
+	}
+}
+
+unittest {
+	assert(translateLimit("FLT_MAX") == "float.max");
 }

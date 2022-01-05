@@ -10,6 +10,15 @@ private void test(string c, string d) {
 	assertStringEqual(stripWhite(translateFile(c, "testmodule", settings)), stripWhite(d));
 }
 
+version(none)
+@("known bugs") unittest {
+	test(
+		"#define CONSTANT ((size_t)1 << (sizeof(size_t) * 2))",
+		"enum CONSTANT = (cast(size_t)1 << (size_t.sizeof * 2))"
+	);
+
+}
+
 @("types") unittest {
 	test("unsigned int x0;", "uint x0;");
 	test("long long x3;", "long x3;");
@@ -91,22 +100,22 @@ struct T {
 @("function") unittest {
 	test("
 int *bar(int y, ...) {
-	while(x) {
+	while (x) {
 	}
-	for(;;);
-	for(unsigned short x = 0;;);
-	switch (0) {
+	for (;;);
+	for (unsigned short x = 0;;);
+	switch(0) {
 		case 1: break;
 	}
 	T *t;
 	return t->ptr;
 }", "
 int* bar(int y, ...) {
-	while(x) {
+	while (x) {
 	}
-	for(;;){}
-	for(ushort x = 0;;){}
-	switch (0) {
+	for (;;){}
+	for (ushort x = 0;;){}
+	switch(0) {
 		case 1: break;
 	default: break;}
 	T* t;
@@ -127,6 +136,32 @@ char* p2;
 `);
 
 	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");
+}
+
+@("designator list") unittest {
+	test("
+int a[2] = {
+	[0] = 1,
+	[1] = 2,
+};
+", "
+int[2] a = [
+	0: 1,
+	1: 2,
+];
+");
+
+	test("
+S a = {
+	.fieldA = 1,
+	.fieldB = 2,
+};
+", "
+S a = [
+	fieldA: 1,
+	fieldB: 2,
+];
+");
 }
 
 @("preprocessor") unittest {
