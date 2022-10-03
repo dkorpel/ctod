@@ -1,8 +1,14 @@
 module ctod.translate;
 
-import ctod;
-import dbg;
-import tree_sitter.api, tree_sitter.wrapper;
+import ctod.tree_sitter;
+import ctod.ctype;
+import ctod.cdeclaration;
+import ctod.cpreproc;
+
+// Enable switching to custom Associative Array type
+alias Map(K, V) = V[K];
+
+import tree_sitter.api;
 
 private immutable hasVersion = `
 private template HasVersion(string versionId) {
@@ -27,7 +33,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 
 	if (settings.includeHeader) {
 		result ~= "module "~moduleName~";\n";
-		result ~= "extern(C): @nogc: nothrow: __gshared:\n";
+		result ~= "@nogc nothrow:
+extern(C): __gshared:
+\n";
 	}
 
 	if (ctx.needsHasVersion) {
@@ -79,9 +87,9 @@ package struct TranslationContext {
 	bool stripComments = false;
 
 	/// global variables and function declarations
-	Decl[string] symbolTable;
-	Decl[string] localSymbolTable;
-	MacroType[string] macroTable;
+	Map!(string, Decl) symbolTable;
+	Map!(string, Decl) localSymbolTable;
+	Map!(string, MacroType) macroTable;
 	string inFunction = null;
 
 	this(string fileName, string source) {
@@ -120,9 +128,8 @@ package struct TranslationContext {
 
 	int uniqueIdCounter = 0;
 	string uniqueIdentifier(string suggestion) {
-		import bops.string.lex: toUpper;
 		if (suggestion.length > 0) {
-			return "_" ~ suggestion[0].toUpper ~ suggestion[1..$];
+			return "_" ~ suggestion[0] ~ suggestion[1..$];
 		} else {
 			assert(0);
 		}
@@ -134,13 +141,13 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	if (node.isTranslated) {
 		return;
 	}
-	if (tryTranslatePreprocessor(ctu, node)) {
+	if (ctodTryPreprocessor(ctu, node)) {
 		return;
 	}
-	if (tryTranslateDeclaration(ctu, node)) {
+	if (ctodTryDeclaration(ctu, node)) {
 		return;
 	}
-	if (tryTranslateMisc(ctu, node)) {
+	if (ctodMisc(ctu, node)) {
 		return;
 	}
 
@@ -150,8 +157,7 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	node.isTranslated = true;
 }
 
-package bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
-	import bops.tostring: toGcString;
+package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.comment:
 			// todo: maybe convert doxygen to Ddoc?
@@ -171,10 +177,7 @@ package bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		case Sym.number_literal:
-			import std.array: replace;
-			// long specifier must be capitalized in D, 1llu => 1LLu
-			// float must have digits after dot, 1.f => 1.0f
-			return node.replace(node.source.replace("l", "L").replace(".f", ".0f").replace(".F", ".0F"));
+			return node.replace(ctodNumberLiteral(node.source));
 		case Sym.concatenated_string:
 			// "a" "b" "c" => "a"~"b"~"c"
 			bool first = true;
@@ -189,7 +192,7 @@ package bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			return true;
 		case Sym.primitive_type:
-			if (string s = replacePrimitiveType(node.source)) {
+			if (string s = ctodPrimitiveType(node.source)) {
 				node.replace(s);
 				return true;
 			}
@@ -261,7 +264,7 @@ package bool tryTranslateMisc(ref TranslationContext ctu, ref Node node) {
 				InlineType[] inlineTypes;
 				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
-					c.replace(decls[0].toGcString());
+					c.replace(decls[0].toString());
 				}
 			}
 			return false;
@@ -404,19 +407,66 @@ private immutable string[2][] limitMap = [
 	//["DECIMAL_DIG", ""],
 ];
 
+package string mapLookup(const string[2][] map, string str, string orElse) {
+	// #optimization: binary serach?
+	foreach(p; map) {
+		if (str == p[0]) {
+			return p[1];
+		}
+	}
+	return orElse;
+}
+
 /// Params:
 ///   str = macro from <float.h>
 /// Returns: corresponding D type property, or `null` if no match
-string translateLimit(string str) {
-	switch(str) {
-		static foreach(p; limitMap) {
-			case p[0]: return p[1];
-		}
-		case "FIXME": return null; // remove string switch
-		default: return null;
-	}
+string ctodLimit(string str) {
+	return mapLookup(limitMap, str, str);
 }
 
-unittest {
-	assert(translateLimit("FLT_MAX") == "float.max");
+@("ctodLimit") unittest {
+	assert(ctodLimit("FLT_MAX") == "float.max");
+}
+
+/// Translate C number literal to D one
+///
+string ctodNumberLiteral(string str) {
+	if (str.length < 2) {
+		return str;
+	}
+
+	// float must have digits after dot, 1.f => 1.0f
+	if ((str[$-1] == 'f' || str[$-1] == 'F') && str[$-2] == '.') {
+		auto res = new char[str.length+1];
+		res[0..str.length] = str[];
+		res[$-2] = '0';
+		res[$-1] = str[$-1];
+		return cast(immutable) res;
+	}
+
+	// TODO:
+	/// long specifier must be capitalized in D, 1llu => 1LLu
+	char[] cap = null;
+	foreach_reverse(i; 0..str.length) {
+		if (str[i] == 'l') {
+			if (!cap) {
+				cap = str.dup;
+			}
+			cap[i] = 'L';
+		}
+	}
+	if (cap) {
+		return cast(immutable) cap;
+	}
+
+	return str;
+}
+
+@("ctodNumberLiteral") unittest {
+	assert(ctodNumberLiteral("0") == "0");
+	assert(ctodNumberLiteral("1.f") == "1.0f");
+	assert(ctodNumberLiteral("1.F") == "1.0F");
+	assert(ctodNumberLiteral("4l") == "4L");
+
+	assert(ctodNumberLiteral("1llu") != "1Lu");
 }

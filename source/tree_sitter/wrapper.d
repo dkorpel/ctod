@@ -1,7 +1,6 @@
 module tree_sitter.wrapper;
 
 import tree_sitter;
-import dbg;
 import std.string: fromStringz;
 
 /// Returns: a concrete syntax tree for C source code

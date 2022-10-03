@@ -14,3 +14,4 @@ ctod-test-*
 *.obj
 *.lst
 build/
+.vscode

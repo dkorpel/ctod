@@ -1,10 +1,7 @@
 module tree_sitter.api;
 
-import core.stdc.stdio;
-
 extern(C):
-@nogc:
-nothrow:
+@nogc nothrow:
 
 alias c_bool = int;
 
@@ -40,94 +37,94 @@ struct TSQuery;
 struct TSQueryCursor;
 
 enum TSInputEncoding {
-    TSInputEncodingUTF8 = 0,
-    TSInputEncodingUTF16 = 1
+	TSInputEncodingUTF8 = 0,
+	TSInputEncodingUTF16 = 1
 }
 
 enum TSSymbolType {
-    TSSymbolTypeRegular = 0,
-    TSSymbolTypeAnonymous = 1,
-    TSSymbolTypeAuxiliary = 2
+	TSSymbolTypeRegular = 0,
+	TSSymbolTypeAnonymous = 1,
+	TSSymbolTypeAuxiliary = 2
 }
 
 struct TSPoint {
-    uint row;
-    uint column;
+	uint row;
+	uint column;
 }
 
 struct TSRange {
-    TSPoint start_point;
-    TSPoint end_point;
-    uint start_byte;
-    uint end_byte;
+	TSPoint start_point;
+	TSPoint end_point;
+	uint start_byte;
+	uint end_byte;
 }
 
 struct TSInput {
-    void* payload;
-    const(char)* function(void* payload, uint byte_index, TSPoint position, uint* bytes_read) read;
-    TSInputEncoding encoding;
+	void* payload;
+	const(char)* function(void* payload, uint byte_index, TSPoint position, uint* bytes_read) read;
+	TSInputEncoding encoding;
 }
 
 enum TSLogType {
-    TSLogTypeParse = 0,
-    TSLogTypeLex = 1
+	TSLogTypeParse = 0,
+	TSLogTypeLex = 1
 }
 
 struct TSLogger {
-    void* payload;
-    void function(void* payload, TSLogType, const(char)*) log;
+	void* payload;
+	void function(void* payload, TSLogType, const(char)*) log;
 }
 
 struct TSInputEdit {
-    uint start_byte;
-    uint old_end_byte;
-    uint new_end_byte;
-    TSPoint start_point;
-    TSPoint old_end_point;
-    TSPoint new_end_point;
+	uint start_byte;
+	uint old_end_byte;
+	uint new_end_byte;
+	TSPoint start_point;
+	TSPoint old_end_point;
+	TSPoint new_end_point;
 }
 
 struct TSNode {
-    uint[4] context;
-    const(void)* id;
-    const(TSTree)* tree;
+	uint[4] context;
+	const(void)* id;
+	const(TSTree)* tree;
 }
 
 struct TSTreeCursor {
-    const(void)* tree;
-    const(void)* id;
-    uint[2] context;
+	const(void)* tree;
+	const(void)* id;
+	uint[2] context;
 }
 
 struct TSQueryCapture {
-    TSNode node;
-    uint index;
+	TSNode node;
+	uint index;
 }
 
 struct TSQueryMatch {
-    uint id;
-    ushort pattern_index;
-    ushort capture_count;
-    const(TSQueryCapture)* captures;
+	uint id;
+	ushort pattern_index;
+	ushort capture_count;
+	const(TSQueryCapture)* captures;
 }
 
 enum TSQueryPredicateStepType {
-    TSQueryPredicateStepTypeDone = 0,
-    TSQueryPredicateStepTypeCapture = 1,
-    TSQueryPredicateStepTypeString = 2
+	TSQueryPredicateStepTypeDone = 0,
+	TSQueryPredicateStepTypeCapture = 1,
+	TSQueryPredicateStepTypeString = 2
 }
 
 struct TSQueryPredicateStep {
-    TSQueryPredicateStepType type;
-    uint value_id;
+	TSQueryPredicateStepType type;
+	uint value_id;
 }
 
 enum TSQueryError {
-    TSQueryErrorNone = 0,
-    TSQueryErrorSyntax = 1,
-    TSQueryErrorNodeType = 2,
-    TSQueryErrorField = 3,
-    TSQueryErrorCapture = 4
+	TSQueryErrorNone = 0,
+	TSQueryErrorSyntax = 1,
+	TSQueryErrorNodeType = 2,
+	TSQueryErrorField = 3,
+	TSQueryErrorCapture = 4
 }
 
 /********************/
@@ -222,7 +219,7 @@ const(TSRange)* ts_parser_included_ranges(const(TSParser)* self, uint* length);
  * This function returns a syntax tree on success, and `NULL` on failure. There
  * are three possible reasons for failure:
  * 1. The parser does not have a language assigned. Check for this using the
-      `ts_parser_language` function.
+	  `ts_parser_language` function.
  * 2. Parsing was cancelled due to a timeout that was set by an earlier call to
  *    the `ts_parser_set_timeout_micros` function. You can resume parsing from
  *    where the parser left out by calling `ts_parser_parse` again with the
@@ -242,7 +239,7 @@ TSTree* ts_parser_parse(TSParser* self, const(TSTree)* old_tree, TSInput input);
  * length in bytes.
  */
 TSTree* ts_parser_parse_string(TSParser* self, const(TSTree)* old_tree,
-        const(char)* string, uint length);
+		const(char)* string, uint length);
 
 /**
  * Use the parser to parse some source code stored in one contiguous buffer with
@@ -251,7 +248,7 @@ TSTree* ts_parser_parse_string(TSParser* self, const(TSTree)* old_tree,
  * the text is encoded as UTF8 or UTF16.
  */
 TSTree* ts_parser_parse_string_encoding(TSParser* self, const(TSTree)* old_tree,
-        const(char)* string, uint length, TSInputEncoding encoding);
+		const(char)* string, uint length, TSInputEncoding encoding);
 
 /**
  * Instruct the parser to start the next parse from the beginning.
@@ -366,10 +363,14 @@ void ts_tree_edit(TSTree* self, const(TSInputEdit)* edit);
  */
 TSRange* ts_tree_get_changed_ranges(const(TSTree)* old_tree, const(TSTree)* new_tree, uint* length);
 
-/**
- * Write a DOT graph describing the syntax tree to the given file.
- */
-void ts_tree_print_dot_graph(const(TSTree)*, FILE*);
+version(WebAssembly) {} else {
+	import core.stdc.stdio: FILE;
+
+	/**
+	* Write a DOT graph describing the syntax tree to the given file.
+	*/
+	void ts_tree_print_dot_graph(const(TSTree)*, FILE*);
+}
 
 /******************/
 /* Section - Node */
@@ -639,7 +640,7 @@ TSTreeCursor ts_tree_cursor_copy(const(TSTreeCursor)*);
  * 2. The type of error is written to the `error_type` parameter.
  */
 TSQuery* ts_query_new(const(TSLanguage)* language, const(char)* source,
-        uint source_len, uint* error_offset, TSQueryError* error_type);
+		uint source_len, uint* error_offset, TSQueryError* error_type);
 
 /**
  * Delete a query, freeing all of the memory that it used.
@@ -678,7 +679,7 @@ uint ts_query_start_byte_for_pattern(const(TSQuery)*, uint);
  *    predicates, then there will be two steps with this `type` in the array.
  */
 const(TSQueryPredicateStep)* ts_query_predicates_for_pattern(const(TSQuery)* self,
-        uint pattern_index, uint* length);
+		uint pattern_index, uint* length);
 
 /**
  * Get the name and length of one of the query's captures, or one of the
@@ -781,7 +782,7 @@ const(char)* ts_language_symbol_name(const(TSLanguage)*, TSSymbol);
  * Get the numerical id for the given node type string.
  */
 TSSymbol ts_language_symbol_for_name(const(TSLanguage)* self,
-        const(char)* string, uint length, bool is_named);
+		const(char)* string, uint length, bool is_named);
 
 /**
  * Get the number of distinct field names in the language.

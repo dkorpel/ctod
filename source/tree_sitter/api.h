@@ -21,13 +21,13 @@ extern "C" {
  * The Tree-sitter library is generally backwards-compatible with languages
  * generated using older CLI versions, but is not forwards-compatible.
  */
-#define TREE_SITTER_LANGUAGE_VERSION 11
+#define TREE_SITTER_LANGUAGE_VERSION 13
 
 /**
  * The earliest ABI version that is supported by the current version of the
  * library.
  */
-#define TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION 9
+#define TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION 13
 
 /*******************/
 /* Section - Types */
@@ -42,94 +42,96 @@ typedef struct TSQuery TSQuery;
 typedef struct TSQueryCursor TSQueryCursor;
 
 typedef enum {
-  TSInputEncodingUTF8,
-  TSInputEncodingUTF16,
+	TSInputEncodingUTF8,
+	TSInputEncodingUTF16,
 } TSInputEncoding;
 
 typedef enum {
-  TSSymbolTypeRegular,
-  TSSymbolTypeAnonymous,
-  TSSymbolTypeAuxiliary,
+	TSSymbolTypeRegular,
+	TSSymbolTypeAnonymous,
+	TSSymbolTypeAuxiliary,
 } TSSymbolType;
 
 typedef struct {
-  uint32_t row;
-  uint32_t column;
+	uint32_t row;
+	uint32_t column;
 } TSPoint;
 
 typedef struct {
-  TSPoint start_point;
-  TSPoint end_point;
-  uint32_t start_byte;
-  uint32_t end_byte;
+	TSPoint start_point;
+	TSPoint end_point;
+	uint32_t start_byte;
+	uint32_t end_byte;
 } TSRange;
 
 typedef struct {
-  void *payload;
-  const char *(*read)(void *payload, uint32_t byte_index, TSPoint position, uint32_t *bytes_read);
-  TSInputEncoding encoding;
+	void *payload;
+	const char *(*read)(void *payload, uint32_t byte_index, TSPoint position, uint32_t *bytes_read);
+	TSInputEncoding encoding;
 } TSInput;
 
 typedef enum {
-  TSLogTypeParse,
-  TSLogTypeLex,
+	TSLogTypeParse,
+	TSLogTypeLex,
 } TSLogType;
 
 typedef struct {
-  void *payload;
-  void (*log)(void *payload, TSLogType, const char *);
+	void *payload;
+	void (*log)(void *payload, TSLogType, const char *);
 } TSLogger;
 
 typedef struct {
-  uint32_t start_byte;
-  uint32_t old_end_byte;
-  uint32_t new_end_byte;
-  TSPoint start_point;
-  TSPoint old_end_point;
-  TSPoint new_end_point;
+	uint32_t start_byte;
+	uint32_t old_end_byte;
+	uint32_t new_end_byte;
+	TSPoint start_point;
+	TSPoint old_end_point;
+	TSPoint new_end_point;
 } TSInputEdit;
 
 typedef struct {
-  uint32_t context[4];
-  const void *id;
-  const TSTree *tree;
+	uint32_t context[4];
+	const void *id;
+	const TSTree *tree;
 } TSNode;
 
 typedef struct {
-  const void *tree;
-  const void *id;
-  uint32_t context[2];
+	const void *tree;
+	const void *id;
+	uint32_t context[2];
 } TSTreeCursor;
 
 typedef struct {
-  TSNode node;
-  uint32_t index;
+	TSNode node;
+	uint32_t index;
 } TSQueryCapture;
 
 typedef struct {
-  uint32_t id;
-  uint16_t pattern_index;
-  uint16_t capture_count;
-  const TSQueryCapture *captures;
+	uint32_t id;
+	uint16_t pattern_index;
+	uint16_t capture_count;
+	const TSQueryCapture *captures;
 } TSQueryMatch;
 
 typedef enum {
-  TSQueryPredicateStepTypeDone,
-  TSQueryPredicateStepTypeCapture,
-  TSQueryPredicateStepTypeString,
+	TSQueryPredicateStepTypeDone,
+	TSQueryPredicateStepTypeCapture,
+	TSQueryPredicateStepTypeString,
 } TSQueryPredicateStepType;
 
 typedef struct {
-  TSQueryPredicateStepType type;
-  uint32_t value_id;
+	TSQueryPredicateStepType type;
+	uint32_t value_id;
 } TSQueryPredicateStep;
 
 typedef enum {
-  TSQueryErrorNone = 0,
-  TSQueryErrorSyntax,
-  TSQueryErrorNodeType,
-  TSQueryErrorField,
-  TSQueryErrorCapture,
+	TSQueryErrorNone = 0,
+	TSQueryErrorSyntax,
+	TSQueryErrorNodeType,
+	TSQueryErrorField,
+	TSQueryErrorCapture,
+	TSQueryErrorStructure,
+	TSQueryErrorLanguage,
 } TSQueryError;
 
 /********************/
@@ -178,18 +180,16 @@ const TSLanguage *ts_parser_language(const TSParser *self);
  * If `length` is zero, then the entire document will be parsed. Otherwise,
  * the given ranges must be ordered from earliest to latest in the document,
  * and they must not overlap. That is, the following must hold for all
- * `i` < `length - 1`:
- *
- *     ranges[i].end_byte <= ranges[i + 1].start_byte
+ * `i` < `length - 1`: ranges[i].end_byte <= ranges[i + 1].start_byte
  *
  * If this requirement is not satisfied, the operation will fail, the ranges
  * will not be assigned, and this function will return `false`. On success,
  * this function returns `true`
  */
 bool ts_parser_set_included_ranges(
-  TSParser *self,
-  const TSRange *ranges,
-  uint32_t length
+	TSParser *self,
+	const TSRange *ranges,
+	uint32_t length
 );
 
 /**
@@ -200,8 +200,8 @@ bool ts_parser_set_included_ranges(
  * `length` pointer.
  */
 const TSRange *ts_parser_included_ranges(
-  const TSParser *self,
-  uint32_t *length
+	const TSParser *self,
+	uint32_t *length
 );
 
 /**
@@ -219,8 +219,8 @@ const TSRange *ts_parser_included_ranges(
  * following three fields:
  * 1. `read`: A function to retrieve a chunk of text at a given byte offset
  *    and (row, column) position. The function should return a pointer to the
- *    text and write its length to the the `bytes_read` pointer. The parser
- *    does not take ownership of this buffer; it just borrows it until it has
+ *    text and write its length to the `bytes_read` pointer. The parser does
+ *    not take ownership of this buffer; it just borrows it until it has
  *    finished reading it. The function should write a zero value to the
  *    `bytes_read` pointer to indicate the end of the document.
  * 2. `payload`: An arbitrary pointer that will be passed to each invocation
@@ -231,7 +231,7 @@ const TSRange *ts_parser_included_ranges(
  * This function returns a syntax tree on success, and `NULL` on failure. There
  * are three possible reasons for failure:
  * 1. The parser does not have a language assigned. Check for this using the
-      `ts_parser_language` function.
+ *    `ts_parser_language` function.
  * 2. Parsing was cancelled due to a timeout that was set by an earlier call to
  *    the `ts_parser_set_timeout_micros` function. You can resume parsing from
  *    where the parser left out by calling `ts_parser_parse` again with the
@@ -243,9 +243,9 @@ const TSRange *ts_parser_included_ranges(
  *    the same arguments.
  */
 TSTree *ts_parser_parse(
-  TSParser *self,
-  const TSTree *old_tree,
-  TSInput input
+	TSParser *self,
+	const TSTree *old_tree,
+	TSInput input
 );
 
 /**
@@ -255,10 +255,10 @@ TSTree *ts_parser_parse(
  * length in bytes.
  */
 TSTree *ts_parser_parse_string(
-  TSParser *self,
-  const TSTree *old_tree,
-  const char *string,
-  uint32_t length
+	TSParser *self,
+	const TSTree *old_tree,
+	const char *string,
+	uint32_t length
 );
 
 /**
@@ -268,11 +268,11 @@ TSTree *ts_parser_parse_string(
  * the text is encoded as UTF8 or UTF16.
  */
 TSTree *ts_parser_parse_string_encoding(
-  TSParser *self,
-  const TSTree *old_tree,
-  const char *string,
-  uint32_t length,
-  TSInputEncoding encoding
+	TSParser *self,
+	const TSTree *old_tree,
+	const char *string,
+	uint32_t length,
+	TSInputEncoding encoding
 );
 
 /**
@@ -387,9 +387,9 @@ void ts_tree_edit(TSTree *self, const TSInputEdit *edit);
  * given `length` pointer.
  */
 TSRange *ts_tree_get_changed_ranges(
-  const TSTree *old_tree,
-  const TSTree *new_tree,
-  uint32_t *length
+	const TSTree *old_tree,
+	const TSTree *new_tree,
+	uint32_t *length
 );
 
 /**
@@ -487,6 +487,12 @@ TSNode ts_node_parent(TSNode);
 TSNode ts_node_child(TSNode, uint32_t);
 
 /**
+ * Get the field name for node's child at the given index, where zero represents
+ * the first child. Returns NULL, if no field is found.
+ */
+const char *ts_node_field_name_for_child(TSNode, uint32_t);
+
+/**
  * Get the node's number of children.
  */
 uint32_t ts_node_child_count(TSNode);
@@ -509,9 +515,9 @@ uint32_t ts_node_named_child_count(TSNode);
  * Get the node's child with the given field name.
  */
 TSNode ts_node_child_by_field_name(
-  TSNode self,
-  const char *field_name,
-  uint32_t field_name_length
+	TSNode self,
+	const char *field_name,
+	uint32_t field_name_length
 );
 
 /**
@@ -611,7 +617,7 @@ TSNode ts_tree_cursor_current_node(const TSTreeCursor *);
 const char *ts_tree_cursor_current_field_name(const TSTreeCursor *);
 
 /**
- * Get the field name of the tree cursor's current node.
+ * Get the field id of the tree cursor's current node.
  *
  * This returns zero if the current node doesn't have a field.
  * See also `ts_node_child_by_field_id`, `ts_language_field_id_for_name`.
@@ -644,12 +650,13 @@ bool ts_tree_cursor_goto_first_child(TSTreeCursor *);
 
 /**
  * Move the cursor to the first child of its current node that extends beyond
- * the given byte offset.
+ * the given byte offset or point.
  *
  * This returns the index of the child node if one was found, and returns -1
  * if no such child was found.
  */
 int64_t ts_tree_cursor_goto_first_child_for_byte(TSTreeCursor *, uint32_t);
+int64_t ts_tree_cursor_goto_first_child_for_point(TSTreeCursor *, TSPoint);
 
 TSTreeCursor ts_tree_cursor_copy(const TSTreeCursor *);
 
@@ -669,11 +676,11 @@ TSTreeCursor ts_tree_cursor_copy(const TSTreeCursor *);
  * 2. The type of error is written to the `error_type` parameter.
  */
 TSQuery *ts_query_new(
-  const TSLanguage *language,
-  const char *source,
-  uint32_t source_len,
-  uint32_t *error_offset,
-  TSQueryError *error_type
+	const TSLanguage *language,
+	const char *source,
+	uint32_t source_len,
+	uint32_t *error_offset,
+	TSQueryError *error_type
 );
 
 /**
@@ -713,9 +720,14 @@ uint32_t ts_query_start_byte_for_pattern(const TSQuery *, uint32_t);
  *    predicates, then there will be two steps with this `type` in the array.
  */
 const TSQueryPredicateStep *ts_query_predicates_for_pattern(
-  const TSQuery *self,
-  uint32_t pattern_index,
-  uint32_t *length
+	const TSQuery *self,
+	uint32_t pattern_index,
+	uint32_t *length
+);
+
+bool ts_query_step_is_definite(
+	const TSQuery *self,
+	uint32_t byte_offset
 );
 
 /**
@@ -724,14 +736,14 @@ const TSQueryPredicateStep *ts_query_predicates_for_pattern(
  * numeric id based on the order that it appeared in the query's source.
  */
 const char *ts_query_capture_name_for_id(
-  const TSQuery *,
-  uint32_t id,
-  uint32_t *length
+	const TSQuery *,
+	uint32_t id,
+	uint32_t *length
 );
 const char *ts_query_string_value_for_id(
-  const TSQuery *,
-  uint32_t id,
-  uint32_t *length
+	const TSQuery *,
+	uint32_t id,
+	uint32_t *length
 );
 
 /**
@@ -759,7 +771,7 @@ void ts_query_disable_pattern(TSQuery *, uint32_t);
  * to start running a given query on a given syntax node. Then, there are
  * two options for consuming the results of the query:
  * 1. Repeatedly call `ts_query_cursor_next_match` to iterate over all of the
- *    the *matches* in the order that they were found. Each match contains the
+ *    *matches* in the order that they were found. Each match contains the
  *    index of the pattern that matched, and an array of captures. Because
  *    multiple patterns can match the same set of nodes, one match may contain
  *    captures that appear *before* some of the captures from a previous match.
@@ -786,6 +798,21 @@ void ts_query_cursor_delete(TSQueryCursor *);
 void ts_query_cursor_exec(TSQueryCursor *, const TSQuery *, TSNode);
 
 /**
+ * Manage the maximum number of in-progress matches allowed by this query
+ * cursor.
+ *
+ * Query cursors have an optional maximum capacity for storing lists of
+ * in-progress captures. If this capacity is exceeded, then the
+ * earliest-starting match will silently be dropped to make room for further
+ * matches. This maximum capacity is optional — by default, query cursors allow
+ * any number of pending matches, dynamically allocating new space for them as
+ * needed as the query is executed.
+ */
+bool ts_query_cursor_did_exceed_match_limit(const TSQueryCursor *);
+uint32_t ts_query_cursor_match_limit(const TSQueryCursor *);
+void ts_query_cursor_set_match_limit(TSQueryCursor *, uint32_t);
+
+/**
  * Set the range of bytes or (row, column) positions in which the query
  * will be executed.
  */
@@ -808,9 +835,9 @@ void ts_query_cursor_remove_match(TSQueryCursor *, uint32_t id);
  * the matche's capture list to `*capture_index`. Otherwise, return `false`.
  */
 bool ts_query_cursor_next_capture(
-  TSQueryCursor *,
-  TSQueryMatch *match,
-  uint32_t *capture_index
+	TSQueryCursor *,
+	TSQueryMatch *match,
+	uint32_t *capture_index
 );
 
 /**********************/
@@ -831,10 +858,10 @@ const char *ts_language_symbol_name(const TSLanguage *, TSSymbol);
  * Get the numerical id for the given node type string.
  */
 TSSymbol ts_language_symbol_for_name(
-  const TSLanguage *self,
-  const char *string,
-  uint32_t length,
-  bool is_named
+	const TSLanguage *self,
+	const char *string,
+	uint32_t length,
+	bool is_named
 );
 
 /**

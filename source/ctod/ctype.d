@@ -3,9 +3,9 @@ Translate C types
 */
 module ctod.ctype;
 
-import dbg;
-import ctod;
-import tree_sitter.wrapper;
+import ctod.tree_sitter;
+import ctod.translate;
+import ctod.cdeclaration;
 
 /// Declaration
 struct Decl {
@@ -14,25 +14,31 @@ struct Decl {
 	string identifier = ""; /// name of variable / function
 	string initializer = ""; /// expression that initializes the variable
 
-	void toString(O)(ref O sink) const scope {
-		import bops.tostring: toStringM, fmtRange;
-		toStringM(sink, storageClasses);
+	string toString() const {
+		import std.string: format;
+		string result = storageClasses;
 
 		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl) {
-			type.next[0].toString(sink);
-			toStringM(sink, " ", identifier, "(", fmtRange(type.params, ", "), ")");
+			result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
+			//result ~= type.next[0].toString() ~ " " ~ identifier ~ "(";
+			//foreach(par; type.params) {
+			//	result ~= par;
+			//}
+			//result ~= ")";
 		} else {
-			type.toString(sink);
+			result ~= type.toString();
 			if (identifier.length > 0) {
-				toStringM(sink, " ", identifier);
+				result ~= " " ~ identifier;
 			}
 			if (initializer.length > 0) {
-				toStringM(sink, " = ", initializer);
+				result ~= " = " ~ initializer;
 			}
 		}
+		return result;
 	}
+
 	///
 	enum none = Decl.init;
 	///
@@ -40,8 +46,7 @@ struct Decl {
 }
 
 unittest {
-	import bops.test: assertToString;
-	assertToString(Decl("inline ", CType.named("int"), "x", "3"), "inline int x = 3");
+	assert(Decl("inline ", CType.named("int"), "x", "3").toString() ==  "inline int x = 3");
 }
 
 /// A type in the middle of an expression.
@@ -69,7 +74,6 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 	// keyword = struct, union or enum
 	string namedType(string keyword) {
 		auto nameNode = node.childField("name");
-		//import dbg; dprint(node.source);
 		if (auto c = node.childField("body")) {
 			translateNode(ctu, *c);
 			string name = nameNode ? nameNode.source : null;
@@ -84,7 +88,7 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 
 	switch(node.typeEnum) {
 		case Sym.primitive_type:
-			return replacePrimitiveType(node.source);
+			return ctodPrimitiveType(node.source);
 		case Sym.alias_type_identifier:
 			if (node.source == "wchar_t") {
 				ctu.needsWchar = true;
@@ -94,11 +98,11 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 				return "c_bool";
 			} else {
 				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
-				// so also do replacePrimitiveType here.
-				const replacement = replacePrimitiveType(node.source);
+				// so also do ctodPrimitiveType here.
+				const replacement = ctodPrimitiveType(node.source);
 				if (replacement == node.source) {
 					// no replacement to a D-type, so escape keywords (out => out_)
-					return replaceIdentifier(node.source);
+					return translateIdentifier(node.source);
 				} else {
 					// replacement to a D-type , e.g. __u8 => ubyte, no escaping
 					return replacement;
@@ -118,7 +122,7 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 						longCount++;
 						break;
 					case Sym.primitive_type:
-						primitive = replacePrimitiveType(c.source);
+						primitive = ctodPrimitiveType(c.source);
 						break;
 					case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
 						primitive = "short";
@@ -294,7 +298,6 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 						// variadic args
 						paramDecls ~= Decl("", CType.named("..."), "", "");
 					}
-					//import dbg; dprint(c.source);
 				}
 			}
 			if (auto declNode = node.childField("declarator")) {
@@ -308,7 +311,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 		case Sym.alias_field_identifier: // int x;
 		case Sym.alias_type_identifier: // typedef X Y;
 		case Sym.identifier: // ??
-			decl.identifier = replaceIdentifier(node.source);
+			decl.identifier = translateIdentifier(node.source);
 			return true;
 		// pointer/array declarators always have a declarator field.
 		// abstract declarators maybe not, for example: void foo(float*, float[])
@@ -370,9 +373,7 @@ struct CType {
 	Tag tag = Tag.none;
 	bool isConst = false;
 	enum none = CType.init;
-	bool opCast() const {
-		return tag != Tag.none;
-	}
+	bool opCast() const {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}
 	bool isStaticArray() const {return tag == Tag.staticArray;}
 
@@ -422,46 +423,32 @@ struct CType {
 		return result;
 	}
 
-	void toString(O)(ref O sink) const scope {
-		import bops.tostring: toStringM, fmtRange;
-		switch(tag) {
-			case Tag.pointer:
+	string toString() const {
+		import std.string: format;
+		with(Tag) switch(tag) {
+			case pointer:
 				if (next[0].tag == Tag.funcDecl) {
-					toStringM(sink, next[0].next[0], " function(", fmtRange(next[0].params, ", "), ")");
+					return format("%s function(%(%s, %))", next[0].next[0], next[0].params);
 				} else {
-					if (isConst) {
-						toStringM(sink, "const(", next[0], "*)");
-					} else {
-						toStringM(sink, next[0], "*");
-					}
+					return format(isConst ? "const(%s*)" : "%s*", next[0]);
 				}
-				break;
-			case Tag.staticArray:
-				toStringM(sink, next[0], "[", countExpr, "]");
-				break;
-			case Tag.funcDecl:
-				toStringM(sink, next[0], "(", params, ")");
-				break;
-			case Tag.named:
-				if (isConst) {
-					toStringM(sink, "const(", name, ")");
-				} else {
-					toStringM(sink, name);
-				}
-				break;
-			case Tag.none:
-				toStringM(sink, "none");
-				break;
-			default:
-				break; // return "errType";
+			case staticArray:
+				return format("%s[%s]", next[0], countExpr);
+			//case funcDef://				return
+			case funcDecl:
+				return format("%s FUNC(%(%s, %))", next[0], params);
+			case named:
+				return format(isConst ? "const(%s)" : "%s", name);
+			case none:
+				return "none";
+			default: return "errType";
 		}
 	}
 }
 
 unittest {
-	import bops.test: assertToString;
-	assertToString(CType.array(CType.array(CType.named("float"), "2"), "10"), "float[2][10]");
-	assertToString(CType.pointer(CType.pointer(CType.named("ab"))), "ab**");
+	assert(CType.array(CType.array(CType.named("float"), "2"), "10").toString() == "float[2][10]");
+	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
 
 // `int8_t` etc. are from stdint.h
@@ -504,16 +491,11 @@ private immutable string[2][] basicTypeMap = [
 /// Replace known C primitive types to D-types
 ///
 /// C code often used macros for integer types of standard sizes, which is not needed for D
-string replacePrimitiveType(return scope string original) {
-	switch(original) {
-		static foreach(p; basicTypeMap) {
-			case p[0]: return p[1];
-		}
-		case "FIXME": return null; // remove string switch
-		default: return original;
-	}
+string ctodPrimitiveType(string s) {
+	return mapLookup(basicTypeMap, s, s);
 }
 
 unittest {
-	assert(replacePrimitiveType("int16_t") == "short");
+	assert(ctodPrimitiveType("int16_t") == "short");
+	assert(ctodPrimitiveType("float") == "float");
 }

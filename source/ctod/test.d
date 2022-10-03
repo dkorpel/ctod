@@ -1,13 +1,12 @@
 module ctod.test;
 
-import bops.string.lex: stripWhite;
+import std.string: strip;
 import ctod.translate;
 
 private void test(string c, string d) {
-	import bops.test: assertStringEqual;
 	TranslationSettings settings;
 	settings.includeHeader = false;
-	assertStringEqual(stripWhite(translateFile(c, "testmodule", settings)), stripWhite(d));
+	assert(strip(translateFile(c, "testmodule", settings)) == strip(d));
 }
 
 version(none)

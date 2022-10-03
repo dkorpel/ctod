@@ -1,11 +1,12 @@
 module ctod.cdeclaration;
 
-import ctod;
-import tree_sitter.wrapper;
-import bops.tostring: toGcString;
+import ctod.tree_sitter;
+import ctod.translate;
+import ctod.ctype;
+// import bops.tostring: toGcString;
 
 /// Returns: true if a declaration was matched and replaced
-bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
+bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 	InlineType[] inlinetypes;
 
 	bool translateDecl(string suffix) {
@@ -13,11 +14,11 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		string result = "";
 		foreach(s; inlinetypes) {
 			if (s.hasBody()) {
-				result ~= s.toGcString();
+				result ~= s.toString();
 			}
 		}
 		foreach(d; decls) {
-			result ~= d.toGcString() ~ suffix;
+			result ~= d.toString() ~ suffix;
 			ctu.registerDecl(d);
 		}
 		node.replace(result);
@@ -28,7 +29,7 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 		case Sym.alias_field_identifier:
 		case Sym.alias_type_identifier:
 		case Sym.identifier:
-			if (string s = replaceIdentifier(node.source)) {
+			if (string s = translateIdentifier(node.source)) {
 				return node.replace(s);
 			}
 			return true;
@@ -62,7 +63,7 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 				if (d.type == CType.named(d.identifier)) {
 					// result ~= "/*alias " ~ d.toString() ~ ";*/";
 				} else {
-					result ~= "alias " ~ d.toGcString() ~ ";";
+					result ~= "alias " ~ d.toString() ~ ";";
 				}
 			}
 			node.replace(result);
@@ -115,87 +116,83 @@ bool tryTranslateDeclaration(ref TranslationContext ctu, ref Node node) {
 	return false;
 }
 
-/// modify C identifiers that are keywords in D
-string replaceIdentifier(string s) {
-	switch(s) {
-		static foreach(kw; dKeywords) {
-			case kw: return kw ~ "_";
-		}
-		default: return s;
-	}
+/// Modify C identifiers that are keywords in D
+string translateIdentifier(string s) {
+	return mapLookup(keyWordMap, s, s);
 }
 
 /// C identifiers that are keywords in D
-/// Does not include keywords that are in both C and D (static, if, switch) or have similar meaning (null, true, assert)
-private immutable dKeywords = [
-	"abstract",
-	"alias",
-	"align",
-	"asm",
-	"auto",
-	"bool",
-	"byte",
-	"cast",
-	"catch",
-	"cdouble",
-	"cent",
-	"cfloat",
-	"char",
-	"class",
-	"creal",
-	"dchar",
-	"debug",
-	"delegate",
-	"deprecated",
-	"export",
-	"final",
-	"finally",
-	"foreach",
-	"foreach_reverse",
-	"function",
-	"idouble",
-	"ifloat",
-	"immutable",
-	"import",
-	"in",
-	"inout",
-	"interface",
-	"invariant",
-	"ireal",
-	"is",
-	"lazy",
-	"macro",
-	"mixin",
-	"module",
-	"new",
-	"nothrow",
-	"out",
-	"override",
-	"package",
-	"pragma",
-	"private",
-	"protected",
-	"public",
-	"pure",
-	"real",
-	"ref",
-	"scope",
-	"shared",
-	"super",
-	"synchronized",
-	"template",
-	"this",
-	"throw",
-	"try",
-	"typeid",
-	"typeof",
-	"ubyte",
-	"ucent",
-	"uint",
-	"ulong",
-	"unittest",
-	"ushort",
-	"version",
-	"wchar",
-	"with",
+/// Does not include keywords that are in both C and D (if, switch, static)
+/// or have similar meaning (null, true, assert)
+private immutable string[2][] keyWordMap = [
+	["abstract", "abstract_"],
+	["alias", "alias_"],
+	["align", "align_"],
+	["asm", "asm_"],
+	["auto", "auto_"],
+	["bool", "bool_"],
+	["byte", "byte_"],
+	["cast", "cast_"],
+	["catch", "catch_"],
+	["cdouble", "cdouble_"],
+	["cent", "cent_"],
+	["cfloat", "cfloat_"],
+	["char", "char_"],
+	["class", "class_"],
+	["creal", "creal_"],
+	["dchar", "dchar_"],
+	["debug", "debug_"],
+	["delegate", "delegate_"],
+	["deprecated", "deprecated_"],
+	["export", "export_"],
+	["final", "final_"],
+	["finally", "finally_"],
+	["foreach", "foreach_"],
+	["foreach_reverse", "foreach_reverse_"],
+	["function", "function_"],
+	["idouble", "idouble_"],
+	["ifloat", "ifloat_"],
+	["immutable", "immutable_"],
+	["import", "import_"],
+	["in", "in_"],
+	["inout", "inout_"],
+	["interface", "interface_"],
+	["invariant", "invariant_"],
+	["ireal", "ireal_"],
+	["is", "is_"],
+	["lazy", "lazy_"],
+	["macro", "macro_"],
+	["mixin", "mixin_"],
+	["module", "module_"],
+	["new", "new_"],
+	["nothrow", "nothrow_"],
+	["out", "out_"],
+	["override", "override_"],
+	["package", "package_"],
+	["pragma", "pragma_"],
+	["private", "private_"],
+	["protected", "protected_"],
+	["public", "public_"],
+	["pure", "pure_"],
+	["real", "real_"],
+	["ref", "ref_"],
+	["scope", "scope_"],
+	["shared", "shared_"],
+	["super", "super_"],
+	["synchronized", "synchronized_"],
+	["template", "template_"],
+	["this", "this_"],
+	["throw", "throw_"],
+	["try", "try_"],
+	["typeid", "typeid_"],
+	["typeof", "typeof_"],
+	["ubyte", "ubyte_"],
+	["ucent", "ucent_"],
+	["uint", "uint_"],
+	["ulong", "ulong_"],
+	["unittest", "unittest_"],
+	["ushort", "ushort_"],
+	["version", "version_"],
+	["wchar", "wchar_"],
+	["with", "with_"],
 ];

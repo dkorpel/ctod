@@ -1,21 +1,30 @@
+/**
+C to D source code translator
+
+Example usage:
+```
+ctod source.c header.h
+```
+
+Will output `source.d` and `header.d` translating the C code the best it can to D.
+*/
 module ctod.app;
 
 import tree_sitter.api;
-import core.stdc.stdlib: free;
-import core.stdc.string: strlen;
 
-import bops.os.console: Stdout, Stderr, println;
+import std.stdio;
 import std.path: withExtension;
-import std.file: read, write;
-import bops.os.file;
-import bops.os.file: baseName, fileExtension, readFile;
+import std.file;
+import std.file: writeFile = write;
+import std.path;
 
 import ctod.translate;
 private:
 
+version(unittest) {} else
 int main(string[] args)  {
 	if (args.length < 2) {
-		Stderr.println("give at least one file argument");
+		stderr.writeln("give at least one file argument");
 		return -1;
 	}
 	try {
@@ -29,8 +38,8 @@ int main(string[] args)  {
 				printHelp(args[0]);
 			} else {
 				const fname = args[i];
-				if (!(fname.fileExtension == ".c" || fname.fileExtension == ".h")) {
-					Stderr.println("file shoud have .c or .h extension, not ", fname.fileExtension);
+				if (!(fname.extension == ".c" || fname.extension == ".h")) {
+					stderr.writeln("file shoud have .c or .h extension, not ", fname.extension);
 					return -1;
 				}
 				//readFile(fname);
@@ -38,21 +47,16 @@ int main(string[] args)  {
 				scope(exit) {/*freeM(source)*/}
 
 				const moduleName = fname.baseName;
-
-				if (File f = File.open(fpath!"result", FileAccess.write, FileTranslation.text)) {
-
-				}
-
-				write(fname.withExtension(".d"), translateFile(source, moduleName, settings));
+				writeFile(fname.withExtension(".d"), translateFile(source, moduleName, settings));
 			}
 		}
 	} catch (Exception e) {
-		Stdout.println(e.msg);
+		stderr.writeln(e.msg);
 		return -1;
 	}
 	return 0;
 }
 
 void printHelp(string name) {
-	Stdout.println("Usage: ", name, " [FILES]\nOptions:\n  --strip  strip comments");
+	writeln("Usage: ", name, " [FILES]\nOptions:\n  --strip  strip comments");
 }
