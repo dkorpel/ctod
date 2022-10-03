@@ -128,8 +128,9 @@ package struct TranslationContext {
 
 	int uniqueIdCounter = 0;
 	string uniqueIdentifier(string suggestion) {
+		import std.ascii: toUpper;
 		if (suggestion.length > 0) {
-			return "_" ~ suggestion[0] ~ suggestion[1..$];
+			return "_" ~ suggestion[0].toUpper ~ suggestion[1..$];
 		} else {
 			assert(0);
 		}

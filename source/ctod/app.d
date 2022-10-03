@@ -46,7 +46,7 @@ int main(string[] args)  {
 				scope source = cast(string) read(fname);
 				scope(exit) {/*freeM(source)*/}
 
-				const moduleName = fname.baseName;
+				const moduleName = fname.baseName.stripExtension;
 				writeFile(fname.withExtension(".d"), translateFile(source, moduleName, settings));
 			}
 		}

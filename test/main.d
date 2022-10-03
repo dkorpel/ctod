@@ -1,5 +1,7 @@
 module main;
-extern(C): @nogc: nothrow: __gshared:
+@nogc nothrow:
+extern(C): __gshared:
+
 import core.stdc.config: c_long, c_ulong;
 import core.stdc.stddef: wchar_t;
 struct S {
@@ -8,8 +10,8 @@ struct S {
 }
 
 struct _Bitfields {
-	ushort x;/+: 12 !!+/
-    ushort y;/+: int.sizeof !!+/
+	ushort x;/*: 12 !!*/
+    ushort y;/*: int.sizeof !!*/
 }_Bitfields bitfields;
 
 union U {
