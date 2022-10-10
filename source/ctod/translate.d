@@ -142,6 +142,8 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	if (node.isTranslated) {
 		return;
 	}
+	scope(exit) node.isTranslated = true;
+
 	if (ctodTryPreprocessor(ctu, node)) {
 		return;
 	}
@@ -152,10 +154,16 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 		return;
 	}
 
+	// This comes up in sizeof(unsigned short)
+	InlineType[] inlineTypes; // TODO: use this, in case of sizeof(struct {int x; int y;})
+	if (auto s = parseTypeNode(ctu, node, inlineTypes)) {
+		node.replace(s);
+		return;
+	}
+
 	foreach(ref c; node.children) {
 		translateNode(ctu, c);
 	}
-	node.isTranslated = true;
 }
 
 package bool ctodMisc(ref TranslationContext ctu, ref Node node) {

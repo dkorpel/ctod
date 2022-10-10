@@ -85,7 +85,7 @@ struct T {
 	test("int so1 = sizeof(int);", "int so1 = int.sizeof;");
 	test("int so2 = sizeof (4);", "int so2 = typeof(4).sizeof;");
 	test("int so3 = sizeof((short) 3 + 4l);", "int so3 = typeof(cast(short) 3 + 4L).sizeof;");
-	test("int so4 = sizeof(unsigned short);", "int so4 = unsigned short.sizeof;");
+	test("int so4 = sizeof(unsigned short);", "int so4 = ushort.sizeof;");
 	test("int so5 = sizeof(GLFWvidmode);", "int so5 = GLFWvidmode.sizeof;");
 
 	// TODO
