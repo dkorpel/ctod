@@ -20,6 +20,7 @@ version(none)
 
 @("types") unittest {
 	test("unsigned int x0;", "uint x0;");
+	test("unsigned char c;", "ubyte c;");
 	test("long long x3;", "long x3;");
 	test("unsigned long long x4;", "ulong x4;");
 	test("float x6;", "float x6;");
