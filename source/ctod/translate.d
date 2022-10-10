@@ -294,53 +294,6 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		case Sym.translation_unit:
-			// try to remove header guard
-			// #ifdef NAME_H
-			// #define NAME_H
-			// ...actual code
-			// #endif
-			if (auto ifdefNode = node.firstChildType(Sym.preproc_ifdef)) {
-				int commentCount = 0;
-				string id = null;
-			headerGuardSearch:
-				foreach(i; 0..ifdefNode.children.length) {
-					switch(ifdefNode.children[i].typeEnum) {
-						case Sym.comment:
-							commentCount++;
-							continue;
-						case Sym.preproc_def:
-							// preproc can only be preceded by comments, or else it's no header guard
-							// 2 for #ifdef and identifier tokens
-							if (i > commentCount + 2) {
-								break headerGuardSearch;
-							}
-							if (auto defIdNode = ifdefNode.children[i].childField("name")) {
-								// #define matches the #ifndef
-								if (defIdNode.source == id) {
-									// put remaining children under translation unit instead of the ifdef
-									foreach(j; 0..ifdefNode.children.length) {
-										if (j <= i || j + 1 == ifdefNode.children.length) {
-											ifdefNode.children[j].replace("");
-										} else {
-											translateNode(ctu, ifdefNode.children[j]);
-										}
-									}
-									return true;
-								}
-							}
-							break headerGuardSearch;
-						case Sym.identifier:
-							if (id == null) {
-								id = ifdefNode.children[i].source;
-							} else {
-								break headerGuardSearch;
-							}
-							continue;
-						default:
-							break;
-					}
-				}
-			}
 			removeSemicolons(node);
 			break;
 		case Sym.assignment_expression:
@@ -348,17 +301,18 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			break;
 		case Sym.call_expression:
 			if (auto argsNode = node.childField("arguments")) {
-				if (argsNode.typeEnum == Sym.argument_list) {
-					foreach(ref c; argsNode.children) {
-						if (c.typeEnum != Sym.identifier) {
-							continue;
-						}
-						if (Decl decl = ctu.lookupDecl(c.source)) {
-							if (decl.type.isStaticArray) {
-								c.append(".ptr");
-							} else if (decl.type.isFunction) {
-								c.prepend("&");
-							}
+				if (argsNode.typeEnum != Sym.argument_list) {
+					break;
+				}
+				foreach(ref c; argsNode.children) {
+					if (c.typeEnum != Sym.identifier) {
+						continue;
+					}
+					if (Decl decl = ctu.lookupDecl(c.source)) {
+						if (decl.type.isStaticArray) {
+							c.append(".ptr");
+						} else if (decl.type.isFunction) {
+							c.prepend("&");
 						}
 					}
 				}

@@ -11,4 +11,4 @@ sourceFiles "lib/libc-parser.obj" "lib/libtree-sitter.obj" platform="windows"
 workingDirectory "build"
 buildRequirements "allowWarnings"
 
-dflags "-preview=dip1000"
+dflags "-preview=dip1000" "-checkaction=context"

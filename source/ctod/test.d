@@ -190,6 +190,17 @@ public import small;
 ");
 
 	test("
+#ifndef NO_HEADER_GUARD
+#define NO_HEADER_GUARD 3
+#endif
+", "
+version (NO_HEADER_GUARD) {} else {
+enum NO_HEADER_GUARD = 3;
+}
+");
+
+
+	test("
 #define TEST
 #define PI 3.14159265
 #define LOL(x)

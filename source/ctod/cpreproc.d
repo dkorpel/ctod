@@ -96,6 +96,9 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			break;
 		case Sym.preproc_ifdef:
 			removeSemicolons(node);
+			if (ctodHeaderGuard(ctu, node)) {
+				return true;
+			}
 			auto nameNode = node.childField("name");
 			if (!nameNode) {
 				return true;
@@ -185,6 +188,66 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 	return false;
 }
 
+
+/// Try to remove a header guard
+///
+/// A header guard has this pattern:
+/// ---
+/// #ifndef NAME_H
+/// #define NAME_H
+/// ...actual code
+/// #endif
+/// ---
+private bool ctodHeaderGuard(ref TranslationContext ctu, ref Node ifdefNode) {
+
+	assert(ifdefNode.typeEnum == Sym.preproc_ifdef);
+
+	// The grammar has the same node type for `#ifdef` and `#ifndef`
+	if (ifdefNode.children[0].typeEnum != Sym.aux_preproc_ifdef_token2) {
+		return false;
+	}
+
+	int commentCount = 0;
+	// second node is always field `name` with a `Sym.identifier`
+	string id = ifdefNode.children[1].source;
+
+	foreach(i; 0..ifdefNode.children.length) {
+		switch(ifdefNode.children[i].typeEnum) {
+			case Sym.comment:
+				commentCount++;
+				continue;
+			case Sym.preproc_def:
+				// preproc can only be preceded by comments, or else it's no header guard
+				// 2 for `#ifndef` and identifier tokens
+				if (i > 2 + commentCount) {
+					return false;
+				}
+				if (auto valueNode = ifdefNode.children[i].childField("value")) {
+					// Header guard defines have no value, no `#define NAME_H 3`
+					return false;
+				}
+				if (auto defIdNode = ifdefNode.children[i].childField("name")) {
+					// `#define` must match the `#ifndef`
+					if (defIdNode.source != id) {
+						return false;
+					}
+					// put remaining children under translation unit instead of the ifdef
+					foreach(j; 0..ifdefNode.children.length) {
+						if (j <= i || j + 1 == ifdefNode.children.length) {
+							ifdefNode.children[j].replace(""); // header guard nodes
+						} else {
+							translateNode(ctu, ifdefNode.children[j]); // content nodes
+						}
+					}
+					return true;
+				}
+				return false;
+			default:
+				break;
+		}
+	}
+	return false;
+}
 
 /// Replace a defined(__WIN32__) to either `HasVersion!"Windows"` (in a `static if`)
 /// or just `Windows` (in a `version()`)
