@@ -1,5 +1,7 @@
 module preproc;
-extern(C): @nogc: nothrow: __gshared:
+@nogc nothrow:
+extern(C): __gshared:
+
 
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");

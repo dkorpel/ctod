@@ -1,18 +1,10 @@
-extern (C):
+module medium;
+@nogc nothrow:
+extern(C): __gshared:
 
-struct S
-{
-    struct _Anonymous_0
-    {
-        int y;
-    }
+struct S {
 
-    _Anonymous_0 yy;
+	struct _Yy {int y;}_Yy yy;
 }
 
-struct _Anonymous_1
-{
-    int x;
-}
-
-void foo (_Anonymous_1* x);
+struct _X {int x;}void foo(_X* x);
