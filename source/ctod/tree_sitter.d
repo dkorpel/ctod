@@ -166,12 +166,10 @@ struct Node {
 	string output() const {
 		string result = "";
 		void append(const ref Node node) {
-
+			result ~= node.prefix;
 			if (node.children.length == 0) {
-				result ~= node.prefix;
 				result ~= node.replacement;
 			} else {
-				result ~= node.prefix;
 				size_t lc = node.start; // layout cursor
 				foreach(ref c; node.children) {
 					if (!c || c.noLayout) {

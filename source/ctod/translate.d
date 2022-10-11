@@ -172,6 +172,23 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	}
 }
 
+/// Returns: whether the body of a switch statement `node` contains a default statement
+bool hasDefaultStatement(ref Node node) {
+	foreach(ref c; node.children) {
+		if (c.typeEnum == Sym.anon_default) {
+			return true;
+		}
+		if (c.typeEnum == Sym.switch_statement) {
+			// any default statement we find in here doesn't belong to the original switch anymore
+			continue;
+		}
+		if (hasDefaultStatement(c)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.comment:
@@ -185,10 +202,14 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// note: switch statements can have `case` statements in the weirdest places
 			// we can be a bit conservative here and only check the common switch pattern
 			if (auto bodyNode = node.childField("body")) {
-				if (bodyNode.typeEnum == Sym.compound_statement) {
-					// TODO
-					bodyNode.children[$-1].prepend("default: break;");
+				if (bodyNode.typeEnum != Sym.compound_statement)
+					break;
+
+				if (hasDefaultStatement(*bodyNode)) {
+					break;
 				}
+
+				bodyNode.children[$-1].prepend("default: break;");
 			}
 			break;
 		case Sym.number_literal:

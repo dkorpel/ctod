@@ -110,6 +110,9 @@ int *bar(int y, ...) {
 	switch(0) {
 		case 1: break;
 	}
+	switch(0) {
+		default: break;
+	}
 	T *t;
 	return t->ptr;
 }", "
@@ -121,6 +124,9 @@ int* bar(int y, ...) {
 	switch(0) {
 		case 1: break;
 	default: break;}
+	switch(0) {
+		default: break;
+	}
 	T* t;
 	return t.ptr;
 }");
@@ -253,6 +259,17 @@ static assert(0, \"error message\");
 } else version (OSX) {
 // whoo
 }
+");
+
+	// tree-sitter doesn't parse this right, need to do manual preprocessing
+	version(none) test("
+#ifdef __cplusplus
+extern \"C\" {
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 ");
 
 }

@@ -12,3 +12,4 @@ workingDirectory "build"
 buildRequirements "allowWarnings"
 
 dflags "-preview=dip1000"
+// dflags "-checkaction=context" - GitHub actions failure because it's buggy in DMD 2.085
