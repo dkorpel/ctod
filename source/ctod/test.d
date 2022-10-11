@@ -64,6 +64,27 @@ version(none)
 	test("inline static void foo(int x);", "pragma(inline, true) private void foo(int x);");
 }
 
+@("static array .ptr") unittest {
+	test("
+int x[4];
+void pp(int *p);
+void foo()
+{
+	int *y = x + 1;
+	int *z = (1 + (x));
+	pp(x);
+}
+", "
+int[4] x;
+void pp(int* p);
+void foo() {
+	int* y = x.ptr + 1;
+	int* z = (1 + (x).ptr);
+	pp(x.ptr);
+}
+");
+}
+
 @("struct") unittest {
 	test("
 typedef struct T {

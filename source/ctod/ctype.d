@@ -358,6 +358,7 @@ package
 struct CType {
 	enum Tag {
 		none,
+		unknown,
 		pointer,
 		staticArray,
 		funcDecl,
@@ -375,9 +376,11 @@ struct CType {
 	Tag tag = Tag.none;
 	bool isConst = false;
 	enum none = CType.init;
+	enum unknown = CType.fromTag(Tag.unknown);
 	bool opCast() const {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}
 	bool isStaticArray() const {return tag == Tag.staticArray;}
+	bool isPointer() const {return tag == Tag.pointer;}
 
 	void setConst(bool value = true) {
 		isConst = value;
@@ -422,6 +425,12 @@ struct CType {
 		result.next = [ret];
 		result.params = params;
 		result.tag = Tag.funcDecl;
+		return result;
+	}
+
+	private static CType fromTag(Tag tag) {
+		CType result;
+		result.tag = tag;
 		return result;
 	}
 

@@ -26,21 +26,12 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 	}
 
 	switch(node.typeEnum) {
-		case Sym.alias_field_identifier:
-		case Sym.alias_type_identifier:
-		case Sym.identifier:
-			if (string s = translateIdentifier(node.source)) {
-				return node.replace(s);
-			}
-			return true;
 		case Sym.function_definition:
-			if (node.typeEnum == Sym.function_definition) {
-				if (auto bodyNode = node.childField("body")) {
-					ctu.enterFunction("???");
-					translateNode(ctu, *bodyNode);
-					ctu.leaveFunction();
-					return translateDecl(" " ~ bodyNode.output());
-				}
+			if (auto bodyNode = node.childField("body")) {
+				ctu.enterFunction("???");
+				translateNode(ctu, *bodyNode);
+				ctu.leaveFunction();
+				return translateDecl(" " ~ bodyNode.output());
 			}
 			break;
 		case Sym.parameter_declaration:

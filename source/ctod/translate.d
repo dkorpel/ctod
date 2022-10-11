@@ -3,6 +3,7 @@ module ctod.translate;
 import ctod.tree_sitter;
 import ctod.ctype;
 import ctod.cdeclaration;
+import ctod.cexpr;
 import ctod.cpreproc;
 
 // Enable switching to custom Associative Array type
@@ -90,6 +91,7 @@ package struct TranslationContext {
 	Map!(string, Decl) symbolTable;
 	Map!(string, Decl) localSymbolTable;
 	Map!(string, MacroType) macroTable;
+	Map!(size_t, CType) nodeTypes;
 	string inFunction = null;
 
 	this(string fileName, string source) {
@@ -104,6 +106,17 @@ package struct TranslationContext {
 	void leaveFunction() {
 		inFunction = null;
 		localSymbolTable.clear();
+	}
+
+	CType expType(ref Node node) {
+		if (auto type = node.id in nodeTypes) {
+			return *type;
+		}
+		return CType.none;
+	}
+
+	void setExpType(ref Node node, CType type) {
+		nodeTypes[node.id] = type;
 	}
 
 	Decl lookupDecl(string id) {
@@ -148,6 +161,9 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 		return;
 	}
 	if (ctodTryDeclaration(ctu, node)) {
+		return;
+	}
+	if (ctodExpression(ctu, node)) {
 		return;
 	}
 	if (ctodMisc(ctu, node)) {
@@ -212,29 +228,12 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 				bodyNode.children[$-1].prepend("default: break;");
 			}
 			break;
-		case Sym.number_literal:
-			return node.replace(ctodNumberLiteral(node.source));
-		case Sym.concatenated_string:
-			// "a" "b" "c" => "a"~"b"~"c"
-			bool first = true;
-			foreach(ref c; node.children) {
-				if (c.typeEnum == Sym.string_literal) {
-					if (first) {
-						first = false;
-					} else {
-						c.prepend("~ ");
-					}
-				}
-			}
-			return true;
 		case Sym.primitive_type:
 			if (string s = ctodPrimitiveType(node.source)) {
 				node.replace(s);
 				return true;
 			}
 			return false;
-		case Sym.null_:
-			return node.replace("null");
 
 		case Sym.type_definition:
 			// Decl[] decls = parseDecls(ctu, *c);
@@ -266,51 +265,8 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			break;
 		case Sym.anon_typedef:
 			return node.replace("alias");
-		case Sym.sizeof_expression:
-			if (auto typeNode = node.childField("type")) {
-				// sizeof(short) => (short).sizeof
-				translateNode(ctu, *typeNode);
-				node.replace("" ~ typeNode.output ~ ".sizeof");
-			} else if (auto valueNode = node.childField("value")) {
-				translateNode(ctu, *valueNode);
-				// `sizeof short` => `short.sizeof`
-				if (valueNode.typeEnum == Sym.identifier) {
-					node.replace(valueNode.output ~ ".sizeof");
-				} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
-					// sizeof(3) => typeof(3).sizeof
-					// sizeof(T) => T.sizeof
-					if (auto parenValue = valueNode.firstChildType(Sym.identifier)) {
-						valueNode = parenValue;
-					}
-					if (valueNode.typeEnum == Sym.identifier) {
-						return node.replace(valueNode.output ~ ".sizeof");
-					} else {
-						return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
-					}
-				} else if (valueNode.typeEnum == Sym.cast_expression) {
-					// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
-					if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
-						if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
-							return node.replace(t.output ~ ".sizeof " ~ p.output);
-						}
-					}
-				}
-			}
-			break;
 		case Sym.anon_DASH_GT:
 			return node.replace("."); // s->field => s.field
-		case Sym.cast_expression:
-			if (auto c = node.firstChildType(Sym.anon_LPAREN)) {
-				c.replace("cast(");
-			}
-			if (auto c = node.childField("type")) {
-				InlineType[] inlineTypes;
-				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
-				if (decls.length == 1) {
-					c.replace(decls[0].toString());
-				}
-			}
-			return false;
 		case Sym.expression_statement:
 			// ; as empty statement not allowed in D, for (;;); => for (;;) {}
 			if (node.source == ";") {
@@ -329,30 +285,6 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			break;
 		case Sym.translation_unit:
 			removeSemicolons(node);
-			break;
-		case Sym.assignment_expression:
-
-			break;
-		case Sym.call_expression:
-			if (auto argsNode = node.childField("arguments")) {
-				if (argsNode.typeEnum != Sym.argument_list) {
-					break;
-				}
-				foreach(ref c; argsNode.children) {
-					if (c.typeEnum != Sym.identifier) {
-						continue;
-					}
-					if (Decl decl = ctu.lookupDecl(c.source)) {
-						if (decl.type.isStaticArray) {
-							c.append(".ptr");
-						} else if (decl.type.isFunction) {
-							c.prepend("&");
-						}
-					}
-				}
-			}
-			// TODO: append .ptr to array parameters
-			// prepend & to functions converted to function pointers
 			break;
 		default: break;
 	}
@@ -427,7 +359,9 @@ string ctodLimit(string str) {
 
 /// Translate C number literal to D one
 ///
-string ctodNumberLiteral(string str) {
+string ctodNumberLiteral(string str, ref CType type) {
+
+	type = CType.named("int");
 	if (str.length < 2) {
 		return str;
 	}
@@ -438,6 +372,7 @@ string ctodNumberLiteral(string str) {
 		res[0..str.length] = str[];
 		res[$-2] = '0';
 		res[$-1] = str[$-1];
+		type = CType.named("float");
 		return cast(immutable) res;
 	}
 
@@ -450,6 +385,7 @@ string ctodNumberLiteral(string str) {
 				cap = str.dup;
 			}
 			cap[i] = 'L';
+			type = CType.named("long");
 		}
 	}
 	if (cap) {
@@ -460,10 +396,16 @@ string ctodNumberLiteral(string str) {
 }
 
 @("ctodNumberLiteral") unittest {
-	assert(ctodNumberLiteral("0") == "0");
-	assert(ctodNumberLiteral("1.f") == "1.0f");
-	assert(ctodNumberLiteral("1.F") == "1.0F");
-	assert(ctodNumberLiteral("4l") == "4L");
+	CType type;
+	assert(ctodNumberLiteral("0", type) == "0");
+	assert(type == CType.named("int"));
+	assert(ctodNumberLiteral("1.f", type) == "1.0f");
+	assert(type == CType.named("float"));
+	assert(ctodNumberLiteral("1.F", type) == "1.0F");
+	assert(type == CType.named("float"));
+	assert(ctodNumberLiteral("4l", type) == "4L");
+	assert(type == CType.named("long"));
 
-	assert(ctodNumberLiteral("1llu") != "1Lu");
+	assert(ctodNumberLiteral("1llu", type) != "1Lu");
+	assert(type == CType.named("long"));
 }

@@ -63,10 +63,10 @@ struct Node {
 	private size_t end = 0;
 
 	/// Tag identifying the C AST node type
-	TSSymbol typeEnum;
+	Sym typeEnum;
 	private const(char)[] field;
 
-	/// C source code
+	/// The entire C source code this belongs in
 	string fullSource;
 
 	/// Source code of this node
@@ -90,14 +90,21 @@ struct Node {
 
 	//@disable this(this); need to emplace in findChildren
 
-	this(TSNode node, string fullSource, Node* parent = null, const(char)[] fieldName = "") {
+	/// Each node has unique source location, so we can use it as a key
+	alias id = toHash;
+
+	size_t toHash() const {return start;}
+
+	bool opEquals(ref Node other) const {return this.id == other.id;}
+
+	this(TSNode node, string fullSource, Node* parent, const(char)[] fieldName = "") {
 		this.tsnode = node; //
 		this.parent = parent;
 		isNone = ts_node_is_null(tsnode);
 		if (!isNone) {
 			this.start = ts_node_start_byte(tsnode);
 			this.end = ts_node_end_byte(tsnode);
-			this.typeEnum = ts_node_symbol(tsnode);
+			this.typeEnum = cast(Sym) ts_node_symbol(tsnode);
 			this.fullSource = fullSource;
 			this.replacement = this.source;
 			this.field = fieldName;
