@@ -19,6 +19,7 @@ version(none)
 }
 
 @("types") unittest {
+	test("unsigned x0;", "uint x0;");
 	test("unsigned int x0;", "uint x0;");
 	test("unsigned char c;", "ubyte c;");
 	test("long long x3;", "long x3;");
@@ -29,6 +30,7 @@ version(none)
 	test("long x1;", "import core.stdc.config: c_long, c_ulong;\nc_long x1;");
 	test("unsigned long x5;", "import core.stdc.config: c_long, c_ulong;\nc_ulong x5;");
 	test("S xA;", "S xA;");
+	test("unsigned x[10];", "uint[10] x;");
 	//test("struct S x9;", "struct S ;S x9;");
 
 	test("int a0[1];", "int[1] a0;");

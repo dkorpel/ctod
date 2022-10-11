@@ -138,6 +138,8 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 				ctu.needsClong = true;
 			} else if (longCount == 2 && primitive == "") {
 				primitive = "long";
+			} else if (!signed && primitive == "") {
+				primitive = "int";
 			}
 
 			if (!signed && primitive.length && primitive[0] != 'u') {
