@@ -287,6 +287,13 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 					} else {
 						return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
 					}
+				} else if (valueNode.typeEnum == Sym.cast_expression) {
+					// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
+					if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
+						if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
+							return node.replace(t.output ~ ".sizeof " ~ p.output);
+						}
+					}
 				}
 			}
 			break;
