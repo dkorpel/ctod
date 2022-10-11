@@ -39,14 +39,13 @@ https://tree-sitter.github.io/tree-sitter/playground
 - [ohmygentool](https://github.com/Superbelko/ohmygentool)
 
 Those tools use LLVM to parse C instead of tree-sitter.
-They are more robust, but harder to build and they can error out, while Tree-sitter always tries to make the closest thing to a correct AST.
+They are more robust, but harder to build and they can error out, while tree-sitter always tries to make the closest thing to a correct AST.
 
 ### Todo
-- #define can be alias, not only enum
+- `#define` can be alias, not only enum
 - passing function pointers or static arrays to functions
-- don't always use [] initializers, for structs you need {}
+- don't always use `[]` initializers, for structs you need `{}`
 - convert arrays in functions to static arrays instead of pointers
-- switch statement => add default case if needed
 - __declspec(dllexport) => export?
 - __stdcall => extern(System)?
 
