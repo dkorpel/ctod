@@ -57,7 +57,7 @@ struct InlineType {
 	string body_;
 	bool hasBody() const {return body_.length > 0;}
 	string toString() const {
-		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : "");
+		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : ";");
 	}
 }
 
@@ -80,7 +80,7 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 			inlineTypes ~= InlineType(keyword, name, c.output);
 			return name;
 		} else if (nameNode) {
-			inlineTypes ~= InlineType(keyword, nameNode.source, ";");
+			inlineTypes ~= InlineType(keyword, nameNode.source, /*body*/ "");
 			return nameNode.source;
 		}
 		return "@@err"~__LINE__.stringof;

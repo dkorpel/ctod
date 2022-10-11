@@ -34,6 +34,15 @@ version(none)
 	test("struct S { unsigned x; };", "struct S { uint x; }");
 	//test("struct S x9;", "struct S ;S x9;");
 
+	// inline struct/enum
+	test("void foo(struct T t);", "void foo(T t);");
+
+	test("void foo(struct T *t);", "void foo(T* t);");
+	test("void foo(enum E *e);", "void foo(E* e);");
+
+	test("void foo(struct S {int x;} s, struct T {int y;} t);", "struct S {int x;}struct T {int y;}void foo(S s, T t);");
+	test("void foo(enum E {one, two} t);", "enum E {one, two}void foo(E t);");
+
 	test("int a0[1];", "int[1] a0;");
 	test("int *a1[2];", "int*[2] a1;");
 	test("int (*a2)[3];", "int[3]* a2;");
