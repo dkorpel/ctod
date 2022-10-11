@@ -31,6 +31,7 @@ version(none)
 	test("unsigned long x5;", "import core.stdc.config: c_long, c_ulong;\nc_ulong x5;");
 	test("S xA;", "S xA;");
 	test("unsigned x[10];", "uint[10] x;");
+	test("struct S { unsigned x; };", "struct S { uint x; }");
 	//test("struct S x9;", "struct S ;S x9;");
 
 	test("int a0[1];", "int[1] a0;");

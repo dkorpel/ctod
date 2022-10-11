@@ -154,11 +154,17 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 		return;
 	}
 
-	// This comes up in sizeof(unsigned short)
-	InlineType[] inlineTypes; // TODO: use this, in case of sizeof(struct {int x; int y;})
+	// This comes up in sizeof(unsigned short), or possibly a macro if tree-sitter can parse it
+	// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
+
+	InlineType[] inlineTypes;
 	if (auto s = parseTypeNode(ctu, node, inlineTypes)) {
-		node.replace(s);
-		return;
+		// #twab: it was translating global struct definitions as inline types
+		if (inlineTypes.length == 0)
+		{
+			node.replace(s);
+			return;
+		}
 	}
 
 	foreach(ref c; node.children) {
