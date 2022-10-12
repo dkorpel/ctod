@@ -217,8 +217,8 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 		case Sym.while_statement:
 		case Sym.for_statement:
 			// Assignment may not be used in if / loop conditions in D
-			// if (x = 3)    => if ((x = 3) != false)
-			// if (!(x = 3)) => if ((x = 3) != true)
+			// if (x = 3)    => if ((x = 3) != 0)
+			// if (!(x = 3)) => if ((x = 3) == 0)
 			if (auto a = node.childField("condition")) {
 				// import std.stdio; writeln("condition ", a.typeEnum);
 				if (a.typeEnum == Sym.parenthesized_expression) {
@@ -226,7 +226,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 				}
 				if (a.typeEnum == Sym.assignment_expression) {
 					a.prepend("(");
-					a.append(") != false");
+					a.append(") != 0");
 				}
 			}
 			break;

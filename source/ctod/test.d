@@ -179,9 +179,9 @@ void main() {
 	if (x==60) {}
 }", "
 void main() {
-	if ((x=30) != false) {}
-	while ((x=40) != false) {}
-	for (; (x=50) != false; ) {}
+	if ((x=30) != 0) {}
+	while ((x=40) != 0) {}
+	for (; (x=50) != 0; ) {}
 	if (x==60) {}
 }");
 
