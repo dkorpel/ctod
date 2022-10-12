@@ -378,37 +378,58 @@ string ctodLimit(string str) {
 ///
 string ctodNumberLiteral(string str, ref CType type) {
 
-	type = CType.named("int");
+	string typeName = "int";
 	if (str.length < 2) {
+		type = CType.named("int");
 		return str;
 	}
 
 	// float must have digits after dot, 1.f => 1.0f
-	if ((str[$-1] == 'f' || str[$-1] == 'F') && str[$-2] == '.') {
-		auto res = new char[str.length+1];
-		res[0..str.length] = str[];
-		res[$-2] = '0';
-		res[$-1] = str[$-1];
+	if ((str[$-1] == 'f' || str[$-1] == 'F')) {
+		if (str[$-2] == '.') {
+			auto res = new char[str.length+1];
+			res[0..str.length] = str[];
+			res[$-2] = '0';
+			res[$-1] = str[$-1];
+			type = CType.named("float");
+			return cast(immutable) res;
+		}
 		type = CType.named("float");
-		return cast(immutable) res;
+		return str;
 	}
 
 	// TODO:
 	/// long specifier must be capitalized in D, 1llu => 1LLu
 	char[] cap = null;
+	int longCount = 0;
+	bool unsigned = false;
 	foreach_reverse(i; 0..str.length) {
 		if (str[i] == 'l') {
 			if (!cap) {
 				cap = str.dup;
 			}
 			cap[i] = 'L';
-			type = CType.named("long");
+			longCount++;
+		}
+		if (str[i] == 'L') {
+			longCount++;
+		}
+		if (str[i] == 'u' || str[i] == 'U') {
+			unsigned = true;
+			// unsigned
 		}
 	}
+	if (longCount > 1) {
+		typeName = "long";
+	}
+	if (unsigned) {
+		typeName = "u" ~ typeName;
+	}
+	type = CType.named(typeName);
+
 	if (cap) {
 		return cast(immutable) cap;
 	}
-
 	return str;
 }
 
@@ -421,8 +442,8 @@ string ctodNumberLiteral(string str, ref CType type) {
 	assert(ctodNumberLiteral("1.F", type) == "1.0F");
 	assert(type == CType.named("float"));
 	assert(ctodNumberLiteral("4l", type) == "4L");
-	assert(type == CType.named("long"));
+	assert(type == CType.named("int"));
 
 	assert(ctodNumberLiteral("1llu", type) != "1Lu");
-	assert(type == CType.named("long"));
+	assert(type == CType.named("ulong"));
 }
