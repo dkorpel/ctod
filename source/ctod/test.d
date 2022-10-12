@@ -126,6 +126,7 @@ void foo() {
 typedef struct T {
 	S *ptr;
 	int arr[3];
+	int parr[];
 	int32_t capacity;
 	__u8 type;
 } T;
@@ -133,6 +134,7 @@ typedef struct T {
 struct T {
 	S* ptr;
 	int[3] arr;
+	int* parr;
 	int capacity;
 	ubyte type;
 }
@@ -248,7 +250,25 @@ char* p2;
 	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");
 }
 
-@("designator list") unittest {
+@("initializers") unittest {
+
+	test("
+int x[4] = { 0 };
+int y[4] = { 1 };
+void main() {
+	int z[4] = { 0 };
+	float w[4] = {};
+}
+", "
+int[4] x = 0;
+int[4] y = [ 1 ];
+void main() {
+	int[4] z = 0;
+	float[4] w = 0;
+}
+");
+
+	// designator list
 	test("
 int a[2] = {
 	[0] = 1,

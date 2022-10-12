@@ -282,6 +282,24 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 	return null;
 }
 
+/// Returns: number of elements in initializer_list
+int initializerLength(ref Node node, ref string firstElement) {
+	firstElement = null;
+	int commaCount = 0;
+	foreach(ref e; node.children) {
+		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE) {
+			continue;
+		}
+		if (e.typeEnum == Sym.anon_COMMA) {
+			commaCount++;
+		}
+		if (!firstElement) {
+			firstElement = e.source;
+		}
+	}
+	return commaCount + (firstElement != null); // == 0 && firstElement == "0";
+}
+
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
 bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
@@ -294,6 +312,18 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				ctu.inDecl = &decl;
 				translateNode(ctu, *valueNode);
 				ctu.inDecl = null;
+				if (valueNode.typeEnum == Sym.initializer_list) {
+					string firstElem;
+					int len = initializerLength(*valueNode, firstElem);
+					if (decl.type.isStaticArray()) {
+						if (firstElem == "0" || len == 0) {
+							valueNode.replace("0");
+						}
+					}
+					if (decl.type.isCArray()) {
+						decl.type.tag = CType.Tag.staticArray;
+					}
+				}
 				decl.initializer = valueNode.output();
 			}
 			return true;
@@ -357,9 +387,9 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 					parseCtype(ctu, *c1, decl, inlineTypes);
 				}
 			} else {
-				// unsized array is simply a pointer
+				// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
 				if (auto c1 = node.childField("declarator")) {
-					decl.type = CType.pointer(decl.type);
+					decl.type = CType.cArray(decl.type);
 					parseCtype(ctu, *c1, decl, inlineTypes);
 				}
 			}
@@ -377,6 +407,7 @@ struct CType {
 		unknown,
 		pointer,
 		staticArray,
+		cArray,
 		funcDecl,
 		named,
 	}
@@ -396,6 +427,7 @@ struct CType {
 	bool opCast() const {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}
 	bool isStaticArray() const {return tag == Tag.staticArray;}
+	bool isCArray() const {return tag == Tag.cArray;}
 	bool isPointer() const {return tag == Tag.pointer;}
 
 	void setConst(bool value = true) {
@@ -418,6 +450,13 @@ struct CType {
 		CType result;
 		result.next = [to];
 		result.tag = Tag.pointer;
+		return result;
+	}
+
+	static CType cArray(CType to) {
+		CType result;
+		result.next = [to];
+		result.tag = Tag.cArray;
 		return result;
 	}
 
@@ -451,21 +490,22 @@ struct CType {
 	}
 
 	string toString() const {
-		with(Tag) switch(tag) {
-			case pointer:
+		switch(tag) {
+			case Tag.cArray:
+			case Tag.pointer:
 				if (next[0].isFunction) {
 					return fmtFunction(next[0].next[0], "function", next[0].params);
 				} else {
 					//format(isConst ? "const(%s*)" : "%s*", next[0]);
 					return isConst ? ("const("~next[0].toString()~"*)") : next[0].toString() ~ "*";
 				}
-			case staticArray:
+			case Tag.staticArray:
 				return next[0].toString() ~ "[" ~ countExpr ~ "]";
-			case funcDecl:
+			case Tag.funcDecl:
 				return null; // format("%s FUNC(%(%s, %))", next[0], params);
-			case named:
+			case Tag.named:
 				return isConst ? ("const("~name~")") : name;
-			case none:
+			case Tag.none:
 				return "none";
 			default: return "errType";
 		}
