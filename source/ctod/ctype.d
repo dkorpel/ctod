@@ -315,13 +315,19 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
 					int len = initializerLength(*valueNode, firstElem);
+					// int x[4] = {0} => int[4] x = 0
+					// Important because in function scope, all elements must be in [] initializer
 					if (decl.type.isStaticArray()) {
 						if (firstElem == "0" || len == 0) {
 							valueNode.replace("0");
 						}
 					}
+					// int x[] = {10, 20, 30} => int[3] x = [10, 20 30]
+					// transform into static array with length inferred from initializer
+					// Note: shouldn't be done in struct scope, but initializers are not valid in C there
 					if (decl.type.isCArray()) {
-						decl.type.tag = CType.Tag.staticArray;
+						import std.conv: text;
+						decl.type = CType.array(decl.type.next[0], text(len));
 					}
 				}
 				decl.initializer = valueNode.output();

@@ -268,6 +268,18 @@ void main() {
 }
 ");
 
+	test("
+int x[] = { 0, 3, 5 /*comment*/ , 9 };
+void main() {
+	int y[] = {10};
+}
+", "
+int[4] x = [ 0, 3, 5 /*comment*/ , 9 ];
+void main() {
+	int[1] y = [10];
+}
+");
+
 	// designator list
 	test("
 int a[2] = {
