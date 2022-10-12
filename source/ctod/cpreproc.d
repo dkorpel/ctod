@@ -103,8 +103,10 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			if (!nameNode) {
 				return true;
 			}
+			string versionName = nameNode.source;
 			if (string s = ctodVersion(nameNode.source)) {
 				nameNode.replace(s);
+				versionName = s;
 			}
 			if (auto c = node.firstChildType(Sym.aux_preproc_ifdef_token1)) {
 				c.replace("version");
@@ -114,7 +116,14 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 				// "#ifndef"
 				c.replace("version");
 				nameNode.prepend("(");
+				// D has no boolean logic with versions, so put #ifndef body in an else branch
 				nameNode.append(") {} else {");
+
+				// We can't have a double else, so we need to repeat the version name for #else
+				if (auto a = node.childField("alternative")) {
+					// first token of preproc_else is "#else"
+					a.children[0].replace("} version ("~versionName~") {");
+				}
 			}
 			nameNode.isTranslated = true;
 			return false; // name node should not be translated as an identifier, but other children must be translated still

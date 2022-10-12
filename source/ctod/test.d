@@ -298,6 +298,19 @@ static assert(0, \"error message\");
 }
 ");
 
+	test("
+#ifndef _WIN32
+   int x;
+#else
+   int y;
+#endif", "
+version (Windows) {} else {
+   int x;
+} version (Windows) {
+   int y;
+}
+");
+
 	// tree-sitter doesn't parse this right, need to do manual preprocessing
 	version(none) test("
 #ifdef __cplusplus
