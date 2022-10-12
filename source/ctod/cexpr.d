@@ -192,6 +192,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 				if (fType.isFunction) {
 					ctu.setExpType(node, fType.next[0]);
 				}
+
+				if (translateOffsetof(node, *funcNode)) {
+					return true;
+				}
 			}
 			if (auto argsNode = node.childField("arguments")) {
 				if (argsNode.typeEnum != Sym.argument_list) {
@@ -214,6 +218,34 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		default:
 			// unknown type
 			break;
+	}
+	return false;
+}
+
+/// Translate the C offsetof() macro to D's .offsetof property
+///
+/// offsetof(S, x) => S.x.offsetof
+bool translateOffsetof(ref Node node, ref Node funcNode) {
+	if (funcNode.typeEnum == Sym.identifier && funcNode.source == "offsetof") {
+		if (auto args = node.childField("arguments")) {
+			if (args.hasError) {
+				return false;
+			}
+			string[2] children;
+			size_t i = 0;
+			foreach(ref c; args.children) {
+				if (c.typeEnum == Sym.identifier) {
+					if (i >= 2) {
+						i = 0; // too many arguments
+						break;
+					}
+					children[i++] = c.source;
+				}
+			}
+			if (i == 2) {
+				return node.replace(children[0] ~ "." ~ children[1] ~ ".offsetof");
+			}
+		}
 	}
 	return false;
 }

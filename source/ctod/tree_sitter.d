@@ -85,6 +85,7 @@ struct Node {
 	Node[] children;
 
 	bool isNone = true; /// whether this is a null value
+	bool hasError = false; /// whether this is an error node
 	bool inFuncBody = false; /// whether we are under a function definition node
 	bool isTranslated = false; /// if translation has already been done
 
@@ -101,6 +102,7 @@ struct Node {
 		this.tsnode = node; //
 		this.parent = parent;
 		isNone = ts_node_is_null(tsnode);
+		hasError = ts_node_has_error(tsnode);
 		if (!isNone) {
 			this.start = ts_node_start_byte(tsnode);
 			this.end = ts_node_end_byte(tsnode);

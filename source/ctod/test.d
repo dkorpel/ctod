@@ -124,6 +124,10 @@ struct T {
 	test("int so6 = = sizeof(int) * 5;", "int so6 = int.sizeof * 5;");
 	test("int so6 = = sizeof(unsigned char) * 5;", "int so6 = ubyte.sizeof * 5;");
 
+	test("int of = offsetof(S, f);", "int of = S.f.offsetof;");
+	test("int of = offsetof(S, f, g);", "int of = offsetof(S, f, g);");
+	test("int of = offsetof(struct S, f);", "int of = offsetof(struct S, f);");
+
 	// TODO
 	// test("int so2 = sizeof 4lu;", "int so2 = (4Lu).sizeof;");
 }
