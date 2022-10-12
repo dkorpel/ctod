@@ -170,6 +170,23 @@ int* bar(int y, ...) {
 
 }
 
+@("assignment in if/while/for") unittest {
+	test("
+void main() {
+	if (x=30) {}
+	while (x=40) {}
+	for (; x=50; ) {}
+	if (x==60) {}
+}", "
+void main() {
+	if ((x=30) != false) {}
+	while ((x=40) != false) {}
+	for (; (x=50) != false; ) {}
+	if (x==60) {}
+}");
+
+}
+
 @("strings") unittest {
 	test(`
 const char *p0 = "con" "cat" "enated";

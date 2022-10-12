@@ -213,6 +213,23 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 				node.replace("");
 			}
 			return true;
+		case Sym.if_statement:
+		case Sym.while_statement:
+		case Sym.for_statement:
+			// Assignment may not be used in if / loop conditions in D
+			// if (x = 3)    => if ((x = 3) != false)
+			// if (!(x = 3)) => if ((x = 3) != true)
+			if (auto a = node.childField("condition")) {
+				// import std.stdio; writeln("condition ", a.typeEnum);
+				if (a.typeEnum == Sym.parenthesized_expression) {
+					a = &getParenExpression(*a);
+				}
+				if (a.typeEnum == Sym.assignment_expression) {
+					a.prepend("(");
+					a.append(") != false");
+				}
+			}
+			break;
 		case Sym.switch_statement:
 			// D mandates `default` case in `switch`
 			// note: switch statements can have `case` statements in the weirdest places

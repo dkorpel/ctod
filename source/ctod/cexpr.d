@@ -6,6 +6,21 @@ import ctod.ctype;
 import ctod.cdeclaration;
 import std.stdio;
 
+/// Given a (x) expression, get the node with x.
+/// This is surprisingly non-trivial since the there is no field name for it in the C parser,
+/// and there can be comments between the parens and the expression.
+ref Node getParenExpression(return ref Node node) {
+	if (node.typeEnum != Sym.parenthesized_expression) {
+		return node;
+	}
+	foreach(i; 1..node.children.length + -1) {
+		if (node.children[i].typeEnum != Sym.comment) {
+			return node.children[i];
+		}
+	}
+	return node;
+}
+
 /// Try translating C expressions
 ///
 /// WIP: type check as well
@@ -70,14 +85,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 
 		case Sym.parenthesized_expression:
 			depthFirst();
-			CType type;
-			foreach(i; 1..node.children.length + -1) {
-				if (node.children[i].typeEnum != Sym.comment) {
-					type = ctu.expType(node.children[i]);
-					break;
-				}
-			}
-			ctu.setExpType(node, type);
+			ctu.setExpType(node, ctu.expType(getParenExpression(node)));
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
@@ -231,7 +239,7 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 			if (args.hasError) {
 				return false;
 			}
-			string[2] children;
+			string[2] argNames;
 			size_t i = 0;
 			foreach(ref c; args.children) {
 				if (c.typeEnum == Sym.identifier) {
@@ -239,11 +247,11 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 						i = 0; // too many arguments
 						break;
 					}
-					children[i++] = c.source;
+					argNames[i++] = c.source;
 				}
 			}
 			if (i == 2) {
-				return node.replace(children[0] ~ "." ~ children[1] ~ ".offsetof");
+				return node.replace(argNames[0] ~ "." ~ argNames[1] ~ ".offsetof");
 			}
 		}
 	}
