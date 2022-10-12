@@ -20,17 +20,7 @@ struct Decl {
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl) {
 			// result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
-			result ~= type.next[0].toString();
-			result ~= " ";
-			result ~= identifier;
-			result ~= "(";
-			foreach(i, par; type.params) {
-				if (i > 0) {
-					result ~= ", ";
-				}
-				result ~= par.toString();
-			}
-			result ~= ")";
+			result ~= fmtFunction(type.next[0], identifier, type.params);
 		} else {
 			result ~= type.toString();
 			if (identifier.length > 0) {
@@ -53,6 +43,22 @@ struct Decl {
 
 unittest {
 	assert(Decl("inline ", CType.named("int"), "x", "3").toString() ==  "inline int x = 3");
+}
+
+/// Generate D function type syntax
+private string fmtFunction(const CType retType, string name, const Decl[] params) {
+	string result = retType.toString();
+	result ~= " ";
+	result ~= name;
+	result ~= "(";
+	foreach(i, par; params) {
+		if (i > 0) {
+			result ~= ", ";
+		}
+		result ~= par.toString();
+	}
+	result ~= ")";
+	return result;
 }
 
 /// A type in the middle of an expression.
@@ -441,13 +447,13 @@ struct CType {
 	}
 
 	string toString() const {
-		import std.string: format;
 		with(Tag) switch(tag) {
 			case pointer:
-				if (next[0].tag == Tag.funcDecl) {
-					return format("%s function(%(%s, %))", next[0].next[0], next[0].params);
+				if (next[0].isFunction) {
+					return fmtFunction(next[0].next[0], "function", next[0].params);
 				} else {
-					return format(isConst ? "const(%s*)" : "%s*", next[0]);
+					//format(isConst ? "const(%s*)" : "%s*", next[0]);
+					return isConst ? ("const("~next[0].toString()~"*)") : next[0].toString() ~ "*";
 				}
 			case staticArray:
 				return next[0].toString() ~ "[" ~ countExpr ~ "]";

@@ -1,6 +1,5 @@
 module ctod.test;
 
-import std.string: strip;
 import ctod.translate;
 
 private void test(string c, string d) {
