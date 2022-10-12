@@ -120,6 +120,7 @@ struct T {
 	test("int so3 = sizeof((short) 3 + 4l);", "int so3 = typeof(cast(short) 3 + 4L).sizeof;");
 	test("int so4 = sizeof(unsigned short);", "int so4 = ushort.sizeof;");
 	test("int so5 = sizeof(GLFWvidmode);", "int so5 = GLFWvidmode.sizeof;");
+	test("int so6 = sizeof 4lu;", "int so6 = 4Lu.sizeof;");
 
 	test("int so6 = = sizeof(int) * 5;", "int so6 = int.sizeof * 5;");
 	test("int so6 = = sizeof(unsigned char) * 5;", "int so6 = ubyte.sizeof * 5;");
@@ -128,8 +129,6 @@ struct T {
 	test("int of = offsetof(S, f, g);", "int of = offsetof(S, f, g);");
 	test("int of = offsetof(struct S, f);", "int of = offsetof(struct S, f);");
 
-	// TODO
-	// test("int so2 = sizeof 4lu;", "int so2 = (4Lu).sizeof;");
 }
 
 @("cast") unittest {

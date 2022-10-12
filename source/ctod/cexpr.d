@@ -51,38 +51,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			}
 			return true;
 		case Sym.sizeof_expression:
-			ctu.setExpType(node, CType.named("ulong"));
-			if (auto typeNode = node.childField("type")) {
-				// sizeof(short) => (short).sizeof
-				translateNode(ctu, *typeNode);
-				node.replace("" ~ typeNode.output ~ ".sizeof");
-			} else if (auto valueNode = node.childField("value")) {
-				translateNode(ctu, *valueNode);
-				// `sizeof short` => `short.sizeof`
-				if (valueNode.typeEnum == Sym.identifier) {
-					node.replace(valueNode.output ~ ".sizeof");
-				} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
-					// sizeof(3) => typeof(3).sizeof
-					// sizeof(T) => T.sizeof
-					if (auto parenValue = valueNode.firstChildType(Sym.identifier)) {
-						valueNode = parenValue;
-					}
-					if (valueNode.typeEnum == Sym.identifier) {
-						return node.replace(valueNode.output ~ ".sizeof");
-					} else {
-						return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
-					}
-				} else if (valueNode.typeEnum == Sym.cast_expression) {
-					// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
-					if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
-						if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
-							return node.replace(t.output ~ ".sizeof " ~ p.output);
-						}
-					}
-				}
+			if (ctodSizeof(ctu, node)) {
+				return true;
 			}
 			break;
-
 		case Sym.parenthesized_expression:
 			depthFirst();
 			ctu.setExpType(node, ctu.expType(getParenExpression(node)));
@@ -146,10 +118,12 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 				if (r.typeEnum == Sym.parenthesized_expression) {
 					auto a = getParenExpression(*r);
 					if (a.typeEnum == Sym.assignment_expression) {
-						// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens
-						r.prepend("(");
-						r.append(" == 0)");
-						node.children[0].replace(""); // remove ! operator
+						if (node.children[0].typeEnum == Sym.anon_BANG) {
+							// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens
+							r.prepend("(");
+							r.append(" == 0)");
+							node.children[0].replace(""); // remove ! operator
+						}
 					}
 				}
 			}
@@ -262,6 +236,41 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 			}
 			if (i == 2) {
 				return node.replace(argNames[0] ~ "." ~ argNames[1] ~ ".offsetof");
+			}
+		}
+	}
+	return false;
+}
+
+/// Translate C's `sizeof x` operator to D's `x.sizeof` property
+bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
+	ctu.setExpType(node, CType.named("size_t"));
+	if (auto typeNode = node.childField("type")) {
+		// sizeof(short) => (short).sizeof
+		translateNode(ctu, *typeNode);
+		node.replace("" ~ typeNode.output ~ ".sizeof");
+	} else if (auto valueNode = node.childField("value")) {
+		translateNode(ctu, *valueNode);
+		// `sizeof short` => `short.sizeof`
+		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal) {
+			node.replace(valueNode.output ~ ".sizeof");
+		} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
+			// sizeof(3) => typeof(3).sizeof
+			// sizeof(T) => T.sizeof
+			if (auto parenValue = valueNode.firstChildType(Sym.identifier)) {
+				valueNode = parenValue;
+			}
+			if (valueNode.typeEnum == Sym.identifier) {
+				return node.replace(valueNode.output ~ ".sizeof");
+			} else {
+				return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
+			}
+		} else if (valueNode.typeEnum == Sym.cast_expression) {
+			// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
+			if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
+				if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
+					return node.replace(t.output ~ ".sizeof " ~ p.output);
+				}
 			}
 		}
 	}
