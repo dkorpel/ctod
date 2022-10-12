@@ -4,7 +4,6 @@ import ctod.tree_sitter;
 import ctod.translate;
 import ctod.ctype;
 import ctod.cdeclaration;
-import std.stdio;
 
 /// Given a (x) expression, get the node with x.
 /// This is surprisingly non-trivial since the there is no field name for it in the C parser,

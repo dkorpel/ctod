@@ -6,7 +6,7 @@ import ctod.translate;
 private void test(string c, string d) {
 	TranslationSettings settings;
 	settings.includeHeader = false;
-	assert(strip(translateFile(c, "testmodule", settings)) == strip(d));
+	assert(translateFile(c, "testmodule", settings) == d);
 }
 
 version(none)
@@ -15,7 +15,6 @@ version(none)
 		"#define CONSTANT ((size_t)1 << (sizeof(size_t) * 2))",
 		"enum CONSTANT = (cast(size_t)1 << (size_t.sizeof * 2))"
 	);
-
 }
 
 @("types") unittest {
@@ -35,6 +34,7 @@ version(none)
 	//test("struct S x9;", "struct S ;S x9;");
 
 	// inline struct/enum
+	test("void foo(struct {int x;} t);", "struct _T {int x;}void foo(_T t);");
 	test("void foo(struct T t);", "void foo(T t);");
 
 	test("void foo(struct T *t);", "void foo(T* t);");
@@ -258,9 +258,9 @@ public import small;
 
 #pragma once
 #endif
-
-", "
+", "\n \n
 //#pragma once
+
 ");
 
 	test("
@@ -331,7 +331,8 @@ static assert(0, \"error message\");
    int x;
 #else
    int y;
-#endif", "
+#endif
+", "
 version (Windows) {} else {
    int x;
 } version (Windows) {

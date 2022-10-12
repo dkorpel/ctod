@@ -1,7 +1,6 @@
 module ctod.tree_sitter;
 
 import tree_sitter.api;
-import std.string: fromStringz;
 
 /// Returns: C language parser for tree-sitter
 extern(C) TSLanguage* tree_sitter_c();
@@ -24,43 +23,15 @@ Node* parseCtree(string source) {
 	return &new Node(ts_tree_root_node(tree), source, null, "").findChildren(source);
 }
 
-/// The idea is to use the cursor api to get field names
-/// This is because a declaration node can have multiple declarator fields, but the node API
-/// only allows retrieving the first one
-/// It's incomplete though, the cursor api seems to generate a different tree than the node api
-Node* cTreeFromCursor(const(TSTree)* tree, string source) {
-	TSTreeCursor cursor = ts_tree_cursor_new(ts_tree_root_node(tree));
-	scope(exit) ts_tree_cursor_delete(&cursor);
-	Node* cursorParent = null;
-	Node* cursorNode = &[Node.init][0];
-
-	while (true) {
-		const fieldName = fromStringz(ts_tree_cursor_current_field_name(&cursor));
-		*cursorNode = Node(ts_tree_cursor_current_node(&cursor), source, cursorParent, fieldName);
-		if (ts_tree_cursor_goto_first_child(&cursor)) {
-			cursorParent = cursorNode;
-			cursorNode = &cursorNode.children[0];
-			continue;
-		} else {
-			cursorNode++; // ! not @safe, but if code is correct, should stay in bounds of `children` array
-			while (!ts_tree_cursor_goto_next_sibling(&cursor)) {
-				if (!ts_tree_cursor_goto_parent(&cursor)) {
-					return cursorNode;
-				}
-				cursorNode = cursorParent;
-				cursorParent = cursorParent.parent;
-			}
-		}
-	}
-}
-
 /// Conrete syntax tree node
 struct Node {
 	nothrow:
 	private TSNode tsnode;
 
-	private size_t start = 0;
-	private size_t end = 0;
+	/// Start index fullSource
+	size_t start = 0;
+	/// End index in fullSource
+	size_t end = 0;
 
 	/// Tag identifying the C AST node type
 	Sym typeEnum;
@@ -190,6 +161,7 @@ struct Node {
 					append(c);
 
 				}
+				result ~= fullSource[lc .. node.end];
 			}
 			result ~= node.suffix;
 		}
@@ -217,17 +189,6 @@ struct Node {
 		return (i == 0) ? null : &children[i-1];
 		*/
 	}
-
-	/*
-	int numChildren() const {return ts_node_child_count(node);}
-	int numNamedChildren() const {return ts_node_named_child_count(node);}
-	Node child(uint i) const {
-		return Node(ts_node_child(node, i));
-	}
-	Node namedChild(uint i) const {
-		return Node(ts_node_named_child(node, i));
-	}
-	*/
 }
 
 /// Identifies a C tree-sitter node

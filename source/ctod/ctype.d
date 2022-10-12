@@ -15,25 +15,31 @@ struct Decl {
 	string initializer = ""; /// expression that initializes the variable
 
 	string toString() const {
-		import std.string: format;
 		string result = storageClasses;
-
 		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl) {
-			result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
-			//result ~= type.next[0].toString() ~ " " ~ identifier ~ "(";
-			//foreach(par; type.params) {
-			//	result ~= par;
-			//}
-			//result ~= ")";
+			// result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
+			result ~= type.next[0].toString();
+			result ~= " ";
+			result ~= identifier;
+			result ~= "(";
+			foreach(i, par; type.params) {
+				if (i > 0) {
+					result ~= ", ";
+				}
+				result ~= par.toString();
+			}
+			result ~= ")";
 		} else {
 			result ~= type.toString();
 			if (identifier.length > 0) {
-				result ~= " " ~ identifier;
+				result ~= " ";
+				result ~= identifier;
 			}
 			if (initializer.length > 0) {
-				result ~= " = " ~ initializer;
+				result ~= " = ";
+				result ~= initializer;
 			}
 		}
 		return result;
@@ -444,12 +450,11 @@ struct CType {
 					return format(isConst ? "const(%s*)" : "%s*", next[0]);
 				}
 			case staticArray:
-				return format("%s[%s]", next[0], countExpr);
-			//case funcDef://				return
+				return next[0].toString() ~ "[" ~ countExpr ~ "]";
 			case funcDecl:
-				return format("%s FUNC(%(%s, %))", next[0], params);
+				return null; // format("%s FUNC(%(%s, %))", next[0], params);
 			case named:
-				return format(isConst ? "const(%s)" : "%s", name);
+				return isConst ? ("const("~name~")") : name;
 			case none:
 				return "none";
 			default: return "errType";

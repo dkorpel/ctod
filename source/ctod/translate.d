@@ -51,6 +51,7 @@ extern(C): __gshared:
 	if (ctx.needsCbool) {
 		result ~= "alias c_bool = int;\n";
 	}
+	result ~= source[0..root.start];
 	result ~= root.output;
 	return result;
 }
@@ -141,9 +142,9 @@ package struct TranslationContext {
 
 	int uniqueIdCounter = 0;
 	string uniqueIdentifier(string suggestion) {
-		import std.ascii: toUpper;
+		static toUpper(char c) {return cast(char) (c - (c >= 'a' && c <= 'z') * ('a' - 'A'));}
 		if (suggestion.length > 0) {
-			return "_" ~ suggestion[0].toUpper ~ suggestion[1..$];
+			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1..$];
 		} else {
 			assert(0);
 		}
@@ -220,7 +221,6 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// if (x = 3)    => if ((x = 3) != 0)
 			// if (!(x = 3)) => if ((x = 3) == 0)
 			if (auto a = node.childField("condition")) {
-				// import std.stdio; writeln("condition ", a.typeEnum);
 				if (a.typeEnum == Sym.parenthesized_expression) {
 					a = &getParenExpression(*a);
 				}
