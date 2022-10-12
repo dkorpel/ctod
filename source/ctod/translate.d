@@ -51,8 +51,9 @@ extern(C): __gshared:
 	if (ctx.needsCbool) {
 		result ~= "alias c_bool = int;\n";
 	}
+	// white space leading up to the first AST element is not included in the AST, so add it
 	result ~= source[0..root.start];
-	result ~= root.output;
+	result ~= root.output();
 	return result;
 }
 
@@ -63,11 +64,6 @@ enum MacroType {
 	inlineFunc, // #define SQR(x) (x*x)
 	versionId, // #ifdef _WIN32_
 	staticIf,
-}
-
-package struct Scope {
-	Scope* parent = null;
-	Decl[string] table;
 }
 
 /// A single .c file

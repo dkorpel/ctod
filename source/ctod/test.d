@@ -5,7 +5,16 @@ import ctod.translate;
 private void test(string c, string d) {
 	TranslationSettings settings;
 	settings.includeHeader = false;
-	assert(translateFile(c, "testmodule", settings) == d);
+	const actual = translateFile(c, "testmodule", settings);
+	if (actual != d) {
+		import std.stdio: writeln;
+		writeln("--- EXPECTED:");
+		writeln(d);
+		writeln("--- ACTUAL:");
+		writeln(actual);
+		writeln("---");
+		assert(actual == d);
+	}
 }
 
 version(none)
@@ -30,7 +39,6 @@ version(none)
 	test("S xA;", "S xA;");
 	test("unsigned x[10];", "uint[10] x;");
 	test("struct S { unsigned x; };", "struct S { uint x; }");
-	//test("struct S x9;", "struct S ;S x9;");
 
 	// inline struct/enum
 	test("void foo(struct {int x;} t);", "struct _T {int x;}void foo(_T t);");
@@ -61,6 +69,35 @@ version(none)
 	);
 
 	test("inline static void foo(int x);", "pragma(inline, true) private void foo(int x);");
+
+	test("typedef int intArr[3], intScalar;", "alias int[3] intArr;alias int intScalar;");
+
+	test("struct OpaqueS;", "struct OpaqueS;");
+	test("union OpaqueU;", "union OpaqueU;");
+
+	test("
+struct S {
+	int in;
+	unsigned char out[2];
+};
+", "
+struct S {
+	int in_;
+	ubyte[2] out_;
+}
+");
+
+	test("
+struct {
+unsigned short x : 12;
+unsigned short y : sizeof(int);
+} bitfields;
+", "
+struct _Bitfields {
+ushort x;/*: 12 !!*/
+ushort y;/*: int.sizeof !!*/
+}_Bitfields bitfields;
+");
 }
 
 @("static array .ptr") unittest {
@@ -250,6 +287,8 @@ public import core.stdc.stdio;
 public import small;
 ");
 
+	test("#undef X", "");
+
 	test("
 #ifndef HEADER_GUARD
 // comment here
@@ -338,6 +377,20 @@ version (Windows) {} else {
    int y;
 }
 ");
+
+	test(`
+#if !defined(_WIN32)
+	#define PLATFORM WINDOWS
+#endif
+`, `
+private template HasVersion(string versionId) {
+	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
+}
+
+static if (!HasVersion!"Windows") {
+	enum PLATFORM = WINDOWS;
+}
+`);
 
 	// tree-sitter doesn't parse this right, need to do manual preprocessing
 	version(none) test("
