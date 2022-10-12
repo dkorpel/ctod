@@ -141,7 +141,17 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.update_expression:
 			depthFirst();
 			if (auto r = node.childField("argument")) {
-				// ?
+
+				// !(x = 3) => ((x = 3) != true)
+				if (r.typeEnum == Sym.parenthesized_expression) {
+					auto a = getParenExpression(*r);
+					if (a.typeEnum == Sym.assignment_expression) {
+						// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens
+						r.prepend("(");
+						r.append(" == 0)");
+						node.children[0].replace(""); // remove ! operator
+					}
+				}
 			}
 			break;
 		case Sym.number_literal:

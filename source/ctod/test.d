@@ -185,6 +185,18 @@ void main() {
 	if (x==60) {}
 }");
 
+test("
+void main() {
+	int x = !(y = 3) + 4;
+	while(!(x = 5)) { break; }
+
+}", "
+void main() {
+	int x = ((y = 3) == 0) + 4;
+	while(((x = 5) == 0)) { break; }
+
+}");
+
 }
 
 @("strings") unittest {
