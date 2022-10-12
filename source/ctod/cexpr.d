@@ -8,8 +8,8 @@ import ctod.cdeclaration;
 /// Given a (x) expression, get the node with x.
 /// This is surprisingly non-trivial since the there is no field name for it in the C parser,
 /// and there can be comments between the parens and the expression.
-ref Node getParenExpression(return ref Node node) {
-	if (node.typeEnum != Sym.parenthesized_expression) {
+ref Node getParenContent(return ref Node node) {
+	if (node.typeEnum != Sym.parenthesized_expression && node.typeEnum != Sym.parenthesized_declarator) {
 		return node;
 	}
 	foreach(i; 1..node.children.length + -1) {
@@ -56,7 +56,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			break;
 		case Sym.parenthesized_expression:
 			depthFirst();
-			ctu.setExpType(node, ctu.expType(getParenExpression(node)));
+			ctu.setExpType(node, ctu.expType(getParenContent(node)));
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
@@ -115,7 +115,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 
 				// !(x = 3) => ((x = 3) != true)
 				if (r.typeEnum == Sym.parenthesized_expression) {
-					auto a = getParenExpression(*r);
+					auto a = getParenContent(*r);
 					if (a.typeEnum == Sym.assignment_expression) {
 						if (node.children[0].typeEnum == Sym.anon_BANG) {
 							// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens

@@ -90,6 +90,7 @@ package struct TranslationContext {
 	Map!(string, MacroType) macroTable;
 	Map!(size_t, CType) nodeTypes;
 	string inFunction = null;
+	Decl* inDecl = null;
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
@@ -218,7 +219,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// if (!(x = 3)) => if ((x = 3) == 0)
 			if (auto a = node.childField("condition")) {
 				if (a.typeEnum == Sym.parenthesized_expression) {
-					a = &getParenExpression(*a);
+					a = &getParenContent(*a);
 				}
 				if (a.typeEnum == Sym.assignment_expression) {
 					a.prepend("(");

@@ -6,6 +6,7 @@ module ctod.ctype;
 import ctod.tree_sitter;
 import ctod.translate;
 import ctod.cdeclaration;
+import ctod.cexpr;
 
 /// Declaration
 struct Decl {
@@ -286,18 +287,21 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
 	switch(node.typeEnum) {
 		case Sym.init_declarator:
+			if (auto declaratorNode = node.childField("declarator")) {
+				parseCtype(ctu, *declaratorNode, decl, inlineTypes);
+			}
 			if (auto valueNode = node.childField("value")) {
+				ctu.inDecl = &decl;
 				translateNode(ctu, *valueNode);
+				ctu.inDecl = null;
 				decl.initializer = valueNode.output();
 			}
-			goto case;
+			return true;
 		case Sym.parenthesized_declarator:
 			// (*(x));
-			foreach(ref c; node.children) {
-				if (c.typeEnum != Sym.comment && c.typeEnum != Sym.anon_LPAREN) {
-					parseCtype(ctu, c, decl, inlineTypes);
-					return true;
-				}
+			auto pc = &getParenContent(node);
+			if (pc != &node) { // should not happen, but avoid endless recursion at all costs
+				return parseCtype(ctu, *pc, decl, inlineTypes);
 			}
 			break;
 		case Sym.abstract_function_declarator:
