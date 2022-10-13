@@ -11,7 +11,7 @@ jobs:
         name: Run unittests
         strategy:
             matrix:
-                os: [ubuntu-latest]
+                os: [ubuntu-latest, windows-latest]
                 dc: [dmd-latest, ldc-latest, dmd-2.085.0, ldc-1.17.0]
         runs-on: ${{ matrix.os }}
         steps:
