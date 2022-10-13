@@ -12,7 +12,7 @@ jobs:
         strategy:
             matrix:
                 os: [ubuntu-latest, windows-latest]
-                dc: [dmd-latest, ldc-latest, dmd-2.085.0, ldc-1.17.0]
+                dc: [dmd-latest, ldc-latest, dmd-2.094.0, ldc-1.24.0]
         runs-on: ${{ matrix.os }}
         steps:
             - uses: actions/checkout@v2
@@ -23,4 +23,4 @@ jobs:
                   compiler: ${{ matrix.dc }}
 
             - name: Run tests
-              run: dub test
+              run: dub test --arch=x86_64

@@ -1,6 +1,6 @@
 name "ctod"
 description "C to D translator"
-authors "dkorpel"
+authors "Dennis Korpel"
 copyright "Copyright © 2020, dkorpel"
 license "BSL-1.0"
 targetPath "build"
@@ -13,4 +13,3 @@ workingDirectory "build"
 buildRequirements "allowWarnings"
 
 dflags "-preview=dip1000"
-//dflags "-checkaction=context" // GitHub actions failure because it's buggy in DMD 2.085
