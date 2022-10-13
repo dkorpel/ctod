@@ -1,26 +1,35 @@
+![ctod logo](https://github.com/dkorpel/ctod/blob/master/ctod-logo.png)
 # C to D code converter
 
 A tool that does the boring parts of translating C to D.
 
 ### Usage
-It only works on Linux at the moment unfortunately, I'm still trouble-shooting the Windows build.
+
+From the root of this repository:
 ```console
-dub run -- ../test/main.c
+dub run --arch=x86_64 -- ../test/main.c
 ```
+
 Arguments are `.c` or `.h` files, for which it outputs a translated `.d` file next to it.
 This `.d` file may not compile yet, but it's supposed to get you 90% there.
-The remaining errors are usually because of macros, non-trivial initializers, and D's stricter type system.
+The remaining errors are usually because of non-trivial macros, initializers, or because of D's stricter type system.
 
-Currently the only option is `--strip` to strip comments.
-This can be used to remove documentation comments from header files for minification / license compatibility.
+### Compatibility
 
-Example installation on linux:
+The program depends on C libraries that are currently included in binary form in the `/lib` folder for x86-64 Windows and Linux.
+By editing the `makefile` and running `make` you might make it work for other platforms as well.
+In the future the aim is to use [ImportC](https://dlang.org/spec/importc.html) for this.
+
+### Installation
+
+You can copy the built binary to a folder in your `PATH`, for example on linux:
 ```console
 dub build
 sudo cp build/ctod /usr/local/bin/
 ```
+This allows you to simply invoke `ctod` from anywhere.
 
-### Why?
+### Motivation
 This was written before [ImportC](https://dlang.org/spec/importc.html).
 Statically linking C libraries with dub is clumsy: while there's usually C bindings in the package repository, you still need to grab release binaries for each build target / configration, include them in the repo, and fiddle with dub flags until there are no linker errors anymore.
 
@@ -29,7 +38,7 @@ While this requires some intelligence, a lot of the work is simple syntactic fin
 Even with VIM macros it was getting tedious, so I wrote this tool.
 I used it for translating [glfw](https://github.com/dkorpel/glfw-d) and [libsoundio](https://github.com/dkorpel/libsoundio-d), as well as some single-file C libs.
 
-### Internal
+### How it works
 The [tree-sitter parser for C](https://github.com/tree-sitter/tree-sitter-c) is used to parse C code, including macros.
 tree-sitter is a parser generator with a focus on incremental parsing and error recovery, useful for IDE tools.
 Error recovery is particularly useful for this tool: it always gives a best-effort translated output, even when it encounters what it thinks is a parse error.
@@ -41,11 +50,10 @@ The tool doesn't need a deep understanding of C code, and a lot of things are pa
 
 ```D
 // Identical in both C and D
-float fabs(float x)
-{
-	if (x < 0.0)
-		return -x;
-	return x;
+float fabs(float x) {
+    if (x < 0.0)
+        return -x;
+    return x;
 }
 ```
 
@@ -54,6 +62,7 @@ This ranges from simple syntax changes:
 - `x->y` => `x.y`
 - `(int) 1.0lu` => `cast(int) 1Lu`
 - `"con" "cat"` => `"con" ~ "cat"`
+
 To more difficult translations, such as declarations with complex types:
 ```C
 char *(*(*fun)[5])(int);
@@ -67,7 +76,7 @@ It's being developed like this:
 
 - Run `ctod` on a C file
 - Look at the output, notice something that needs to be adjusted to be valid D
-- Enter the C code in the [https://tree-sitter.github.io/tree-sitter/playground](tree-sitter playground) to see what it looks like in the AST
+- Enter the C code in the [tree-sitter playground](https://tree-sitter.github.io/tree-sitter/playground) to see what it looks like in the AST
 - Add code to recognize and translate the pattern
 - Repeat for as many patterns as possible
 
