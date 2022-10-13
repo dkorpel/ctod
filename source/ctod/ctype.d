@@ -86,13 +86,13 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 
 	// keyword = struct, union or enum
 	string namedType(string keyword) {
-		auto nameNode = node.childField("name");
-		if (auto c = node.childField("body")) {
+		auto nameNode = node.childField(Field.name);
+		if (auto c = node.childField(Field.body_)) {
 			ctu.inType = &node;
 			translateNode(ctu, *c);
 			ctu.inType = null;
 			string name = nameNode ? nameNode.source : null;
-			inlineTypes ~= InlineType(keyword, name, c.output);
+			inlineTypes ~= InlineType(keyword, name, c.output());
 			return name;
 		} else if (nameNode) {
 			inlineTypes ~= InlineType(keyword, nameNode.source, /*body*/ "");
@@ -244,12 +244,12 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
 Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
-	if (auto typeNode = node.childField("type")) {
+	if (auto typeNode = node.childField(Field.type)) {
 		const oldLen = inlineTypes.length;
 		auto primitiveType = parseTypeNode(ctu, *typeNode, inlineTypes);
 
 		// there may be multiple type_qualifier fields
-		// if (auto qualNode = node.childField("type_qualifier"))
+		// if (auto qualNode = node.childField(Field.type_qualifier))
 		CQuals quals;
 		foreach(ref c; node.children) {
 			cast(void) tryParseTypeQual(ctu, c, quals);
@@ -322,10 +322,10 @@ unittest {
 bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
 	switch(node.typeEnum) {
 		case Sym.init_declarator:
-			if (auto declaratorNode = node.childField("declarator")) {
+			if (auto declaratorNode = node.childField(Field.declarator)) {
 				parseCtype(ctu, *declaratorNode, decl, inlineTypes);
 			}
-			if (auto valueNode = node.childField("value")) {
+			if (auto valueNode = node.childField(Field.value)) {
 				ctu.inDecl = &decl;
 				translateNode(ctu, *valueNode);
 				ctu.inDecl = null;
@@ -359,7 +359,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 		case Sym.abstract_function_declarator:
 		case Sym.function_declarator:
 			Decl[] paramDecls = [];
-			if (auto paramNode = node.childField("parameters")) {
+			if (auto paramNode = node.childField(Field.parameters)) {
 				foreach(ref c; paramNode.children) {
 					if (c.typeEnum == Sym.parameter_declaration) {
 						auto d = parseDecls(ctu, c, inlineTypes);
@@ -370,7 +370,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 					}
 				}
 			}
-			if (auto declNode = node.childField("declarator")) {
+			if (auto declNode = node.childField(Field.declarator)) {
 				decl.type = CType.funcDecl(decl.type, paramDecls);
 				if (node.typeEnum == Sym.abstract_function_declarator) {
 					decl.type = CType.pointer(decl.type);
@@ -395,22 +395,22 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 					decl.type.next[0].setConst(false); // D has transitive const, so no need for `const(const(int)*)`
 				}
 			}
-			if (auto c = node.childField("declarator")) {
+			if (auto c = node.childField(Field.declarator)) {
 				parseCtype(ctu, *c, decl, inlineTypes);
 			}
 			return true;
 		case Sym.array_declarator:
 		case Sym.abstract_array_declarator:
 			// static array
-			if (auto sizeNode = node.childField("size")) {
+			if (auto sizeNode = node.childField(Field.size)) {
 				translateNode(ctu, *sizeNode);
-				decl.type = CType.array(decl.type, sizeNode.output);
-				if (auto c1 = node.childField("declarator")) {
+				decl.type = CType.array(decl.type, sizeNode.output());
+				if (auto c1 = node.childField(Field.declarator)) {
 					parseCtype(ctu, *c1, decl, inlineTypes);
 				}
 			} else {
 				// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
-				if (auto c1 = node.childField("declarator")) {
+				if (auto c1 = node.childField(Field.declarator)) {
 					decl.type = CType.cArray(decl.type);
 					parseCtype(ctu, *c1, decl, inlineTypes);
 				}

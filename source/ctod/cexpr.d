@@ -60,22 +60,22 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
-			if (auto l = node.childField("left")) {
+			if (auto l = node.childField(Field.left)) {
 
 			}
-			if (auto r = node.childField("right")) {
+			if (auto r = node.childField(Field.right)) {
 
 			}
 			break;
 		case Sym.binary_expression:
 			depthFirst();
-			if (auto l = node.childField("left")) {
+			if (auto l = node.childField(Field.left)) {
 				CType lType = ctu.expType(*l);
 				if (lType.isStaticArray()) {
 					l.append(".ptr");
 				}
 			}
-			if (auto r = node.childField("right")) {
+			if (auto r = node.childField(Field.right)) {
 				CType rType = ctu.expType(*r);
 				if (rType.isStaticArray()) {
 					r.append(".ptr");
@@ -84,10 +84,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			break;
 		case Sym.comma_expression:
 			depthFirst();
-			if (auto l = node.childField("left")) {
+			if (auto l = node.childField(Field.left)) {
 				//ctodExpression(ctu, *l, type);
 			}
-			if (auto r = node.childField("right")) {
+			if (auto r = node.childField(Field.right)) {
 				//ctodExpression(ctu, *r, type);
 			}
 			break;
@@ -99,7 +99,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			break;
 		case Sym.pointer_expression:
 			depthFirst();
-			if (auto arg = node.childField("argument")) {
+			if (auto arg = node.childField(Field.argument)) {
 				CType pType = ctu.expType(*arg);
 				if (pType.isPointer()) {
 					ctu.setExpType(node, pType.next[0]);
@@ -111,7 +111,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.unary_expression:
 		case Sym.update_expression:
 			depthFirst();
-			if (auto r = node.childField("argument")) {
+			if (auto r = node.childField(Field.argument)) {
 
 				// !(x = 3) => ((x = 3) != true)
 				if (r.typeEnum == Sym.parenthesized_expression) {
@@ -156,7 +156,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			if (auto c = node.firstChildType(Sym.anon_LPAREN)) {
 				c.replace("cast(");
 			}
-			if (auto c = node.childField("type")) {
+			if (auto c = node.childField(Field.type)) {
 				InlineType[] inlineTypes;
 				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
@@ -165,10 +165,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 				}
 			}
 
-			// if (auto r = node.childField("value")) {
+			// if (auto r = node.childField(Field.value)) {
 			// 	ctodExpression(ctu, *r, type);
 			// }
-			// if (auto l = node.childField("type")) {
+			// if (auto l = node.childField(Field.type)) {
 			// 	ctodExpression(ctu, *l, type);
 			// }
 			// break;
@@ -178,7 +178,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			ctu.setExpType(node, CType.unknown);
 			break;
 		case Sym.call_expression:
-			if (auto funcNode = node.childField("function")) {
+			if (auto funcNode = node.childField(Field.function_)) {
 				CType fType = ctu.expType(*funcNode);
 				if (fType.isFunction) {
 					ctu.setExpType(node, fType.next[0]);
@@ -188,7 +188,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 					return true;
 				}
 			}
-			if (auto argsNode = node.childField("arguments")) {
+			if (auto argsNode = node.childField(Field.arguments)) {
 				if (argsNode.typeEnum != Sym.argument_list) {
 					break;
 				}
@@ -218,7 +218,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 /// offsetof(S, x) => S.x.offsetof
 bool translateOffsetof(ref Node node, ref Node funcNode) {
 	if (funcNode.typeEnum == Sym.identifier && funcNode.source == "offsetof") {
-		if (auto args = node.childField("arguments")) {
+		if (auto args = node.childField(Field.arguments)) {
 			if (args.hasError) {
 				return false;
 			}
@@ -244,15 +244,15 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 /// Translate C's `sizeof x` operator to D's `x.sizeof` property
 bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
 	ctu.setExpType(node, CType.named("size_t"));
-	if (auto typeNode = node.childField("type")) {
+	if (auto typeNode = node.childField(Field.type)) {
 		// sizeof(short) => (short).sizeof
 		translateNode(ctu, *typeNode);
-		node.replace("" ~ typeNode.output ~ ".sizeof");
-	} else if (auto valueNode = node.childField("value")) {
+		node.replace("" ~ typeNode.output() ~ ".sizeof");
+	} else if (auto valueNode = node.childField(Field.value)) {
 		translateNode(ctu, *valueNode);
 		// `sizeof short` => `short.sizeof`
 		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal) {
-			node.replace(valueNode.output ~ ".sizeof");
+			node.replace(valueNode.output() ~ ".sizeof");
 		} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
 			// sizeof(3) => typeof(3).sizeof
 			// sizeof(T) => T.sizeof
@@ -260,15 +260,15 @@ bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
 				valueNode = parenValue;
 			}
 			if (valueNode.typeEnum == Sym.identifier) {
-				return node.replace(valueNode.output ~ ".sizeof");
+				return node.replace(valueNode.output() ~ ".sizeof");
 			} else {
-				return node.replace("typeof" ~ valueNode.output ~ ".sizeof");
+				return node.replace("typeof" ~ valueNode.output() ~ ".sizeof");
 			}
 		} else if (valueNode.typeEnum == Sym.cast_expression) {
 			// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
 			if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
 				if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
-					return node.replace(t.output ~ ".sizeof " ~ p.output);
+					return node.replace(t.output() ~ ".sizeof " ~ p.output());
 				}
 			}
 		}

@@ -7,7 +7,12 @@ import ctod.cexpr;
 import ctod.cpreproc;
 
 // Enable switching to custom Associative Array type
-alias Map(K, V) = V[K];
+version (none) {
+	import bops.ds.hashtable: Map = HashTable;
+	// alias Map(K, V) = V[K];
+} else {
+	alias Map(K, V) = V[K];
+}
 
 import tree_sitter.api;
 
@@ -217,7 +222,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// Assignment may not be used in if / loop conditions in D
 			// if (x = 3)    => if ((x = 3) != 0)
 			// if (!(x = 3)) => if ((x = 3) == 0)
-			if (auto a = node.childField("condition")) {
+			if (auto a = node.childField(Field.condition)) {
 				if (a.typeEnum == Sym.parenthesized_expression) {
 					a = &getParenContent(*a);
 				}
@@ -231,7 +236,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// D mandates `default` case in `switch`
 			// note: switch statements can have `case` statements in the weirdest places
 			// we can be a bit conservative here and only check the common switch pattern
-			if (auto bodyNode = node.childField("body")) {
+			if (auto bodyNode = node.childField(Field.body_)) {
 				if (bodyNode.typeEnum != Sym.compound_statement)
 					break;
 
@@ -251,14 +256,14 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 
 		case Sym.type_definition:
 			// Decl[] decls = parseDecls(ctu, *c);
-			auto typeField = node.childField("type");
-			auto declaratorField = node.childField("declarator");
+			auto typeField = node.childField(Field.type);
+			auto declaratorField = node.childField(Field.declarator);
 			if (!declaratorField || !typeField) {
 				return true;
 			}
-			if (auto structId = typeField.childField("name")) {
+			if (auto structId = typeField.childField(Field.name)) {
 				if (typeField.typeEnum == Sym.struct_specifier || typeField.typeEnum == Sym.union_specifier) {
-					if (auto bodyNode = typeField.childField("body")) {
+					if (auto bodyNode = typeField.childField(Field.body_)) {
 						translateNode(ctu, *bodyNode);
 					} if (declaratorField.typeEnum == Sym.alias_type_identifier && declaratorField.source == structId.source) {
 						// typedef struct X X; => uncomment, not applicable to D
@@ -268,10 +273,10 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 					}
 				}
 				if (typeField.typeEnum == Sym.enum_specifier) {
-					if (auto bodyNode = typeField.childField("body")) {
+					if (auto bodyNode = typeField.childField(Field.body_)) {
 						translateNode(ctu, *bodyNode);
 					}
-					if (auto nameNode = typeField.childField("name")) {
+					if (auto nameNode = typeField.childField(Field.name)) {
 
 					}
 				}
@@ -291,7 +296,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 		case Sym.union_specifier:
 			// Trailing ; are children of the translation unit, and they are removed
 			// However, opaque structs/unions still need them
-			if (auto bodyNode = node.childField("body")) {
+			if (auto bodyNode = node.childField(Field.body_)) {
 				//
 			} else {
 				node.append(";");

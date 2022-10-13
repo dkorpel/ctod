@@ -19,8 +19,8 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 		case Sym.aux_preproc_include_token1: // "#include"
 			return node.replace("public import");
 		case Sym.preproc_call:
-			auto argument = node.childField("argument");
-			if (auto directive = node.childField("directive")) {
+			auto argument = node.childField(Field.argument);
+			if (auto directive = node.childField(Field.directive)) {
 				if (directive.source == "#error") {
 					directive.replace("static assert");
 					if (argument) {
@@ -42,14 +42,14 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			}
 			return true;
 		case Sym.preproc_def:
-			if (auto valueNode = node.childField("value")) {
+			if (auto valueNode = node.childField(Field.value)) {
 				// aux_sym_preproc_def_token1 = "#define"
 				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
 					c.replace("enum");
 				}
-				if (auto c = node.childField("name")) {
+				if (auto c = node.childField(Field.name)) {
 					translateNode(ctu, *c);
-					ctu.macroTable[c.output] = MacroType.manifestConstant;
+					ctu.macroTable[c.output()] = MacroType.manifestConstant;
 				}
 				if (auto c = node.firstChildType(Sym.preproc_arg)) {
 					c.replace(" ="~c.source~";");
@@ -59,18 +59,18 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
 					c.replace("version =");
 				}
-				if (auto c = node.childField("name")) {
+				if (auto c = node.childField(Field.name)) {
 					c.append(";");
 					translateNode(ctu, *c);
-					ctu.macroTable[c.output] = MacroType.versionId;
+					ctu.macroTable[c.output()] = MacroType.versionId;
 				}
 			}
 			break;
 		case Sym.preproc_function_def:
 			removeSemicolons(node);
-			auto nameNode = node.childField("name");
-			auto parametersNode = node.childField("parameters");
-			auto valueNode = node.childField("value");
+			auto nameNode = node.childField(Field.name);
+			auto parametersNode = node.childField(Field.parameters);
+			auto valueNode = node.childField(Field.value);
 			if (!nameNode || !parametersNode) {
 				return true;
 			}
@@ -83,7 +83,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 				c.replace("enum string");
 			}
 			translateNode(ctu, *nameNode);
-			ctu.macroTable[nameNode.output] = MacroType.inlineFunc;
+			ctu.macroTable[nameNode.output()] = MacroType.inlineFunc;
 
 			string[] params;
 			foreach(ref param; parametersNode.children) {
@@ -99,7 +99,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			if (ctodHeaderGuard(ctu, node)) {
 				return true;
 			}
-			auto nameNode = node.childField("name");
+			auto nameNode = node.childField(Field.name);
 			if (!nameNode) {
 				return true;
 			}
@@ -120,7 +120,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 				nameNode.append(") {} else {");
 
 				// We can't have a double else, so we need to repeat the version name for #else
-				if (auto a = node.childField("alternative")) {
+				if (auto a = node.childField(Field.alternative)) {
 					// first token of preproc_else is "#else"
 					a.children[0].replace("} version ("~versionName~") {");
 				}
@@ -130,7 +130,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 		case Sym.preproc_defined:
 			return replaceDefined(ctu, node, false);
 		case Sym.preproc_if:
-			auto c = node.childField("condition");
+			auto c = node.childField(Field.condition);
 			auto ifnode = node.firstChildType(Sym.aux_preproc_if_token1); // "#if"
 			if (!c || !ifnode) {
 				return true;
@@ -154,7 +154,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			}
 			break;
 		case Sym.preproc_elif:
-			if (auto c = node.childField("condition")) {
+			if (auto c = node.childField(Field.condition)) {
 				c.prepend("(");
 				c.append(") {");
 				if (auto ifnode = node.firstChildType(Sym.aux_preproc_elif_token1)) {
@@ -181,7 +181,7 @@ bool ctodTryPreprocessor(ref TranslationContext ctu, ref Node node) {
 			break;
 		case Sym.preproc_include:
 			//if (auto c = node.firstChildType("string_literal")) {
-			if (auto pathNode = node.childField("path")) {
+			if (auto pathNode = node.childField(Field.path)) {
 				if (pathNode.typeEnum == Sym.string_literal) {
 					pathNode.replace(ctodIncludePath(pathNode.source));
 				} else {
@@ -231,11 +231,11 @@ private bool ctodHeaderGuard(ref TranslationContext ctu, ref Node ifdefNode) {
 				if (i > 2 + commentCount) {
 					return false;
 				}
-				if (auto valueNode = ifdefNode.children[i].childField("value")) {
+				if (auto valueNode = ifdefNode.children[i].childField(Field.value)) {
 					// Header guard defines have no value, no `#define NAME_H 3`
 					return false;
 				}
-				if (auto defIdNode = ifdefNode.children[i].childField("name")) {
+				if (auto defIdNode = ifdefNode.children[i].childField(Field.name)) {
 					// `#define` must match the `#ifndef`
 					if (defIdNode.source != id) {
 						return false;
@@ -262,16 +262,18 @@ private bool ctodHeaderGuard(ref TranslationContext ctu, ref Node ifdefNode) {
 /// or just `Windows` (in a `version()`)
 bool replaceDefined(ref TranslationContext ctu, ref Node node, bool inVersionStatement) {
 	if (auto c = node.firstChildType(Sym.identifier)) {
+		string replacement = c.source;
 		if (string s = ctodVersion(c.source)) {
 			c.replace(s); // known #define translation
+			replacement = s;
 		} else {
 			translateNode(ctu, *c); // reserved identifier replacement
 		}
 		if (inVersionStatement) {
-			return node.replace(c.replacement);
+			return node.replace(replacement);
 		} else {
 			ctu.needsHasVersion = true;
-			return node.replace(`HasVersion!"` ~ c.replacement ~ `"`);
+			return node.replace(`HasVersion!"` ~ replacement ~ `"`);
 		}
 	}
 	return false;

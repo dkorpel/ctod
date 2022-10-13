@@ -27,7 +27,7 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 
 	switch(node.typeEnum) {
 		case Sym.function_definition:
-			if (auto bodyNode = node.childField("body")) {
+			if (auto bodyNode = node.childField(Field.body_)) {
 				ctu.enterFunction("???");
 				translateNode(ctu, *bodyNode);
 				ctu.leaveFunction();
@@ -79,7 +79,7 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 		case Sym.initializer_pair:
 			// [a] = b  =>  a: b, this removes the =
 			// {.entry = {}} => {entry: {}}
-			if (auto designatorNode = node.childField("designator")) {
+			if (auto designatorNode = node.childField(Field.designator)) {
 				// if (designatorNode.typeEnum == Sym.subscript_designator)
 				if (auto c = node.firstChildType(Sym.anon_EQ)) {
 					c.replace("");

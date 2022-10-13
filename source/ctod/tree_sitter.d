@@ -13,54 +13,102 @@ Node* parseCtree(string source) {
 	const success = ts_parser_set_language(parser, language);
 	assert(success);
 	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
-	//scope(exit) ts_tree_delete(tree);
+
+	// To delete the tree: ts_tree_delete(tree);
 
 	if (ts_node_is_null(ts_tree_root_node(tree))) {
 		return null;
 	}
 
-	//return CtreeFromCursor(tree, source);
-	return &new Node(ts_tree_root_node(tree), source, null, "").findChildren(source);
+	Extra* extra = new Extra(source);
+	Node* result = new Node(ts_tree_root_node(tree), extra);
+	return result;
+}
+
+struct Extra
+{
+	alias Map(K, V) = V[K];
+	string fullSource;
+	Map!(size_t, Node) nodes;
+
+	ref Node get(TSNode tsnode) {
+		const id = ts_node_start_byte(tsnode);
+		if (auto x = id in nodes) {
+			return *x;
+		} else {
+			return nodes[id] = Node(tsnode, &this);
+		}
+	}
+}
+
+// WIP: replace array with this lazy range
+struct Children
+{
+	private TSNode tsnode;
+	Extra* extra;
+	size_t length;
+	bool named = false;
+	size_t i = 0;
+
+	this(TSNode tsnode, bool named, Extra* extra) {
+		this.tsnode = tsnode;
+		this.named = named;
+		this.extra = extra;
+		this.length = named ?
+			ts_node_named_child_count(tsnode) :
+			ts_node_child_count(tsnode);
+	}
+
+	@disable this(this);
+
+	ref Node opIndex(size_t i) {
+		return extra.get(named ?
+			ts_node_named_child(tsnode, cast(uint) i) :
+			ts_node_child(tsnode, cast(uint) i)
+		);
+	}
+
+	bool empty() const {return i >= length;}
+	void popFront() {i++;}
+	ref Node front() {return this[i];}
+
+	Node[] children;
 }
 
 /// Conrete syntax tree node
 struct Node {
 	nothrow:
-	private TSNode tsnode;
-
-	/// Start index fullSource
-	size_t start = 0;
-	/// End index in fullSource
-	size_t end = 0;
-
-	/// Tag identifying the C AST node type
-	Sym typeEnum;
-	private const(char)[] field;
+	private TSNode tsnode; // 32 bytes
 
 	/// The entire C source code this belongs in
 	string fullSource;
+	/// D code to replace source with for this node
+	private string replacement;
+	private string prefix;
+	private string suffix;
+
+	/// Child nodes
+	private Node[] children_;
+
+	bool isTranslated = false; /// if translation has already been done
+	bool hasBeenReplaced = false;
+	private bool noLayout = false; // don't emit layout
+
+	Extra* extra;
+
+	/// Start index fullSource
+	size_t start() const {return ts_node_start_byte(tsnode);}
+	/// End index in fullSource
+	size_t end() const {return ts_node_end_byte(tsnode);}
+
+	/// Tag identifying the C AST node type
+	Sym typeEnum() const {return cast(Sym) ts_node_symbol(tsnode);}
 
 	/// Source code of this node
 	string source() const {return fullSource[start..end];}
 
-	/// D code to replace source with for this node
-	string replacement = "<@>";
-
-	private string prefix;
-	private string suffix;
-	private bool noLayout = false; // don't emit layout
-
-	/// Tree relations
-	Node* parent;
-	/// Child nodes
-	Node[] children;
-
-	bool isNone = true; /// whether this is a null value
-	bool hasError = false; /// whether this is an error node
-	bool inFuncBody = false; /// whether we are under a function definition node
-	bool isTranslated = false; /// if translation has already been done
-
-	//@disable this(this); need to emplace in findChildren
+	bool isNone() const {return ts_node_is_null(tsnode);}
+	bool hasError() const {return ts_node_has_error(tsnode);}
 
 	/// Each node has unique source location, so we can use it as a key
 	alias id = toHash;
@@ -69,69 +117,55 @@ struct Node {
 
 	bool opEquals(ref Node other) const {return this.id == other.id;}
 
-	this(TSNode node, string fullSource, Node* parent, const(char)[] fieldName = "") {
+	// @disable this(this);
+
+	this(TSNode node, Extra* extra) {
 		this.tsnode = node; //
-		this.parent = parent;
-		isNone = ts_node_is_null(tsnode);
-		hasError = ts_node_has_error(tsnode);
-		if (!isNone) {
-			this.start = ts_node_start_byte(tsnode);
-			this.end = ts_node_end_byte(tsnode);
-			this.typeEnum = cast(Sym) ts_node_symbol(tsnode);
-			this.fullSource = fullSource;
-			this.replacement = this.source;
-			this.field = fieldName;
-			children.length = ts_node_child_count(tsnode);
-			//if (children.length == 0) dprint(this.source);
-		}
+		this.extra = extra;
+		this.fullSource = extra.fullSource;
+		this.children_.length = ts_node_child_count(node);
+		this.findChildren();
 	}
 
-	private ref Node findChildren(string source) return {
-		import core.lifetime: moveEmplace;
-		foreach(i, ref c; children) {
-			c = Node(ts_node_child(tsnode, cast(uint) i), source, &this).findChildren(source);
-		}
-		return this;
+	inout(Node[]) children() inout {
+		return children_;
 	}
 
-	private ref Node validate(const(char)[] diagnostic = "root") return {
-		if (!this) {
-			assert(0, diagnostic);
+	private void findChildren() return {
+		foreach(i, ref c; children_) {
+			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
+			c.findChildren();
 		}
-		foreach(i, ref c; children) {
-			c.validate("?");
-		}
-		return this;
 	}
 
 	/// Replace this entire subtree with a translation
 	bool replace(string s) {
-		children.length = 0;
-		isTranslated = true;
-		replacement = s;
+		this.isTranslated = true;
+		this.hasBeenReplaced = true;
+		this.replacement = s;
 		return true;
 	}
 
 	/// Prevent preceding whitespace / comments from being output
 	void removeLayout() {
-		noLayout = true;
+		this.noLayout = true;
 	}
 
 	/// For translation purposes, prepend/append `s` to this node's source, without modifying the node's source itself
 	bool prepend(string s) {
-		prefix = s ~ prefix;
+		this.prefix = s ~ this.prefix;
 		return false;
 	}
 
 	/// ditto
 	bool append(string s) {
-		suffix ~= s;
+		this.suffix ~= s;
 		return false;
 	}
 
 	/// Returns: first child node with `type`
 	Node* firstChildType(TSSymbol type) {
-		foreach(ref c; children) {
+		foreach(ref c; this.children) {
 			if (c.typeEnum == type) {
 				return &c;
 			}
@@ -142,53 +176,74 @@ struct Node {
 	/// `false` if this is null
 	bool opCast() const {return !isNone;}
 
+	private static void appendOutput(const ref Node node, ref string result) {
+		result ~= node.prefix;
+		if (node.hasBeenReplaced) {
+			result ~= node.replacement;
+		} else if (node.children.length == 0) {
+			result ~= node.source;
+		} else {
+			size_t lc = node.start; // layout cursor
+			foreach(ref c; node.children) {
+				if (!c || c.noLayout) {
+					//dprint(node.source);
+				} else {
+					result ~= node.fullSource[lc .. c.start]; // add layout
+				}
+				lc = c.end;
+				appendOutput(c, result);
+
+			}
+			result ~= node.fullSource[lc .. node.end];
+		}
+		result ~= node.suffix;
+	}
+
 	/// Returns: full translated D source code of this node after translation
 	string output() const {
 		string result = "";
-		void append(const ref Node node) {
-			result ~= node.prefix;
-			if (node.children.length == 0) {
-				result ~= node.replacement;
-			} else {
-				size_t lc = node.start; // layout cursor
-				foreach(ref c; node.children) {
-					if (!c || c.noLayout) {
-						//dprint(node.source);
-					} else {
-						result ~= fullSource[lc .. c.start]; // add layout
-					}
-					lc = c.end;
-					append(c);
-
-				}
-				result ~= fullSource[lc .. node.end];
-			}
-			result ~= node.suffix;
-		}
-		append(this);
+		appendOutput(this, result);
 		return result;
 	}
 
-	/// Returns: Child node identified by field name
-	inout(Node)* childField(string name) inout {
-		auto f = ts_node_child_by_field_name(tsnode, name.ptr, cast(int) name.length);
-		// ts_node_child_by_field_id(tsnode, id);
+	inout(Node)* childField(Field field) inout {
+		auto f = ts_node_child_by_field_id(tsnode, field);
 		foreach(ref c; children) {
 			if (ts_node_eq(c.tsnode, f)) {
 				return &c;
 			}
 		}
 		return null;
-		/*
-		while (ts_node_is_null(curr)) {
-			i++;
-			auto prev = ts_node_prev_sibling(curr);
-			curr = prev;
-		}
-		=?
-		return (i == 0) ? null : &children[i-1];
-		*/
 	}
+}
+
+/// For accessing specific child nodes
+enum Field : ubyte {
+	alternative = 1,
+	argument = 2,
+	arguments = 3,
+	body_ = 4,
+	condition = 5,
+	consequence = 6,
+	declarator = 7,
+	designator = 8,
+	directive = 9,
+	field = 10,
+	function_ = 11,
+	index = 12,
+	initializer = 13,
+	label = 14,
+	left = 15,
+	name = 16,
+	operator = 17,
+	parameters = 18,
+	path = 19,
+	prefix = 20,
+	right = 21,
+	size = 22,
+	type = 23,
+	update = 24,
+	value = 25,
 }
 
 /// Identifies a C tree-sitter node
