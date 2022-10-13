@@ -35,8 +35,7 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	if (settings.includeHeader) {
 		result ~= "module "~moduleName~";\n";
 		result ~= "@nogc nothrow:
-extern(C): __gshared:
-\n";
+extern(C): __gshared:\n";
 	}
 
 	if (ctx.needsHasVersion) {
@@ -89,8 +88,9 @@ package struct TranslationContext {
 	Map!(string, Decl) localSymbolTable;
 	Map!(string, MacroType) macroTable;
 	Map!(size_t, CType) nodeTypes;
-	string inFunction = null;
-	Decl* inDecl = null;
+	string inFunction = null; // name of the function we're currently in
+	Decl* inDecl = null; // give initializers access to the type of the decl (`int x[3] = {0}`)
+	Node* inType = null; // inside struct {} enum {} or union {}
 
 	this(string fileName, string source) {
 		this.fileName = fileName;

@@ -88,7 +88,9 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 	string namedType(string keyword) {
 		auto nameNode = node.childField("name");
 		if (auto c = node.childField("body")) {
+			ctu.inType = &node;
 			translateNode(ctu, *c);
+			ctu.inType = null;
 			string name = nameNode ? nameNode.source : null;
 			inlineTypes ~= InlineType(keyword, name, c.output);
 			return name;
