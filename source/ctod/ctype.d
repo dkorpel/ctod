@@ -285,9 +285,9 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 }
 
 /// Returns: number of elements in initializer_list
-int initializerLength(ref Node node, ref string firstElement) {
+uint initializerLength(ref Node node, ref string firstElement) {
 	firstElement = null;
-	int commaCount = 0;
+	uint commaCount = 0;
 	foreach(ref e; node.children) {
 		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE) {
 			continue;
@@ -300,6 +300,21 @@ int initializerLength(ref Node node, ref string firstElement) {
 		}
 	}
 	return commaCount + (firstElement != null); // == 0 && firstElement == "0";
+}
+
+/// Simple int to string function to avoid `std.conv: text`, which is not yet available for WebAssembly
+private string intToString(uint i) {
+	if (i < 10) {
+		return [cast(char) ('0' + i)];
+	} else {
+		return intToString(i / 10) ~ intToString(i % 10);
+	}
+}
+
+unittest {
+	assert(intToString(0) == "0");
+	assert(intToString(9) == "9");
+	assert(intToString(4790) == "4790");
 }
 
 /// From a decl, parse the type and identifier
@@ -316,7 +331,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				ctu.inDecl = null;
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
-					int len = initializerLength(*valueNode, firstElem);
+					const len = initializerLength(*valueNode, firstElem);
 					// int x[4] = {0} => int[4] x = 0
 					// Important because in function scope, all elements must be in [] initializer
 					if (decl.type.isStaticArray()) {
@@ -328,8 +343,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 					// transform into static array with length inferred from initializer
 					// Note: shouldn't be done in struct scope, but initializers are not valid in C there
 					if (decl.type.isCArray()) {
-						import std.conv: text;
-						decl.type = CType.array(decl.type.next[0], text(len));
+						decl.type = CType.array(decl.type.next[0], intToString(len));
 					}
 				}
 				decl.initializer = valueNode.output();
