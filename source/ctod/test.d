@@ -270,6 +270,7 @@ alias U0 U1;
 
 @("numbers") unittest {
 	test("float x = 1.f;", "float x = 1.0f;");
+	test("float x = FLT_MAX;", "float x = FLT_MAX;"); // TODO
 }
 
 @("cast") unittest {
