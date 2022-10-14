@@ -82,7 +82,7 @@ struct InlineType {
 /// Therefor, the second return value is a type declaration that the primitive type depends on.
 ///
 /// Returns: [primitive type, dependent type]
-string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
+string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque = false) {
 
 	// keyword = struct, union or enum
 	string namedType(string keyword) {
@@ -95,13 +95,22 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 			inlineTypes ~= InlineType(keyword, name, c.output());
 			return name;
 		} else if (nameNode) {
-			inlineTypes ~= InlineType(keyword, nameNode.source, /*body*/ "");
+			if (keepOpaque) {
+				return null;
+			}
+			// Don't emit bodyless types, assume they were defined before
+			// inlineTypes ~= InlineType(keyword, nameNode.source, /*body*/ "");
 			return nameNode.source;
 		}
-		return "@@err"~__LINE__.stringof;
+		return null;
 	}
 
 	switch(node.typeEnum) {
+		case Sym.type_descriptor:
+			if (auto c = node.childField(Field.type)) {
+				return parseTypeNode(ctu, *c, inlineTypes, keepOpaque);
+			}
+			break;
 		case Sym.primitive_type:
 			return ctodPrimitiveType(node.source);
 		case Sym.alias_type_identifier:

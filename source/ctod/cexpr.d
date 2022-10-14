@@ -157,8 +157,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 				c.replace("cast(");
 			}
 			if (auto c = node.childField(Field.type)) {
-				InlineType[] inlineTypes;
-				Decl[] decls = parseDecls(ctu, *c, inlineTypes); //todo: emit inline types?
+				Decl[] decls = parseDecls(ctu, *c, ctu.inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
 					c.replace(decls[0].toString());
 					ctu.setExpType(node, decls[0].type);
@@ -241,36 +240,57 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 	return false;
 }
 
+private bool isIdentifierChar(char c) {
+	import std.ascii: isAlphaNum;
+	return c.isAlphaNum || c == '_';
+}
+
+private string toSizeof(scope string str) {
+	foreach (i; 0..str.length) {
+		if (!isIdentifierChar(str[i])) {
+			return "(" ~ str ~ ").sizeof";
+		}
+	}
+	return str ~ ".sizeof";
+}
+
 /// Translate C's `sizeof x` operator to D's `x.sizeof` property
-bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
+private bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
 	ctu.setExpType(node, CType.named("size_t"));
 	if (auto typeNode = node.childField(Field.type)) {
 		// sizeof(short) => (short).sizeof
-		translateNode(ctu, *typeNode);
-		node.replace("" ~ typeNode.output() ~ ".sizeof");
+		Decl[] decls = parseDecls(ctu, *typeNode, ctu.inlineTypes); //todo: emit inline types?
+		if (decls.length == 1) {
+			return node.replace(toSizeof(decls[0].toString()));
+		}
 	} else if (auto valueNode = node.childField(Field.value)) {
 		translateNode(ctu, *valueNode);
 		// `sizeof short` => `short.sizeof`
 		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal) {
 			node.replace(valueNode.output() ~ ".sizeof");
 		} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
-			// sizeof(3) => typeof(3).sizeof
-			// sizeof(T) => T.sizeof
-			if (auto parenValue = valueNode.firstChildType(Sym.identifier)) {
-				valueNode = parenValue;
-			}
-			if (valueNode.typeEnum == Sym.identifier) {
-				return node.replace(valueNode.output() ~ ".sizeof");
-			} else {
-				return node.replace("typeof" ~ valueNode.output() ~ ".sizeof");
+			if (auto parenValue = getParenContent(*valueNode)) {
+				if (parenValue.typeEnum == Sym.identifier) {
+					// sizeof(T) => T.sizeof
+					return node.replace(parenValue.output() ~ ".sizeof");
+				} else if (parenValue.typeEnum == Sym.string_literal) {
+					// sizeof("abc") => ("abc".length + 1)
+					return node.replace("(" ~ parenValue.output() ~ ".length + 1)");
+				} else {
+					// sizeof(3) => typeof(3).sizeof
+					return node.replace("typeof" ~ valueNode.output() ~ ".sizeof");
+				}
 			}
 		} else if (valueNode.typeEnum == Sym.cast_expression) {
 			// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
 			if (auto t = valueNode.firstChildType(Sym.type_descriptor)) {
 				if (auto p = valueNode.firstChildType(Sym.pointer_expression)) {
-					return node.replace(t.output() ~ ".sizeof " ~ p.output());
+					return node.replace(toSizeof(t.output()) ~ " " ~ p.output());
 				}
 			}
+		} else if (valueNode.typeEnum == Sym.string_literal) {
+			// sizeof "abc" => ("abc".length + 1)
+			return node.replace("(" ~ valueNode.output() ~ ".length + 1)");
 		}
 	}
 	return false;

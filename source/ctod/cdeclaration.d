@@ -13,9 +13,7 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 		Decl[] decls = parseDecls(ctu, node, inlinetypes);
 		string result = "";
 		foreach(s; inlinetypes) {
-			if (s.hasBody()) {
-				result ~= s.toString();
-			}
+			result ~= s.toString();
 		}
 		foreach(d; decls) {
 			result ~= d.toString() ~ suffix;
@@ -46,11 +44,9 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 			return translateDecl(";");
 		case Sym.type_definition:
 			Decl[] decls = parseDecls(ctu, node, inlinetypes);
-			string result = ""; // todo: anonymous types
+			string result = "";
 			foreach(s; inlinetypes) {
-				if (s.hasBody()) {
-					result ~= s.toString();
-				}
+				result ~= s.toString();
 			}
 			foreach(d; decls) {
 				if (d.type == CType.named(d.identifier)) {

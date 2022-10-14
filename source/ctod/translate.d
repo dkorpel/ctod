@@ -93,6 +93,7 @@ package struct TranslationContext {
 	Map!(string, Decl) localSymbolTable;
 	Map!(string, MacroType) macroTable;
 	Map!(size_t, CType) nodeTypes;
+	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
 	Decl* inDecl = null; // give initializers access to the type of the decl (`int x[3] = {0}`)
 	Node* inType = null; // inside struct {} enum {} or union {}
@@ -177,7 +178,7 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
 
 	InlineType[] inlineTypes;
-	if (auto s = parseTypeNode(ctu, node, inlineTypes)) {
+	if (auto s = parseTypeNode(ctu, node, inlineTypes, /*keepOpaque*/ true)) {
 		// #twab: it was translating global struct definitions as inline types
 		if (inlineTypes.length == 0)
 		{
