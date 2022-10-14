@@ -253,44 +253,45 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
 Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
-	if (auto typeNode = node.childField(Field.type)) {
-		const oldLen = inlineTypes.length;
-		auto primitiveType = parseTypeNode(ctu, *typeNode, inlineTypes);
-
-		// there may be multiple type_qualifier fields
-		// if (auto qualNode = node.childField(Field.type_qualifier))
-		CQuals quals;
-		foreach(ref c; node.children) {
-			cast(void) tryParseTypeQual(ctu, c, quals);
-		}
-		CType baseType = CType.named(primitiveType);
-		baseType.setConst(quals.const_);
-		Decl[] result;
-		foreach(ref c; node.children) {
-			if (&c == typeNode) {
-				// the type field may pass as a declarator, resulting in e.g.
-				// T* t; => T T; T* t;
-				continue;
-			}
-			Decl decl = Decl(quals.toString(), baseType, "", "");
-			if (parseCtype(ctu, c, decl, inlineTypes)) {
-				if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
-					inlineTypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
-					decl.type.setName(inlineTypes[$-1].name);
-				}
-				result ~= decl;
-			}
-		}
-
-		// parameters can have no identifier, e.g. `foo(int named, float)`
-		// if this is called for a parameter declaration, you still want to get an anonymous declaration back
-		// the only exception is empty parameter lists, which in C are declared like `void main(void)`
-		if (result.length == 0 && primitiveType != "void") {
-			result = [Decl(quals.toString(), baseType, "", "")];
-		}
-		return result;
+	auto typeNode = node.childField(Field.type);
+	if (!typeNode) {
+		return null;
 	}
-	return null;
+	const oldLen = inlineTypes.length;
+	auto primitiveType = parseTypeNode(ctu, *typeNode, inlineTypes);
+
+	// there may be multiple type_qualifier fields
+	// if (auto qualNode = node.childField(Field.type_qualifier))
+	CQuals quals;
+	foreach(ref c; node.children) {
+		cast(void) tryParseTypeQual(ctu, c, quals);
+	}
+	CType baseType = CType.named(primitiveType);
+	baseType.setConst(quals.const_);
+	Decl[] result;
+	foreach(ref c; node.children) {
+		if (&c == typeNode) {
+			// the type field may pass as a declarator, resulting in e.g.
+			// T* t; => T T; T* t;
+			continue;
+		}
+		Decl decl = Decl(quals.toString(), baseType, "", "");
+		if (parseCtype(ctu, c, decl, inlineTypes)) {
+			if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
+				inlineTypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
+				decl.type.setName(inlineTypes[$-1].name);
+			}
+			result ~= decl;
+		}
+	}
+
+	// parameters can have no identifier, e.g. `foo(int named, float)`
+	// if this is called for a parameter declaration, you still want to get an anonymous declaration back
+	// the only exception is empty parameter lists, which in C are declared like `void main(void)`
+	if (result.length == 0 && primitiveType != "void") {
+		result = [Decl(quals.toString(), baseType, "", "")];
+	}
+	return result;
 }
 
 /// Returns: number of elements in initializer_list
