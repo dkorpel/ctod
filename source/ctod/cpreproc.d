@@ -3,7 +3,7 @@ Translate C macros
 */
 module ctod.cpreproc;
 
-@safe:
+nothrow @safe:
 
 import ctod.translate;
 import ctod.tree_sitter;

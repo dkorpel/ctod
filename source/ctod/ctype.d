@@ -3,7 +3,7 @@ Translate C types
 */
 module ctod.ctype;
 
-@safe:
+nothrow @safe:
 
 import ctod.tree_sitter;
 import ctod.translate;
@@ -16,6 +16,8 @@ struct Decl {
 	CType type = CType.none;
 	string identifier = ""; /// name of variable / function
 	string initializer = ""; /// expression that initializes the variable
+
+pure nothrow:
 
 	string toString() const {
 		string result = storageClasses;
@@ -54,7 +56,7 @@ unittest {
 }
 
 /// Generate D function type syntax
-private string fmtFunction(const CType retType, string name, const Decl[] params) {
+private string fmtFunction(const CType retType, string name, const Decl[] params) pure {
 	string result = retType.toString();
 	result ~= " ";
 	result ~= name;
@@ -75,6 +77,9 @@ struct InlineType {
 	string keyword;
 	string name = null;
 	string body_;
+
+pure nothrow:
+
 	bool hasBody() const {return body_.length > 0;}
 	string toString() const {
 		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : ";");
@@ -204,6 +209,8 @@ struct CQuals {
 	bool auto_;
 	bool inline;
 	bool register;
+
+pure nothrow:
 
 	string toString() const {
 		string result;
@@ -461,6 +468,9 @@ struct CType {
 
 	enum none = CType.init;
 	enum unknown = CType.fromTag(Tag.unknown);
+
+pure nothrow:
+
 	bool opCast() const scope {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}
 	bool isStaticArray() const {return tag == Tag.staticArray;}

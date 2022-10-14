@@ -1,6 +1,6 @@
 module ctod.cdeclaration;
 
-@safe:
+nothrow @safe:
 
 import ctod.tree_sitter;
 import ctod.translate;

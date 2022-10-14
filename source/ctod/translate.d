@@ -1,6 +1,6 @@
 module ctod.translate;
 
-@safe:
+nothrow @safe:
 
 import ctod.tree_sitter;
 import ctod.ctype;
@@ -97,6 +97,8 @@ package struct TranslationContext {
 	Map!(size_t, CType) nodeTypes;
 	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
+
+nothrow:
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
