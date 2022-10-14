@@ -33,7 +33,7 @@ struct TranslationSettings {
 string translateFile(string source, string moduleName, ref TranslationSettings settings) {
 	Node* root = parseCtree(source);
 	assert(root);
-	auto ctx = TranslationContext("foo.c", source);
+	auto ctx = CtodCtx("foo.c", source);
 	ctx.stripComments = settings.stripComments;
 	translateNode(ctx, *root);
 
@@ -72,8 +72,8 @@ enum MacroType {
 	staticIf,
 }
 
-/// A single .c file
-package struct TranslationContext {
+/// Translation context, all 'global' state
+package struct CtodCtx {
 
 	string fileName;
 	string source;
@@ -157,22 +157,22 @@ nothrow:
 }
 
 ///
-void translateNode(ref TranslationContext ctu, ref Node node) {
+void translateNode(ref CtodCtx ctx, ref Node node) {
 	if (node.isTranslated) {
 		return;
 	}
 	scope(exit) node.isTranslated = true;
 
-	if (ctodTryPreprocessor(ctu, node)) {
+	if (ctodTryPreprocessor(ctx, node)) {
 		return;
 	}
-	if (ctodTryDeclaration(ctu, node)) {
+	if (ctodTryDeclaration(ctx, node)) {
 		return;
 	}
-	if (ctodExpression(ctu, node)) {
+	if (ctodExpression(ctx, node)) {
 		return;
 	}
-	if (ctodMisc(ctu, node)) {
+	if (ctodMisc(ctx, node)) {
 		return;
 	}
 
@@ -180,7 +180,7 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
 
 	InlineType[] inlineTypes;
-	if (auto s = parseTypeNode(ctu, node, inlineTypes, /*keepOpaque*/ true)) {
+	if (auto s = parseTypeNode(ctx, node, inlineTypes, /*keepOpaque*/ true)) {
 		// #twab: it was translating global struct definitions as inline types
 		if (inlineTypes.length == 0)
 		{
@@ -190,7 +190,7 @@ void translateNode(ref TranslationContext ctu, ref Node node) {
 	}
 
 	foreach(ref c; node.children) {
-		translateNode(ctu, c);
+		translateNode(ctx, c);
 	}
 }
 
@@ -211,11 +211,11 @@ bool hasDefaultStatement(ref Node node) {
 	return false;
 }
 
-package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
+package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.comment:
 			// todo: maybe convert doxygen to Ddoc?
-			if (ctu.stripComments) {
+			if (ctx.stripComments) {
 				node.replace("");
 			}
 			return true;
@@ -258,7 +258,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			return false;
 
 		case Sym.type_definition:
-			// Decl[] decls = parseDecls(ctu, *c);
+			// Decl[] decls = parseDecls(ctx, *c);
 			auto typeField = node.childField(Field.type);
 			auto declaratorField = node.childField(Field.declarator);
 			if (!declaratorField || !typeField) {
@@ -267,7 +267,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			if (auto structId = typeField.childField(Field.name)) {
 				if (typeField.typeEnum == Sym.struct_specifier || typeField.typeEnum == Sym.union_specifier) {
 					if (auto bodyNode = typeField.childField(Field.body_)) {
-						translateNode(ctu, *bodyNode);
+						translateNode(ctx, *bodyNode);
 					} if (declaratorField.typeEnum == Sym.alias_type_identifier && declaratorField.source == structId.source) {
 						// typedef struct X X; => uncomment, not applicable to D
 						node.prepend("/*");
@@ -277,7 +277,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 				}
 				if (typeField.typeEnum == Sym.enum_specifier) {
 					if (auto bodyNode = typeField.childField(Field.body_)) {
-						translateNode(ctu, *bodyNode);
+						translateNode(ctx, *bodyNode);
 					}
 					if (auto nameNode = typeField.childField(Field.name)) {
 

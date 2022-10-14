@@ -8,11 +8,11 @@ import ctod.ctype;
 // import bops.tostring: toGcString;
 
 /// Returns: true if a declaration was matched and replaced
-bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
+bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 	InlineType[] inlinetypes;
 
 	bool translateDecl(string suffix, bool cInit) {
-		Decl[] decls = parseDecls(ctu, node, inlinetypes);
+		Decl[] decls = parseDecls(ctx, node, inlinetypes);
 		string result = "";
 		foreach(s; inlinetypes) {
 			result ~= s.toString();
@@ -23,7 +23,7 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 				d.initializer = "0";
 			}
 			result ~= d.toString() ~ suffix;
-			ctu.registerDecl(d);
+			ctx.registerDecl(d);
 		}
 		node.replace(result);
 		return true;
@@ -32,9 +32,9 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.function_definition:
 			if (auto bodyNode = node.childField(Field.body_)) {
-				ctu.enterFunction("???");
-				translateNode(ctu, *bodyNode);
-				ctu.leaveFunction();
+				ctx.enterFunction("???");
+				translateNode(ctx, *bodyNode);
+				ctx.leaveFunction();
 				// TODO: add whitespace before bodyNode to preserve brace style
 				return translateDecl(" " ~ bodyNode.output(), false);
 			}
@@ -43,14 +43,14 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 			return translateDecl("", false);
 		case Sym.field_declaration: // struct / union field
 			if (auto bitNode = node.firstChildType(Sym.bitfield_clause)) {
-				translateNode(ctu, *bitNode);
+				translateNode(ctx, *bitNode);
 				node.append("/*"~bitNode.output~" !!*/");
 			}
 			return translateDecl(";", true);
 		case Sym.declaration: // global / local variable
 			return translateDecl(";", true);
 		case Sym.type_definition:
-			Decl[] decls = parseDecls(ctu, node, inlinetypes);
+			Decl[] decls = parseDecls(ctx, node, inlinetypes);
 			string result = "";
 			foreach(s; inlinetypes) {
 				result ~= s.toString();

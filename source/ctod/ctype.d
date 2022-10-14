@@ -94,13 +94,13 @@ pure nothrow:
 /// Therefor, the second return value is a type declaration that the primitive type depends on.
 ///
 /// Returns: [primitive type, dependent type]
-string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque = false) {
+string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque = false) {
 
 	// keyword = struct, union or enum
 	string namedType(string keyword) {
 		auto nameNode = node.childField(Field.name);
 		if (auto c = node.childField(Field.body_)) {
-			translateNode(ctu, *c);
+			translateNode(ctx, *c);
 			string name = nameNode ? nameNode.source : null;
 			inlineTypes ~= InlineType(keyword, name, c.output());
 			return name;
@@ -118,17 +118,17 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 	switch(node.typeEnum) {
 		case Sym.type_descriptor:
 			if (auto c = node.childField(Field.type)) {
-				return parseTypeNode(ctu, *c, inlineTypes, keepOpaque);
+				return parseTypeNode(ctx, *c, inlineTypes, keepOpaque);
 			}
 			break;
 		case Sym.primitive_type:
 			return ctodPrimitiveType(node.source);
 		case Sym.alias_type_identifier:
 			if (node.source == "wchar_t") {
-				ctu.needsWchar = true;
+				ctx.needsWchar = true;
 				return node.source;
 			} else if (node.source == "bool") {
-				ctu.needsCbool = true;
+				ctx.needsCbool = true;
 				return "c_bool";
 			} else {
 				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
@@ -169,7 +169,7 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 				primitive = "real";
 			} else if (longCount == 1 && primitive == "") {
 				primitive = "c_long";
-				ctu.needsClong = true;
+				ctx.needsClong = true;
 			} else if (longCount == 2 && primitive == "") {
 				primitive = "long";
 			} else if (!signed && primitive == "") {
@@ -237,7 +237,7 @@ pure nothrow:
 /// Look for type qualifiers in this node, set the corresponding booleans
 /// Unknown qualifiers are ignored, though the function is supposed to catch all of them.
 /// Returns: `true` on success
-bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals quals) {
+bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals) {
 	if (node.typeEnum == Sym.type_qualifier || node.typeEnum == Sym.storage_class_specifier) {
 		switch(node.children[0].typeEnum) {
 			case Sym.anon_const: quals.const_ = true; return true;
@@ -246,7 +246,7 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 			case Sym.anon__Atomic: quals.atomic = true; return true;
 			case Sym.anon_extern: quals.extern_ = true; return true;
 			case Sym.anon_static:
-				if (ctu.inFunction) {
+				if (ctx.inFunction) {
 					quals.staticFunc = true;
 				} else {
 					quals.staticGlobal = true;
@@ -264,19 +264,19 @@ bool tryParseTypeQual(ref TranslationContext ctu, ref Node node, ref CQuals qual
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] inlineTypes) {
+Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) {
 	auto typeNode = node.childField(Field.type);
 	if (!typeNode) {
 		return null;
 	}
 	const oldLen = inlineTypes.length;
-	auto primitiveType = parseTypeNode(ctu, *typeNode, inlineTypes);
+	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes);
 
 	// there may be multiple type_qualifier fields
 	// if (auto qualNode = node.childField(Field.type_qualifier))
 	CQuals quals;
 	foreach(ref c; node.children) {
-		cast(void) tryParseTypeQual(ctu, c, quals);
+		cast(void) tryParseTypeQual(ctx, c, quals);
 	}
 	CType baseType = CType.named(primitiveType);
 	baseType.setConst(quals.const_);
@@ -288,9 +288,9 @@ Decl[] parseDecls(ref TranslationContext ctu, ref Node node, ref InlineType[] in
 			continue;
 		}
 		Decl decl = Decl(quals.toString(), baseType, "", "");
-		if (parseCtype(ctu, c, decl, inlineTypes)) {
+		if (parseCtype(ctx, c, decl, inlineTypes)) {
 			if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
-				inlineTypes[$-1].name = ctu.uniqueIdentifier(decl.identifier);
+				inlineTypes[$-1].name = ctx.uniqueIdentifier(decl.identifier);
 				decl.type.setName(inlineTypes[$-1].name);
 			}
 			result ~= decl;
@@ -341,14 +341,14 @@ unittest {
 
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
-bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
+bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
 	switch(node.typeEnum) {
 		case Sym.init_declarator:
 			if (auto declaratorNode = node.childField(Field.declarator)) {
-				parseCtype(ctu, *declaratorNode, decl, inlineTypes);
+				parseCtype(ctx, *declaratorNode, decl, inlineTypes);
 			}
 			if (auto valueNode = node.childField(Field.value)) {
-				translateNode(ctu, *valueNode);
+				translateNode(ctx, *valueNode);
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
 					const len = initializerLength(*valueNode, firstElem);
@@ -373,7 +373,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 			// (*(x));
 			auto pc = getParenContent(&node);
 			if (pc != &node) { // should not happen, but avoid endless recursion at all costs
-				return parseCtype(ctu, *pc, decl, inlineTypes);
+				return parseCtype(ctx, *pc, decl, inlineTypes);
 			}
 			break;
 		case Sym.abstract_function_declarator:
@@ -382,7 +382,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 			if (auto paramNode = node.childField(Field.parameters)) {
 				foreach(ref c; paramNode.children) {
 					if (c.typeEnum == Sym.parameter_declaration) {
-						auto d = parseDecls(ctu, c, inlineTypes);
+						auto d = parseDecls(ctx, c, inlineTypes);
 						paramDecls ~= d;
 					} else if (c.typeEnum == Sym.variadic_parameter) {
 						// variadic args
@@ -395,7 +395,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				if (node.typeEnum == Sym.abstract_function_declarator) {
 					decl.type = CType.pointer(decl.type);
 				}
-				parseCtype(ctu, *declNode, decl, inlineTypes);
+				parseCtype(ctx, *declNode, decl, inlineTypes);
 			}
 			return true;
 		case Sym.alias_field_identifier: // int x;
@@ -416,23 +416,23 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				}
 			}
 			if (auto c = node.childField(Field.declarator)) {
-				parseCtype(ctu, *c, decl, inlineTypes);
+				parseCtype(ctx, *c, decl, inlineTypes);
 			}
 			return true;
 		case Sym.array_declarator:
 		case Sym.abstract_array_declarator:
 			// static array
 			if (auto sizeNode = node.childField(Field.size)) {
-				translateNode(ctu, *sizeNode);
+				translateNode(ctx, *sizeNode);
 				decl.type = CType.array(decl.type, sizeNode.output());
 				if (auto c1 = node.childField(Field.declarator)) {
-					parseCtype(ctu, *c1, decl, inlineTypes);
+					parseCtype(ctx, *c1, decl, inlineTypes);
 				}
 			} else {
 				// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
 				if (auto c1 = node.childField(Field.declarator)) {
 					decl.type = CType.cArray(decl.type);
-					parseCtype(ctu, *c1, decl, inlineTypes);
+					parseCtype(ctx, *c1, decl, inlineTypes);
 				}
 			}
 			return true;

@@ -29,11 +29,11 @@ Node* getParenContent(return scope Node* node) {
 /// - implicit casts from int to short, char, etc. must be explicit in D
 /// - pointer casts (other than void*) must be explicit in D
 /// - pointer arithmetic on static arrays can only be done after .ptr
-bool ctodExpression(ref TranslationContext ctu, ref Node node)
+bool ctodExpression(ref CtodCtx ctx, ref Node node)
 {
 	void depthFirst() {
 		foreach(ref c; node.children) {
-			translateNode(ctu, c);
+			translateNode(ctx, c);
 		}
 	}
 
@@ -45,20 +45,20 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			if (string s = translateIdentifier(node.source)) {
 				node.replace(s);
 			}
-			if (Decl decl = ctu.lookupDecl(node.source)) {
-				ctu.setExpType(node, decl.type);
+			if (Decl decl = ctx.lookupDecl(node.source)) {
+				ctx.setExpType(node, decl.type);
 			} else {
-				ctu.setExpType(node, CType.unknown);
+				ctx.setExpType(node, CType.unknown);
 			}
 			return true;
 		case Sym.sizeof_expression:
-			if (ctodSizeof(ctu, node)) {
+			if (ctodSizeof(ctx, node)) {
 				return true;
 			}
 			break;
 		case Sym.parenthesized_expression:
 			depthFirst();
-			ctu.setExpType(node, ctu.expType(*getParenContent(&node)));
+			ctx.setExpType(node, ctx.expType(*getParenContent(&node)));
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
@@ -72,13 +72,13 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.binary_expression:
 			depthFirst();
 			if (auto l = node.childField(Field.left)) {
-				CType lType = ctu.expType(*l);
+				CType lType = ctx.expType(*l);
 				if (lType.isStaticArray()) {
 					l.append(".ptr");
 				}
 			}
 			if (auto r = node.childField(Field.right)) {
-				CType rType = ctu.expType(*r);
+				CType rType = ctx.expType(*r);
 				if (rType.isStaticArray()) {
 					r.append(".ptr");
 				}
@@ -87,10 +87,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.comma_expression:
 			depthFirst();
 			if (auto l = node.childField(Field.left)) {
-				//ctodExpression(ctu, *l, type);
+				//ctodExpression(ctx, *l, type);
 			}
 			if (auto r = node.childField(Field.right)) {
-				//ctodExpression(ctu, *r, type);
+				//ctodExpression(ctx, *r, type);
 			}
 			break;
 		case Sym.conditional_expression:
@@ -102,11 +102,11 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.pointer_expression:
 			depthFirst();
 			if (auto arg = node.childField(Field.argument)) {
-				CType pType = ctu.expType(*arg);
+				CType pType = ctx.expType(*arg);
 				if (pType.isPointer()) {
-					ctu.setExpType(node, pType.next[0]);
+					ctx.setExpType(node, pType.next[0]);
 				} else {
-					ctu.setExpType(node, CType.unknown);
+					ctx.setExpType(node, CType.unknown);
 				}
 			}
 			break;
@@ -132,10 +132,10 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 		case Sym.number_literal:
 			CType type;
 			string s = ctodNumberLiteral(node.source, type);
-			ctu.setExpType(node, type);
+			ctx.setExpType(node, type);
 			return node.replace(s);
 		case Sym.null_:
-			ctu.setExpType(node, CType.pointer(CType.named("noreturn")));
+			ctx.setExpType(node, CType.pointer(CType.named("noreturn")));
 			return node.replace("null");
 		case Sym.concatenated_string:
 			// "a" "b" "c" => "a"~"b"~"c"
@@ -149,40 +149,40 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 					}
 				}
 			}
-			ctu.setExpType(node, CType.pointer(CType.named("char")));
+			ctx.setExpType(node, CType.pointer(CType.named("char")));
 			return true;
 		case Sym.string_literal:
-			ctu.setExpType(node, CType.pointer(CType.named("char")));
+			ctx.setExpType(node, CType.pointer(CType.named("char")));
 			return true;
 		case Sym.cast_expression:
 			if (auto c = node.firstChildType(Sym.anon_LPAREN)) {
 				c.replace("cast(");
 			}
 			if (auto c = node.childField(Field.type)) {
-				Decl[] decls = parseDecls(ctu, *c, ctu.inlineTypes); //todo: emit inline types?
+				Decl[] decls = parseDecls(ctx, *c, ctx.inlineTypes); //todo: emit inline types?
 				if (decls.length == 1) {
 					c.replace(decls[0].toString());
-					ctu.setExpType(node, decls[0].type);
+					ctx.setExpType(node, decls[0].type);
 				}
 			}
 
 			// if (auto r = node.childField(Field.value)) {
-			// 	ctodExpression(ctu, *r, type);
+			// 	ctodExpression(ctx, *r, type);
 			// }
 			// if (auto l = node.childField(Field.type)) {
-			// 	ctodExpression(ctu, *l, type);
+			// 	ctodExpression(ctx, *l, type);
 			// }
 			// break;
 			return false;
 		case Sym.field_expression:
 			// TODO: find type of x->y
-			ctu.setExpType(node, CType.unknown);
+			ctx.setExpType(node, CType.unknown);
 			break;
 		case Sym.call_expression:
 			if (auto funcNode = node.childField(Field.function_)) {
-				CType fType = ctu.expType(*funcNode);
+				CType fType = ctx.expType(*funcNode);
 				if (fType.isFunction) {
-					ctu.setExpType(node, fType.next[0]);
+					ctx.setExpType(node, fType.next[0]);
 				}
 
 				if (translateOffsetof(node, *funcNode)) {
@@ -197,7 +197,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 					if (c.typeEnum != Sym.identifier) {
 						continue;
 					}
-					if (Decl decl = ctu.lookupDecl(c.source)) {
+					if (Decl decl = ctx.lookupDecl(c.source)) {
 						if (decl.type.isStaticArray) {
 							c.append(".ptr");
 						} else if (decl.type.isFunction) {
@@ -257,16 +257,16 @@ private string toSizeof(scope string str) {
 }
 
 /// Translate C's `sizeof x` operator to D's `x.sizeof` property
-private bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
-	ctu.setExpType(node, CType.named("size_t"));
+private bool ctodSizeof(ref CtodCtx ctx, ref Node node) {
+	ctx.setExpType(node, CType.named("size_t"));
 	if (auto typeNode = node.childField(Field.type)) {
 		// sizeof(short) => (short).sizeof
-		Decl[] decls = parseDecls(ctu, *typeNode, ctu.inlineTypes); //todo: emit inline types?
+		Decl[] decls = parseDecls(ctx, *typeNode, ctx.inlineTypes); //todo: emit inline types?
 		if (decls.length == 1) {
 			return node.replace(toSizeof(decls[0].toString()));
 		}
 	} else if (auto valueNode = node.childField(Field.value)) {
-		translateNode(ctu, *valueNode);
+		translateNode(ctx, *valueNode);
 		// `sizeof short` => `short.sizeof`
 		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal) {
 			node.replace(valueNode.output() ~ ".sizeof");
