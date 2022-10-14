@@ -1,12 +1,14 @@
 module ctod.tree_sitter;
 
+@safe:
+
 import tree_sitter.api;
 
 /// Returns: C language parser for tree-sitter
 extern(C) TSLanguage* tree_sitter_c();
 
 /// Returns: a concrete syntax tree for C source code
-Node* parseCtree(string source) {
+Node* parseCtree(string source) @trusted {
 	scope TSParser *parser = ts_parser_new();
 	scope(exit) ts_parser_delete(parser);
 	TSLanguage* language = tree_sitter_c();
@@ -31,7 +33,7 @@ struct Extra
 	string fullSource;
 	Map!(size_t, Node) nodes;
 
-	ref Node get(TSNode tsnode) {
+	ref Node get(TSNode tsnode) @trusted {
 		const id = ts_node_start_byte(tsnode);
 		if (auto x = id in nodes) {
 			return *x;
@@ -50,7 +52,7 @@ struct Children
 	bool named = false;
 	size_t i = 0;
 
-	this(TSNode tsnode, bool named, Extra* extra) {
+	this(TSNode tsnode, bool named, Extra* extra) @trusted {
 		this.tsnode = tsnode;
 		this.named = named;
 		this.extra = extra;
@@ -61,7 +63,7 @@ struct Children
 
 	@disable this(this);
 
-	ref Node opIndex(size_t i) {
+	ref Node opIndex(size_t i) @trusted {
 		return extra.get(named ?
 			ts_node_named_child(tsnode, cast(uint) i) :
 			ts_node_child(tsnode, cast(uint) i)
@@ -97,18 +99,18 @@ struct Node {
 	Extra* extra;
 
 	/// Start index fullSource
-	size_t start() const {return ts_node_start_byte(tsnode);}
+	size_t start() @trusted const {return ts_node_start_byte(tsnode);}
 	/// End index in fullSource
-	size_t end() const {return ts_node_end_byte(tsnode);}
+	size_t end() @trusted const {return ts_node_end_byte(tsnode);}
 
 	/// Tag identifying the C AST node type
-	Sym typeEnum() const {return cast(Sym) ts_node_symbol(tsnode);}
+	Sym typeEnum() @trusted const {return cast(Sym) ts_node_symbol(tsnode);}
 
 	/// Source code of this node
 	string source() const {return fullSource[start..end];}
 
-	bool isNone() const {return ts_node_is_null(tsnode);}
-	bool hasError() const {return ts_node_has_error(tsnode);}
+	bool isNone() @trusted const {return ts_node_is_null(tsnode);}
+	bool hasError() @trusted const {return ts_node_has_error(tsnode);}
 
 	/// Each node has unique source location, so we can use it as a key
 	alias id = toHash;
@@ -119,7 +121,7 @@ struct Node {
 
 	// @disable this(this);
 
-	this(TSNode node, Extra* extra) {
+	this(TSNode node, Extra* extra) @trusted {
 		this.tsnode = node; //
 		this.extra = extra;
 		this.fullSource = extra.fullSource;
@@ -131,7 +133,7 @@ struct Node {
 		return children_;
 	}
 
-	private void findChildren() return {
+	private void findChildren() @trusted return {
 		foreach(i, ref c; children_) {
 			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
 			c.findChildren();
@@ -206,7 +208,7 @@ struct Node {
 		return result;
 	}
 
-	inout(Node)* childField(Field field) inout {
+	inout(Node)* childField(Field field) @trusted inout {
 		auto f = ts_node_child_by_field_id(tsnode, field);
 		foreach(ref c; children) {
 			if (ts_node_eq(c.tsnode, f)) {

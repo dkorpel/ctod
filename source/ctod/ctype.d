@@ -3,6 +3,8 @@ Translate C types
 */
 module ctod.ctype;
 
+@safe:
+
 import ctod.tree_sitter;
 import ctod.translate;
 import ctod.cdeclaration;
@@ -36,10 +38,15 @@ struct Decl {
 		return result;
 	}
 
+	bool opEquals(const Decl other) const scope {
+		return storageClasses == other.storageClasses && type == other.type
+			&& identifier == other.identifier && initializer == other.initializer;
+	}
+
 	///
 	enum none = Decl.init;
 	///
-	bool opCast() const scope {return type != CType.none;}
+	bool opCast() const scope {return cast(bool) type;}
 }
 
 unittest {
@@ -88,9 +95,7 @@ string parseTypeNode(ref TranslationContext ctu, ref Node node, ref InlineType[]
 	string namedType(string keyword) {
 		auto nameNode = node.childField(Field.name);
 		if (auto c = node.childField(Field.body_)) {
-			ctu.inType = &node;
 			translateNode(ctu, *c);
-			ctu.inType = null;
 			string name = nameNode ? nameNode.source : null;
 			inlineTypes ~= InlineType(keyword, name, c.output());
 			return name;
@@ -336,9 +341,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 				parseCtype(ctu, *declaratorNode, decl, inlineTypes);
 			}
 			if (auto valueNode = node.childField(Field.value)) {
-				ctu.inDecl = &decl;
 				translateNode(ctu, *valueNode);
-				ctu.inDecl = null;
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
 					const len = initializerLength(*valueNode, firstElem);
@@ -361,7 +364,7 @@ bool parseCtype(ref TranslationContext ctu, ref Node node, ref Decl decl, ref In
 			return true;
 		case Sym.parenthesized_declarator:
 			// (*(x));
-			auto pc = &getParenContent(node);
+			auto pc = getParenContent(&node);
 			if (pc != &node) { // should not happen, but avoid endless recursion at all costs
 				return parseCtype(ctu, *pc, decl, inlineTypes);
 			}
@@ -445,22 +448,47 @@ struct CType {
 	}
 	/// For a pointer / array, the element type.
 	/// For a function, the return type.
-	/// Always length 1.
-	CType[] next = [];
+	/// Always has length 1.
+	CType[] next;
 	Decl[] params; // parameter declarations
-	union {
-		string name; // name of decl for parameters
-		string countExpr; // for static arrays. Note: need not be a number literal
-	}
+	string name; // name of decl for parameters
+
+	alias countExpr = name; // for static arrays. Note: need not be a number literal
+	// not a union with `name` because that makes access `@system`
+
 	Tag tag = Tag.none;
 	bool isConst = false;
+
 	enum none = CType.init;
 	enum unknown = CType.fromTag(Tag.unknown);
-	bool opCast() const {return tag != Tag.none;}
+	bool opCast() const scope {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}
 	bool isStaticArray() const {return tag == Tag.staticArray;}
 	bool isCArray() const {return tag == Tag.cArray;}
 	bool isPointer() const {return tag == Tag.pointer;}
+
+	bool opEquals(const CType other) const scope {
+		if (other.tag != this.tag) {
+			return false;
+		}
+		if (other.isConst != this.isConst) {
+			return false;
+		}
+		final switch(tag) {
+			case Tag.cArray:
+			case Tag.pointer:
+				return this.next[0] == other.next[0];
+			case Tag.staticArray:
+				return this.countExpr == other.countExpr && this.next[0] == other.next[0];
+			case Tag.funcDecl:
+				return this.next[0] == other.next[0] && this.params == other.params;
+			case Tag.named:
+				return other.name == this.name;
+			case Tag.unknown:
+			case Tag.none:
+				return true;
+		}
+	}
 
 	void setConst(bool value = true) {
 		isConst = value;
@@ -522,7 +550,7 @@ struct CType {
 	}
 
 	string toString() const {
-		switch(tag) {
+		final switch(tag) {
 			case Tag.cArray:
 			case Tag.pointer:
 				if (next[0].isFunction) {
@@ -537,9 +565,10 @@ struct CType {
 				return null; // format("%s FUNC(%(%s, %))", next[0], params);
 			case Tag.named:
 				return isConst ? ("const("~name~")") : name;
+			case Tag.unknown:
+				return "unknown";
 			case Tag.none:
 				return "none";
-			default: return "errType";
 		}
 	}
 }

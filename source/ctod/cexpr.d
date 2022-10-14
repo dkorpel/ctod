@@ -1,5 +1,7 @@
 module ctod.cexpr;
 
+@safe:
+
 import ctod.tree_sitter;
 import ctod.translate;
 import ctod.ctype;
@@ -8,13 +10,13 @@ import ctod.cdeclaration;
 /// Given a (x) expression, get the node with x.
 /// This is surprisingly non-trivial since the there is no field name for it in the C parser,
 /// and there can be comments between the parens and the expression.
-ref Node getParenContent(return ref Node node) {
+Node* getParenContent(return scope Node* node) {
 	if (node.typeEnum != Sym.parenthesized_expression && node.typeEnum != Sym.parenthesized_declarator) {
 		return node;
 	}
 	foreach(i; 1..node.children.length + -1) {
 		if (node.children[i].typeEnum != Sym.comment) {
-			return node.children[i];
+			return &node.children[i];
 		}
 	}
 	return node;
@@ -56,7 +58,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 			break;
 		case Sym.parenthesized_expression:
 			depthFirst();
-			ctu.setExpType(node, ctu.expType(getParenContent(node)));
+			ctu.setExpType(node, ctu.expType(*getParenContent(&node)));
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
@@ -115,7 +117,7 @@ bool ctodExpression(ref TranslationContext ctu, ref Node node)
 
 				// !(x = 3) => ((x = 3) != true)
 				if (r.typeEnum == Sym.parenthesized_expression) {
-					auto a = getParenContent(*r);
+					auto a = getParenContent(r);
 					if (a.typeEnum == Sym.assignment_expression) {
 						if (node.children[0].typeEnum == Sym.anon_BANG) {
 							// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens
@@ -269,7 +271,7 @@ private bool ctodSizeof(ref TranslationContext ctu, ref Node node) {
 		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal) {
 			node.replace(valueNode.output() ~ ".sizeof");
 		} else if (valueNode.typeEnum == Sym.parenthesized_expression) {
-			if (auto parenValue = getParenContent(*valueNode)) {
+			if (auto parenValue = getParenContent(valueNode)) {
 				if (parenValue.typeEnum == Sym.identifier) {
 					// sizeof(T) => T.sizeof
 					return node.replace(parenValue.output() ~ ".sizeof");

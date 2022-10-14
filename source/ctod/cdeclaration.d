@@ -1,5 +1,7 @@
 module ctod.cdeclaration;
 
+@safe:
+
 import ctod.tree_sitter;
 import ctod.translate;
 import ctod.ctype;

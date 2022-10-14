@@ -1,5 +1,7 @@
 module ctod.test;
 
+@safe:
+
 import ctod.translate;
 
 private void test(string c, string d) {

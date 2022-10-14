@@ -3,6 +3,8 @@ Translate C macros
 */
 module ctod.cpreproc;
 
+@safe:
+
 import ctod.translate;
 import ctod.tree_sitter;
 
@@ -314,7 +316,7 @@ string ctodIncludePath(string s) pure {
 		}
 	}
 	res[$-1] = ';';
-	return cast(immutable) res;
+	return (() @trusted => cast(immutable) res)();
 }
 
 @("ctodIncludePath") unittest {

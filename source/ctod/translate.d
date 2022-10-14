@@ -1,5 +1,7 @@
 module ctod.translate;
 
+@safe:
+
 import ctod.tree_sitter;
 import ctod.ctype;
 import ctod.cdeclaration;
@@ -95,8 +97,6 @@ package struct TranslationContext {
 	Map!(size_t, CType) nodeTypes;
 	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
-	Decl* inDecl = null; // give initializers access to the type of the decl (`int x[3] = {0}`)
-	Node* inType = null; // inside struct {} enum {} or union {}
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
@@ -107,7 +107,7 @@ package struct TranslationContext {
 		inFunction = functionName;
 	}
 
-	void leaveFunction() {
+	void leaveFunction() @trusted {
 		inFunction = null;
 		localSymbolTable.clear();
 	}
@@ -225,7 +225,7 @@ package bool ctodMisc(ref TranslationContext ctu, ref Node node) {
 			// if (!(x = 3)) => if ((x = 3) == 0)
 			if (auto a = node.childField(Field.condition)) {
 				if (a.typeEnum == Sym.parenthesized_expression) {
-					a = &getParenContent(*a);
+					a = getParenContent(a);
 				}
 				if (a.typeEnum == Sym.assignment_expression) {
 					a.prepend("(");
@@ -395,7 +395,7 @@ string ctodNumberLiteral(string str, ref CType type) {
 			res[$-2] = '0';
 			res[$-1] = str[$-1];
 			type = CType.named("float");
-			return cast(immutable) res;
+			return (() @trusted => cast(immutable) res)();
 		}
 		type = CType.named("float");
 		return str;
@@ -431,7 +431,7 @@ string ctodNumberLiteral(string str, ref CType type) {
 	type = CType.named(typeName);
 
 	if (cap) {
-		return cast(immutable) cap;
+		return (() @trusted => cast(immutable) cap)();
 	}
 	return str;
 }
