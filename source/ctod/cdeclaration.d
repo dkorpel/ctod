@@ -11,13 +11,17 @@ import ctod.ctype;
 bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 	InlineType[] inlinetypes;
 
-	bool translateDecl(string suffix) {
+	bool translateDecl(string suffix, bool cInit) {
 		Decl[] decls = parseDecls(ctu, node, inlinetypes);
 		string result = "";
 		foreach(s; inlinetypes) {
 			result ~= s.toString();
 		}
 		foreach(d; decls) {
+			// `char x;` => `char x = 0;`
+			if (cInit && d.initializer.length == 0 && noZeroInitInD(d.type)) {
+				d.initializer = "0";
+			}
 			result ~= d.toString() ~ suffix;
 			ctu.registerDecl(d);
 		}
@@ -31,19 +35,20 @@ bool ctodTryDeclaration(ref TranslationContext ctu, ref Node node) {
 				ctu.enterFunction("???");
 				translateNode(ctu, *bodyNode);
 				ctu.leaveFunction();
-				return translateDecl(" " ~ bodyNode.output());
+				// TODO: add whitespace before bodyNode to preserve brace style
+				return translateDecl(" " ~ bodyNode.output(), false);
 			}
 			break;
 		case Sym.parameter_declaration:
-			return translateDecl("");
+			return translateDecl("", false);
 		case Sym.field_declaration: // struct / union field
 			if (auto bitNode = node.firstChildType(Sym.bitfield_clause)) {
 				translateNode(ctu, *bitNode);
 				node.append("/*"~bitNode.output~" !!*/");
 			}
-			return translateDecl(";");
+			return translateDecl(";", true);
 		case Sym.declaration: // global / local variable
-			return translateDecl(";");
+			return translateDecl(";", true);
 		case Sym.type_definition:
 			Decl[] decls = parseDecls(ctu, node, inlinetypes);
 			string result = "";

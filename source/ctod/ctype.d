@@ -588,6 +588,23 @@ unittest {
 	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
 
+/// Returns: `true` if `t` would not be default initialized to all zero like in C, but e.g. `char.init` or NaN
+bool noZeroInitInD(const CType t) {
+	if (t.name == "float" || t.name == "char" || t.name == "double" || t.name == "real") {
+		return true;
+	}
+	if (t.isStaticArray()) {
+		return noZeroInitInD(t.next[0]);
+	}
+	return false;
+}
+
+unittest {
+	assert(noZeroInitInD(CType.named("float")));
+	assert(noZeroInitInD(CType.array(CType.array(CType.named("char"), "2"), "10")));
+	assert(!noZeroInitInD(CType.pointer(CType.named("float"))));
+}
+
 // `int8_t` etc. are from stdint.h
 // `__u8` etc. are used in v4l2 (video 4 linux)
 // `__int8` etc. are used by Microsoft, see:

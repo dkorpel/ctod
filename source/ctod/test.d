@@ -33,9 +33,9 @@ version(none)
 	test("unsigned char c;", "ubyte c;");
 	test("long long x3;", "long x3;");
 	test("unsigned long long x4;", "ulong x4;");
-	test("float x6;", "float x6;");
-	test("double x7;", "double x7;");
-	test("long double x8;", "real x8;");
+	test("float x6;", "float x6 = 0;");
+	test("double x7;", "double x7 = 0;");
+	test("long double x8;", "real x8 = 0;");
 	test("long x1;", "import core.stdc.config: c_long, c_ulong;\nc_long x1;");
 	test("unsigned long x5;", "import core.stdc.config: c_long, c_ulong;\nc_ulong x5;");
 	test("S xA;", "S xA;");
@@ -60,7 +60,7 @@ version(none)
 	test("int *(*a5)[8][9];", "int*[9][8]* a5;");
 	test("int **a6[8][9];", "int**[9][8] a6;");
 	test("int a[2], (*b)[2];", "int[2] a;int[2]* b;");
-	test("double z[4][3];", "double[3][4] z;");
+	test("double z[4][3];", "double[3][4] z = 0;");
 	test(
 		"void (*f0)(int x, float, char*, char[], char*[], char***);",
 		"void function(int x, float, char*, char, char*, char***) f0;"
@@ -68,6 +68,20 @@ version(none)
 
 	// TODO: add missing const
 	test("char * const(*(* const bar)[5])(int);", "char* function(int)[5]* bar;");
+
+	test("
+struct S {
+	char x[10];
+	float y;
+	int z;
+};
+", "
+struct S {
+	char[10] x = 0;
+	float y = 0;
+	int z;
+}
+");
 
 	test(
 		"int (*f1[4])(void);",
@@ -101,7 +115,7 @@ union U {
 };
 ", "
 union U {
-	char tag;
+	char tag = 0;
 	union _Overlapped {
 		int[2] x;
 		enum _Y {one, two}_Y y;
