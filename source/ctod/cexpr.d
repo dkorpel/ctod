@@ -242,14 +242,10 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 	return false;
 }
 
-private bool isIdentifierChar(char c) {
-	import std.ascii: isAlphaNum;
-	return c.isAlphaNum || c == '_';
-}
-
 private string toSizeof(scope string str) {
 	foreach (i; 0..str.length) {
-		if (!isIdentifierChar(str[i])) {
+		// A pointer / array needs brackets, can't have `int*.sizeof` or `int[].sizeof`
+		if (str[i] == '*' || str[i] == ']') {
 			return "(" ~ str ~ ").sizeof";
 		}
 	}
