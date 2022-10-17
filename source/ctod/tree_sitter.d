@@ -136,7 +136,6 @@ struct Node {
 	private void findChildren() @trusted return {
 		foreach(i, ref c; children_) {
 			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
-			c.findChildren();
 		}
 	}
 

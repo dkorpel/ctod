@@ -27,6 +27,14 @@ version(none)
 	);
 }
 
+@("test time complexity") unittest {
+	// Accidental binary recursion when constructing the node tree gave exponential time complexity
+	// This test won't finish in a reasonable time if that happens again
+	test("int y = (((((((((((((((((((((((((((((((((((((((((((((((((((((x)))))))))))))))))))))))))))))))))))))))))))))))))))));",
+		 "int y = (((((((((((((((((((((((((((((((((((((((((((((((((((((x)))))))))))))))))))))))))))))))))))))))))))))))))))));");
+
+}
+
 @("types") unittest {
 	test("unsigned x0;", "uint x0;");
 	test("unsigned int x0;", "uint x0;");
