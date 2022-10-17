@@ -12,9 +12,9 @@ private void test(string c, string d) {
 		import std.stdio: writeln;
 		writeln("--- EXPECTED: ---");
 		writeln(d);
-		writeln("--- ACTUAL:  ---");
+		writeln("--- ACTUAL:   ---");
 		writeln(actual);
-		writeln("----------------");
+		writeln("-----------------");
 		assert(actual == d);
 	}
 }
