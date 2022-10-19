@@ -28,8 +28,6 @@ int main(string[] args)  {
 		return -1;
 	}
 	try {
-		//printHelp(args[0]);
-		bool stripComments = false;
 		foreach(i; 1..args.length) {
 			TranslationSettings settings;
 			if (args[i] == "--strip") {
@@ -42,10 +40,7 @@ int main(string[] args)  {
 					stderr.writeln("file shoud have .c or .h extension, not ", fname.extension);
 					return -1;
 				}
-				//readFile(fname);
-				scope source = cast(string) read(fname);
-				scope(exit) {/*freeM(source)*/}
-
+				const source = cast(string) read(fname);
 				const moduleName = fname.baseName.stripExtension;
 				writeFile(fname.withExtension(".d"), translateFile(source, moduleName, settings));
 			}

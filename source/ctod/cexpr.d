@@ -29,16 +29,14 @@ Node* getParenContent(return scope Node* node) {
 /// - implicit casts from int to short, char, etc. must be explicit in D
 /// - pointer casts (other than void*) must be explicit in D
 /// - pointer arithmetic on static arrays can only be done after .ptr
-bool ctodExpression(ref CtodCtx ctx, ref Node node)
-{
+bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 	void depthFirst() {
 		foreach(ref c; node.children) {
 			translateNode(ctx, c);
 		}
 	}
 
-	switch (node.typeEnum)
-	{
+	switch (node.typeEnum) {
 		case Sym.alias_field_identifier:
 		case Sym.alias_type_identifier:
 		case Sym.identifier:

@@ -9,9 +9,8 @@ import ctod.cexpr;
 import ctod.cpreproc;
 
 // Enable switching to custom Associative Array type
-version (none) {
+version(none) {
 	import bops.ds.hashtable: Map = HashTable;
-	// alias Map(K, V) = V[K];
 } else {
 	alias Map(K, V) = V[K];
 }

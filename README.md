@@ -60,7 +60,7 @@ float fabs(float x) {
 However, there's also a lot of things that are different between C and D.
 This ranges from simple syntax changes:
 - `x->y` => `x.y`
-- `(int) 1.0lu` => `cast(int) 1Lu`
+- `(float) 1lu` => `cast(float) 1Lu`
 - `"con" "cat"` => `"con" ~ "cat"`
 
 To more difficult translations, such as declarations with complex types:
