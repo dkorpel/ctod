@@ -93,7 +93,7 @@ package struct CtodCtx {
 	Map!(string, Decl) symbolTable;
 	Map!(string, Decl) localSymbolTable;
 	Map!(string, MacroType) macroTable;
-	Map!(size_t, CType) nodeTypes;
+	Map!(ulong, CType) nodeTypes;
 	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
 

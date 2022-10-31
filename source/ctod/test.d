@@ -205,6 +205,20 @@ void foo() {
 	pp(x.ptr);
 }
 ");
+
+	test("
+void main() {
+	int buf[10];
+	int b = buf[0] == 0;
+}
+", "
+void main() {
+	int[10] buf;
+	int b = buf[0] == 0;
+}
+"
+);
+
 }
 
 @("struct") unittest {

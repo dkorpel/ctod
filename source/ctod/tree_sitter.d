@@ -99,9 +99,9 @@ struct Node {
 	Extra* extra;
 
 	/// Start index fullSource
-	size_t start() @trusted const {return ts_node_start_byte(tsnode);}
+	uint start() @trusted const {return ts_node_start_byte(tsnode);}
 	/// End index in fullSource
-	size_t end() @trusted const {return ts_node_end_byte(tsnode);}
+	uint end() @trusted const {return ts_node_end_byte(tsnode);}
 
 	/// Tag identifying the C AST node type
 	Sym typeEnum() @trusted const {return cast(Sym) ts_node_symbol(tsnode);}
@@ -113,11 +113,11 @@ struct Node {
 	bool hasError() @trusted const {return ts_node_has_error(tsnode);}
 
 	/// Each node has unique source location, so we can use it as a key
-	alias id = toHash;
+	ulong id() const {return start | (cast(ulong) end << 32);}
 
-	size_t toHash() const {return start;}
+	size_t toHash() const {return cast(size_t) id;} // #optimization: On 32-bit, we can do better than truncating
 
-	bool opEquals(ref Node other) const {return this.id == other.id;}
+	bool opEquals(ref Node other) const {return this.start == other.start && this.end == other.end;}
 
 	// @disable this(this);
 
