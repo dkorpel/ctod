@@ -96,6 +96,7 @@ package struct CtodCtx {
 	Map!(ulong, CType) nodeTypes;
 	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
+	CType inDeclType = CType.none; // type of the declaration we're currently in
 
 nothrow:
 

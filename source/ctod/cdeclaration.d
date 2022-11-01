@@ -95,12 +95,27 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 			}
 			return true;
 		case Sym.initializer_list:
-			// TODO: check if not struct initializer
-			// Ideas: array literal has Sym.subscript_designator, struct has Sym.field_designator
-			//
-			if (true) {
-				// LBRACE = {
+			auto t = ctx.inDeclType;
+			bool arrayInit = t.isCArray || t.isStaticArray;
 
+			// In D, the initializer braces depend on whether it's a struct {} or array []
+			// The current type check is rather primitive, it doesn't look up type aliases and
+			// doesn't consider nested types (e.g. struct of array of struct of ...)
+			// So also inspect the literal itself to gain clues
+			foreach(ref c; node.children) {
+				// Array literal can have `[0] = 3`, struct can have `.field = 3`
+				if (c.typeEnum == Sym.initializer_pair) {
+					if (auto c1 = c.childField(Field.designator)) {
+						if (c1.typeEnum == Sym.field_designator) {
+							arrayInit = false;
+						} else if (c1.typeEnum == Sym.subscript_designator) {
+							arrayInit = true;
+						}
+					}
+				}
+			}
+
+			if (arrayInit) {
 				if (auto c = node.firstChildType(Sym.anon_LBRACE)) {
 					c.replace("[");
 				}

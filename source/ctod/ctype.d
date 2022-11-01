@@ -371,7 +371,9 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 				parseCtype(ctx, *declaratorNode, decl, inlineTypes);
 			}
 			if (auto valueNode = node.childField(Field.value)) {
+				ctx.inDeclType = decl.type;
 				translateNode(ctx, *valueNode);
+				ctx.inDeclType = CType.none;
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
 					const len = initializerLength(*valueNode, firstElem);

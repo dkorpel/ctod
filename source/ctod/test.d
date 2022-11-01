@@ -459,16 +459,18 @@ int[2] a = [
 ];
 ");
 
+	test("INTARRAY a = {[0] = 1};", "INTARRAY a = [0: 1];");
+
 	test("
 S a = {
 	.fieldA = 1,
 	.fieldB = 2,
 };
 ", "
-S a = [
+S a = {
 	fieldA: 1,
 	fieldB: 2,
-];
+};
 ");
 }
 
