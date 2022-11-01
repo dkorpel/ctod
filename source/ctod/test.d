@@ -402,6 +402,11 @@ void main() {
 }
 ");
 
+	test(
+		"Rectangle r = (Rectangle){0l, y, width, height};",
+		"Rectangle r = Rectangle(0L, y, width, height);"
+	);
+
 	test("
 int x[] = { 0, 3, 5 /*comment*/ , 9 };
 void main() {

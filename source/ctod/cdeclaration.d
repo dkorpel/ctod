@@ -74,6 +74,26 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 			}
 			node.replace(result);
 			return true;
+		case Sym.compound_literal_expression:
+			// (Rectangle){x, y, width, height} => Rectangle(x, y, width, height)
+			foreach(ref c; node.children) {
+				if (c.typeEnum == Sym.anon_LPAREN) {
+					c.replace("");
+				} else if (c.typeEnum == Sym.anon_RPAREN) {
+					c.replace("");
+				} else if (c.typeEnum == Sym.initializer_list) {
+					foreach(ref c2; c.children) {
+						if (c2.typeEnum == Sym.anon_LBRACE) {
+							c2.replace("(");
+						} else if (c2.typeEnum == Sym.anon_RBRACE) {
+							c2.replace(")");
+						} else {
+							translateNode(ctx, c2);
+						}
+					}
+				}
+			}
+			return true;
 		case Sym.initializer_list:
 			// TODO: check if not struct initializer
 			// Ideas: array literal has Sym.subscript_designator, struct has Sym.field_designator
