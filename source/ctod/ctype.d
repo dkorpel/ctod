@@ -32,12 +32,16 @@ pure nothrow:
 				result ~= " ";
 				result ~= identifier;
 			}
-			if (initializer.length > 0) {
-				result ~= " = ";
-				result ~= initializer;
-			}
+			result ~= this.initializerAssign();
 		}
 		return result;
+	}
+
+	string initializerAssign() const {
+		if (initializer.length > 0) {
+			return " = " ~ initializer;
+		}
+		return "";
 	}
 
 	bool opEquals(const Decl other) const scope {

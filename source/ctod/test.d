@@ -50,6 +50,14 @@ version(none)
 	test("unsigned x[10];", "uint[10] x;");
 	test("struct S { unsigned x; };", "struct S { uint x; }");
 
+	test("int x = 1, y = 2, *z = null, w = 0;", "int x = 1, y = 2; int* z = null; int w = 0;");
+	test("unsigned *in = i, *out = o;", "uint* in_ = i, out_ = o;");
+	test("unsigned *in = i, *out = o;", "uint* in_ = i, out_ = o;");
+	test(
+		"void f() {for(int i = 1, j = 2; i < 5; ++i);}",
+		"void f() {for(int i = 1, j = 2; i < 5; ++i){}}"
+	);
+
 	// inline struct/enum
 	test("void foo(struct {int x;} t);", "struct _T {int x;}void foo(_T t);");
 	test("void foo(struct T t);", "void foo(T t);");
@@ -67,7 +75,7 @@ version(none)
 	test("int *a4[6][7];", "int*[7][6] a4;");
 	test("int *(*a5)[8][9];", "int*[9][8]* a5;");
 	test("int **a6[8][9];", "int**[9][8] a6;");
-	test("int a[2], (*b)[2];", "int[2] a;int[2]* b;");
+	test("int a[2], (*b)[2];", "int[2] a; int[2]* b;");
 	test("double z[4][3];", "double[3][4] z = 0;");
 	test(
 		"void (*f0)(int x, float, char*, char[], char*[], char***);",
@@ -139,7 +147,7 @@ inline static void foo(int x[], int (*y)(void)) {
 }
 ", "
 pragma(inline, true) private void foo(int* x, int function() y) {
-	int* z;int y;
+	int* z; int y;
 }
 ");
 
