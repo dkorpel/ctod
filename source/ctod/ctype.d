@@ -90,6 +90,19 @@ pure nothrow:
 	}
 }
 
+/// Generate alias declarations to put enum members into the global namespace
+/// C enums don't have a scope for their members
+private string enumMemberAliases(string enumName, ref Node c) {
+	string res = "\n";
+	foreach(ref c2; c.children) {
+		if (c2.typeEnum == Sym.enumerator) {
+			string mem = c2.childField(Field.name).source;
+			res ~= "alias " ~ mem ~ " = " ~ enumName ~ "." ~ mem ~ ";\n";
+		}
+	}
+	return res;
+}
+
 /// C declarations are declared this way:
 /// First, a 'base type' which is a primitive type or identifier
 /// Then, one or more expressions that should evaluate to a value of 'base type'
@@ -106,6 +119,12 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		if (auto c = node.childField(Field.body_)) {
 			translateNode(ctx, *c);
 			string name = nameNode ? nameNode.source : null;
+
+			// Put enum members into the global scope with aliases
+			if (name && c.typeEnum == Sym.enumerator_list) {
+				c.append(enumMemberAliases(name, *c));
+			}
+
 			inlineTypes ~= InlineType(keyword, name, c.output());
 			return name;
 		} else if (nameNode) {

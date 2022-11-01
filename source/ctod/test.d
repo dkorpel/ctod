@@ -65,8 +65,8 @@ version(none)
 	test("void foo(struct T *t);", "void foo(T* t);");
 	test("void foo(enum E *e);", "void foo(E* e);");
 
+	// Note: not actually valid C, "types may not be defined in parameter types"
 	test("void foo(struct S {int x;} s, struct T {int y;} t);", "struct S {int x;}struct T {int y;}void foo(S s, T t);");
-	test("void foo(enum E {one, two} t);", "enum E {one, two}void foo(E t);");
 
 	test("int a0[1];", "int[1] a0;");
 	test("int *a1[2];", "int*[2] a1;");
@@ -262,14 +262,41 @@ alias U0 U1;
 }
 
 @("enum") unittest {
-	test("typedef enum AnEnum
+	test("
+typedef enum AnEnum
 {
 	one = 1000123000,
 	two = 0x7FFFFFFF
-} AnEnum;", "enum AnEnum {
+} AnEnum;
+", "
+enum AnEnum {
 	one = 1000123000,
 	two = 0x7FFFFFFF
-}");
+}
+alias one = AnEnum.one;
+alias two = AnEnum.two;
+
+");
+
+	test("enum {A};", "enum {A}"); // don't create aliases for anonymous enums
+
+	test("
+enum X
+{
+    A,
+    B
+};
+", "
+enum X
+{
+    A,
+    B
+}
+alias A = X.A;
+alias B = X.B;
+
+");
+
 }
 
 @("sizeof") unittest {
