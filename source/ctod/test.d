@@ -164,7 +164,7 @@ void main() {
 }
 ");
 
-	test("typedef int intArr[3], intScalar;", "alias int[3] intArr;alias int intScalar;");
+	test("typedef int intArr[3], intScalar;", "alias intArr = int[3];\nalias intScalar = int;");
 
 	test("struct OpaqueS;", "struct OpaqueS;");
 	test("union OpaqueU;", "union OpaqueU;");
@@ -256,8 +256,8 @@ typedef union U0 U1;
 ", "
 
 
-alias S0 S1;
-alias U0 U1;
+alias S1 = S0;
+alias U1 = U0;
 ");
 }
 

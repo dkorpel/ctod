@@ -65,11 +65,17 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 			foreach(s; inlinetypes) {
 				result ~= s.toString();
 			}
+			bool first = true;
 			foreach(d; decls) {
 				if (d.type == CType.named(d.identifier)) {
 					// result ~= "/*alias " ~ d.toString() ~ ";*/";
 				} else {
-					result ~= "alias " ~ d.toString() ~ ";";
+					if (first) {
+						first = false;
+					} else {
+						result ~= "\n";
+					}
+					result ~= "alias " ~ d.identifier ~ " = " ~ d.type.toString() ~ ";";
 				}
 			}
 			node.replace(result);
