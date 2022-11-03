@@ -166,6 +166,8 @@ void main() {
 
 	test("typedef int intArr[3], intScalar;", "alias intArr = int[3];\nalias intScalar = int;");
 
+	test("typedef struct X X;", "");
+
 	test("struct OpaqueS;", "struct OpaqueS;");
 	test("union OpaqueU;", "union OpaqueU;");
 
@@ -262,6 +264,22 @@ alias U1 = U0;
 }
 
 @("enum") unittest {
+	test("
+typedef enum AnEnum
+{
+	one = 1000123000,
+	two = 0x7FFFFFFF
+} AnEnum;
+", "
+enum AnEnum {
+	one = 1000123000,
+	two = 0x7FFFFFFF
+}
+alias one = AnEnum.one;
+alias two = AnEnum.two;
+
+");
+
 	test("
 typedef enum AnEnum
 {

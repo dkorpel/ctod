@@ -257,36 +257,6 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 			}
 			return false;
 
-		case Sym.type_definition:
-			// Decl[] decls = parseDecls(ctx, *c);
-			auto typeField = node.childField(Field.type);
-			auto declaratorField = node.childField(Field.declarator);
-			if (!declaratorField || !typeField) {
-				return true;
-			}
-			if (auto structId = typeField.childField(Field.name)) {
-				if (typeField.typeEnum == Sym.struct_specifier || typeField.typeEnum == Sym.union_specifier) {
-					if (auto bodyNode = typeField.childField(Field.body_)) {
-						translateNode(ctx, *bodyNode);
-					} if (declaratorField.typeEnum == Sym.alias_type_identifier && declaratorField.source == structId.source) {
-						// typedef struct X X; => uncomment, not applicable to D
-						node.prepend("/*");
-						node.append("*/");
-						return true;
-					}
-				}
-				if (typeField.typeEnum == Sym.enum_specifier) {
-					if (auto bodyNode = typeField.childField(Field.body_)) {
-						translateNode(ctx, *bodyNode);
-					}
-					if (auto nameNode = typeField.childField(Field.name)) {
-
-					}
-				}
-			}
-			break;
-		case Sym.anon_typedef:
-			return node.replace("alias");
 		case Sym.anon_DASH_GT:
 			return node.replace("."); // s->field => s.field
 		case Sym.expression_statement:

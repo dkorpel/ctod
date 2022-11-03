@@ -81,6 +81,7 @@ struct InlineType {
 	string keyword;
 	string name = null;
 	string body_;
+	string enumAliases = null;
 
 pure nothrow:
 
@@ -93,6 +94,9 @@ pure nothrow:
 /// Generate alias declarations to put enum members into the global namespace
 /// C enums don't have a scope for their members
 private string enumMemberAliases(string enumName, ref Node c) {
+	if (c.typeEnum != Sym.enumerator_list) {
+		return null;
+	}
 	string res = "\n";
 	foreach(ref c2; c.children) {
 		if (c2.typeEnum == Sym.enumerator) {
@@ -111,7 +115,7 @@ private string enumMemberAliases(string enumName, ref Node c) {
 /// Therefor, the second return value is a type declaration that the primitive type depends on.
 ///
 /// Returns: [primitive type, dependent type]
-string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque = false) {
+string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque) {
 
 	// keyword = struct, union or enum
 	string namedType(string keyword) {
@@ -121,11 +125,12 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 			string name = nameNode ? nameNode.source : null;
 
 			// Put enum members into the global scope with aliases
-			if (name && c.typeEnum == Sym.enumerator_list) {
-				c.append(enumMemberAliases(name, *c));
-			}
+			string enumAliases = enumMemberAliases(name, *c);
 
-			inlineTypes ~= InlineType(keyword, name, c.output());
+			if (name && enumAliases)
+				c.append(enumAliases);
+
+			inlineTypes ~= InlineType(keyword, name, c.output(), enumAliases);
 			return name;
 		} else if (nameNode) {
 			if (keepOpaque) {
@@ -293,7 +298,7 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) 
 		return null;
 	}
 	const oldLen = inlineTypes.length;
-	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes);
+	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes, false);
 
 	// there may be multiple type_qualifier fields
 	// if (auto qualNode = node.childField(Field.type_qualifier))
