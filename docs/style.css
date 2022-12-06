@@ -1,0 +1,51 @@
+body {
+	background-attachment: fixed;
+	background-image: linear-gradient(white, #f1edea);
+	background-repeat: no-repeat;
+	color: #444;
+	font-family: "Open Sans", "Helvetica", "Segoe UI", "Verdana", "Arial";
+	font-size: 18px;
+	height: 100%;
+	line-height: 1.4;
+	margin: 2em auto;
+	padding: 1em;
+	text-align: justify
+}
+
+h1 {
+	color: #c01616;
+	text-shadow: 2px 2px #461a1a;
+	font-style: normal;
+	font-size: 32px;
+}
+
+h2 {
+	color: #131113;
+	font-style: bold;
+	font-size: 24px;
+}
+
+h3 {
+	color: #131113;
+	font-style: bold;
+	font-size: 20px;
+}
+
+p {
+	color: #131113;
+	font-style: normal;
+	font-size: 18px;
+	line-height: 1.1;
+}
+
+div {
+	padding: 0;
+}
+
+a {
+	color: #06A
+}
+
+a:visited {
+	color: #914
+}

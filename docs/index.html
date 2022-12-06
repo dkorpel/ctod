@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<!-- <script type="text/javascript" src="https://livejs.com/live.js"></script> -->
+	<title>Ctod</title>
+	<link rel="icon" href="ctod-icon.png" type="image/x-icon">
+	<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+	<meta name="viewport" charset="utf-8" content="width=device-width, initial-scale=1.0" />
+</head>
+<style type="text/css">
+	.splitScreen div {
+		float: left;
+		width: 50%;
+		padding: 2px;
+		box-sizing: border-box;
+	}
+
+	textarea {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: 400px;
+		height: 80%;
+		resize: none;
+		font-family: monospace;
+		font-size: 16px;
+		overflow: auto;
+		tab-size: 4;
+	}
+</style>
+
+<body id="ctod-body">
+	<script src="wasm.js"></script>
+	<script src="ctod.js"></script>
+	<img src="ctod-logo.png" alt="ctod-logo" width="64px" height="64px">
+	<span style="margin: 10px">C to D converter</span>
+	<span>
+		<a href="https://github.com/dkorpel/ctod">
+			GitHub
+		</a>
+	</span>
+
+	<div class="splitScreen">
+		<div>
+			<span>C</span>
+			<textarea id="ctod-input" spellcheck="false" placeholder="C code" autofocus>
+// Start editing this C code to see the D translation
+
+#include &lt;stdio.h&gt;
+
+struct S
+{
+	unsigned short x;
+};
+
+int main(void) {
+	char buf[10];
+	sprintf(buf, "%d", (int) 1.8);
+
+	struct S *s;
+	s->x = 3;
+
+	return 0;
+}
+</textarea>
+		</div>
+		<div>
+			<span>D</span>
+			<textarea id="ctod-output" spellcheck="false" readonly></textarea>
+		</div>
+	</div>
+</body>
+
+</html>
