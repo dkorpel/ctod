@@ -20,9 +20,14 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 		CType previousType = CType.none;
 		foreach(d; decls) {
 			// `char x;` => `char x = 0;`
-			if (cInit && d.initializer.length == 0 && noZeroInitInD(d.type)) {
-				d.initializer = "0";
+			if (cInit && d.initializer.length == 0) {
+				if (ctx.inFunction && !d.quals.staticFunc) {
+					d.initializer = "void";
+				} else if (noZeroInitInD(d.type)) {
+					d.initializer = "0";
+				}
 			}
+
 			if (d.type != previousType) {
 				if (previousType != CType.none) {
 					result ~= "; ";

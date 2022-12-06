@@ -12,7 +12,7 @@ import ctod.cexpr;
 
 /// Declaration
 struct Decl {
-	string storageClasses;
+	CQuals quals; /// qualifiers / storage classes
 	CType type = CType.none;
 	string identifier = ""; /// name of variable / function
 	string initializer = ""; /// expression that initializes the variable
@@ -20,7 +20,7 @@ struct Decl {
 pure nothrow:
 
 	string toString() const {
-		string result = storageClasses;
+		string result = quals.toString();
 		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl) {
@@ -45,7 +45,7 @@ pure nothrow:
 	}
 
 	bool opEquals(const Decl other) const scope {
-		return storageClasses == other.storageClasses && type == other.type
+		return quals == other.quals && type == other.type
 			&& identifier == other.identifier && initializer == other.initializer;
 	}
 
@@ -56,7 +56,7 @@ pure nothrow:
 }
 
 unittest {
-	assert(Decl("inline ", CType.named("int"), "x", "3").toString() ==  "inline int x = 3");
+	assert(Decl(CQuals.init, CType.named("int"), "x", "3").toString() ==  "int x = 3");
 }
 
 /// Generate D function type syntax
@@ -238,6 +238,8 @@ struct CQuals {
 	bool inline;
 	bool register;
 
+	enum none = typeof(this).init;
+
 pure nothrow:
 
 	string toString() const {
@@ -315,7 +317,7 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) 
 			// T* t; => T T; T* t;
 			continue;
 		}
-		Decl decl = Decl(quals.toString(), baseType, "", "");
+		Decl decl = Decl(quals, baseType, "", "");
 		if (parseCtype(ctx, c, decl, inlineTypes)) {
 			if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
 				inlineTypes[$-1].name = ctx.uniqueIdentifier(decl.identifier);
@@ -329,7 +331,7 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) 
 	// if this is called for a parameter declaration, you still want to get an anonymous declaration back
 	// the only exception is empty parameter lists, which in C are declared like `void main(void)`
 	if (result.length == 0 && primitiveType != "void") {
-		result = [Decl(quals.toString(), baseType, "", "")];
+		result = [Decl(quals, baseType, "", "")];
 	}
 	return result;
 }
@@ -416,7 +418,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 						paramDecls ~= d;
 					} else if (c.typeEnum == Sym.variadic_parameter) {
 						// variadic args
-						paramDecls ~= Decl("", CType.named("..."), "", "");
+						paramDecls ~= Decl(CQuals.none, CType.named("..."), "", "");
 					}
 				}
 			}

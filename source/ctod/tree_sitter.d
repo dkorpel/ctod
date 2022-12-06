@@ -2,6 +2,12 @@ module ctod.tree_sitter;
 
 nothrow @safe:
 
+version(none) {
+	import bops.ds.hashtable: Map = HashTable;
+} else {
+	alias Map(K, V) = V[K];
+}
+
 import tree_sitter.api;
 
 /// Returns: C language parser for tree-sitter
@@ -29,7 +35,6 @@ Node* parseCtree(string source) @trusted {
 
 struct Extra
 {
-	alias Map(K, V) = V[K];
 	string fullSource;
 	Map!(size_t, Node) nodes;
 

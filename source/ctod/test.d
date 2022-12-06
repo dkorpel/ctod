@@ -147,7 +147,7 @@ inline static void foo(int x[], int (*y)(void)) {
 }
 ", "
 pragma(inline, true) private void foo(int* x, int function() y) {
-	int* z; int y;
+	int* z = void; int y = void;
 }
 ");
 
@@ -223,7 +223,7 @@ void main() {
 }
 ", "
 void main() {
-	int[10] buf;
+	int[10] buf = void;
 	int b = buf[0] == 0;
 }
 "
@@ -380,7 +380,7 @@ int* bar(int y, ...) {
 	switch(0) {
 		default: break;
 	}
-	T* t;
+	T* t = void;
 	return t.ptr;
 }");
 

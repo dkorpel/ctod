@@ -39,7 +39,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	string result = "";
 
 	if (settings.includeHeader) {
-		result ~= "module "~moduleName~";\n";
+		if (moduleName.length > 0) {
+			result ~= "module "~moduleName~";\n";
+		}
 		result ~= "@nogc nothrow:
 extern(C): __gshared:\n";
 	}
@@ -72,7 +74,8 @@ enum MacroType {
 }
 
 /// Translation context, all 'global' state
-package struct CtodCtx {
+package
+struct CtodCtx {
 
 	string fileName;
 	string source;
