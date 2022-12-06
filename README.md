@@ -3,6 +3,8 @@
 
 A tool that does the boring parts of translating C to D.
 
+[**Try it in your browser!**](https://dkorpel.github.io/ctod/)
+
 ### Usage
 
 From the root of this repository:
