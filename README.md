@@ -5,6 +5,8 @@ A tool that does the boring parts of translating C to D.
 
 [**Try it in your browser!**](https://dkorpel.github.io/ctod/)
 
+YouTube: [DConf Online '22 - Translating C to D](https://www.youtube.com/watch?v=654rSPaIA0o)
+
 ### Usage
 
 From the root of this repository:
