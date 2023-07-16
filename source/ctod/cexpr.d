@@ -157,7 +157,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 				c.replace("cast(");
 			}
 			if (auto c = node.childField(Field.type)) {
-				Decl[] decls = parseDecls(ctx, *c, ctx.inlineTypes); //todo: emit inline types?
+				Decl[] decls = parseDecls(ctx, *c, ctx.inlineTypes); //TODO: emit inline types?
 				if (decls.length == 1) {
 					c.replace(decls[0].toString());
 					ctx.setExpType(node, decls[0].type);
@@ -182,8 +182,18 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 				if (fType.isFunction) {
 					ctx.setExpType(node, fType.next[0]);
 				}
+				if (funcNode.typeEnum == Sym.parenthesized_expression) {
+					if (auto parenValue = getParenContent(funcNode)) {
+						if (parenValue.typeEnum == Sym.identifier) {
+							// So we have (X)(Y), which could be a cast to type X or a call to function X
+							// Tree-sitter parses it like a call, but we assume that it's a cast,
+							// since you wouldn't normally write a function call with parens
+							funcNode.prepend("cast");
+						}
+					}
+				}
 
-				if (translateOffsetof(node, *funcNode)) {
+				if (translateSpecialFunction(node, *funcNode)) {
 					return true;
 				}
 			}
@@ -212,13 +222,21 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 	return false;
 }
 
-/// Translate the C offsetof() macro to D's .offsetof property
+/// Translate special function calls
 ///
+/// C's `offsetof()` macro becomes D's `.offsetof` property
 /// offsetof(S, x) => S.x.offsetof
-bool translateOffsetof(ref Node node, ref Node funcNode) {
-	if (funcNode.typeEnum == Sym.identifier && funcNode.source == "offsetof") {
+///
+/// C's `va_arg` macro becomes D's template `va_arg!T`:
+/// va_arg(v, int) => va_arg!int(v)
+bool translateSpecialFunction(ref Node node, ref Node funcNode) {
+	if (funcNode.typeEnum != Sym.identifier) {
+		return false;
+	}
+	if (funcNode.source == "offsetof" || funcNode.source == "va_arg") {
 		if (auto args = node.childField(Field.arguments)) {
 			if (args.hasError) {
+				// unfortunately, tree-sitter considers `va_arg(x, int*)` an error
 				return false;
 			}
 			string[2] argNames;
@@ -233,7 +251,11 @@ bool translateOffsetof(ref Node node, ref Node funcNode) {
 				}
 			}
 			if (i == 2) {
-				return node.replace(argNames[0] ~ "." ~ argNames[1] ~ ".offsetof");
+				if (funcNode.source == "va_arg") {
+					return node.replace(funcNode.source ~ "!" ~ argNames[1] ~ "(" ~ argNames[0] ~ ")");
+				} else if (funcNode.source == "offsetof") {
+					return node.replace(argNames[0] ~ "." ~ argNames[1] ~ ".offsetof");
+				}
 			}
 		}
 	}
@@ -255,7 +277,7 @@ private bool ctodSizeof(ref CtodCtx ctx, ref Node node) {
 	ctx.setExpType(node, CType.named("size_t"));
 	if (auto typeNode = node.childField(Field.type)) {
 		// sizeof(short) => (short).sizeof
-		Decl[] decls = parseDecls(ctx, *typeNode, ctx.inlineTypes); //todo: emit inline types?
+		Decl[] decls = parseDecls(ctx, *typeNode, ctx.inlineTypes); //TODO: emit inline types?
 		if (decls.length == 1) {
 			return node.replace(toSizeof(decls[0].toString()));
 		}

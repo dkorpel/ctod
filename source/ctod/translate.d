@@ -217,7 +217,7 @@ bool hasDefaultStatement(ref Node node) {
 package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.comment:
-			// todo: maybe convert doxygen to Ddoc?
+			// TODO: maybe convert doxygen to Ddoc?
 			if (ctx.stripComments) {
 				node.replace("");
 			}

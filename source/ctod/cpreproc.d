@@ -54,9 +54,25 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 					ctx.macroTable[c.output()] = MacroType.manifestConstant;
 				}
 				if (auto c = node.firstChildType(Sym.preproc_arg)) {
-					c.replace(" ="~c.source~";");
+					// tree sitter doesn't parse line comments inside preproc arg,
+					// so we need to manually split it so that:
+					// #define X Y // comment
+					// Becomes:
+					// enum X = Y; // comment
+					// Instead of:
+					// enum X = Y // comment;
+					size_t p = 0;
+					while (p+1 < c.source.length) {
+						if (c.source[p] == '/' && c.source[p+1] == '/') {
+							while (p > 0 && c.source[p-1] == ' ') {
+								p--;
+							}
+							return c.replace(" =" ~ c.source[0..p] ~ ";" ~ c.source[p..$]);
+						}
+						p++;
+					}
+					c.replace(" =" ~ c.source ~ ";");
 				}
-
 			} else {
 				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
 					c.replace("version =");

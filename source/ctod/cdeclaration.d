@@ -47,11 +47,16 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.function_definition:
 			if (auto bodyNode = node.childField(Field.body_)) {
+				auto declNode = node.childField(Field.declarator);
+				assert(declNode);
+				// Translation of function signautre is pretty destructive regarding layout,
+				// but at least it's rare to have comments inside the parameter list
+				// For now: add whitespace before bodyNode to preserve brace style and comments after the signature
+				const layout = node.fullSource[declNode.end..bodyNode.start];
 				ctx.enterFunction("???");
 				translateNode(ctx, *bodyNode);
 				ctx.leaveFunction();
-				// TODO: add whitespace before bodyNode to preserve brace style
-				return translateDecl(" " ~ bodyNode.output(), false);
+				return translateDecl(layout ~ bodyNode.output(), false);
 			}
 			break;
 		case Sym.parameter_declaration:

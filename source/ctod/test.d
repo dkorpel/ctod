@@ -112,11 +112,11 @@ struct S {
 	test("inline static void foo(int x);", "pragma(inline, true) private void foo(int x);");
 	test("
 int main(void) {
-    static int xx;
+	static int xx;
 }
 ", "
 int main() {
-    static int xx;
+	static int xx;
 }
 ");
 
@@ -200,7 +200,7 @@ ushort y;/*: int.sizeof !!*/
 	test("
 int x[4];
 void pp(int *p);
-void foo()
+void foo() // comment
 {
 	int *y = x + 1;
 	int *z = (1 + (x));
@@ -209,7 +209,8 @@ void foo()
 ", "
 int[4] x;
 void pp(int* p);
-void foo() {
+void foo() // comment
+{
 	int* y = x.ptr + 1;
 	int* z = (1 + (x).ptr);
 	pp(x.ptr);
@@ -301,14 +302,14 @@ alias two = AnEnum.two;
 	test("
 enum X
 {
-    A,
-    B
+	A,
+	B
 };
 ", "
 enum X
 {
-    A,
-    B
+	A,
+	B
 }
 alias A = X.A;
 alias B = X.B;
@@ -351,6 +352,24 @@ alias B = X.B;
 @("cast") unittest {
 	test("int x = (int) 3.5;", "int x = cast(int) 3.5;");
 	test("int x = (void(*)()) NULL;", "int x = cast(void function()) null;");
+
+	test(`
+typedef unsigned char X;
+int c = (X)(5);
+void main(void) {
+	int d = (X)(6);
+	int e = (*Y)(7);
+	int f = (Y*)(7);
+}
+	`, `
+alias X = ubyte;
+int c = cast(X)(5);
+void main() {
+	int d = cast(X)(6);
+	int e = (*Y)(7);
+	int f = cast(Y*)(7);
+}
+	`);
 }
 
 @("function") unittest {
@@ -535,11 +554,17 @@ enum NO_HEADER_GUARD = 3;
 #define PI 3.14159265
 #define LOL(x)
 #define SQR(x) (x*x)
+#define WITHCOMMENT//c
+#define WITHCOMMENT1 '@'// c
+#define WITHCOMMENTS /*a*/ '@' /*b*/ // c
 ", "
 version = TEST;
 enum PI = 3.14159265;
 //#define LOL(x)
 enum string SQR(string x) = ` (x*x)`;
+version = WITHCOMMENT;//c
+enum WITHCOMMENT1 = '@';// c
+enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
 ");
 
 	test("
@@ -610,6 +635,33 @@ static if (!HasVersion!"Windows") {
 }
 `);
 
+	// va_arg (has failures currently because tree-sitter doesn't parse types in calls)
+	test(`
+double f(int count, ...)
+{
+	va_list args;
+	va_start(args, count);
+	int a0 = va_arg(args, int);
+	double a1 = va_arg(args, double);
+	unsigned int a2 = va_arg(args, unsigned int);
+	char a3 = va_arg(args, char);
+	va_end(args);
+	return 0.0;
+}
+`, `
+double f(int count, ...)
+{
+	va_list args = void;
+	va_start(args, count);
+	int a0 = va_arg!int(args);
+	double a1 = va_arg!double(args);
+	uint a2 = va_arg(args, unsigned int);
+	char a3 = va_arg!char(args);
+	va_end(args);
+	return 0.0;
+}
+`);
+
 	// tree-sitter doesn't parse this right, need to do manual preprocessing
 	version(none) test("
 #ifdef __cplusplus
@@ -625,8 +677,8 @@ extern \"C\" {
 #define _GLFW_CONCAT_VERSION(m, n, r) #m "." #n "." #r
 #define _GLFW_MAKE_VERSION(m, n, r) _GLFW_CONCAT_VERSION(m, n, r)
 #define _GLFW_VERSION_NUMBER _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
-                                                GLFW_VERSION_MINOR, \
-                                                GLFW_VERSION_REVISION)
+												GLFW_VERSION_MINOR, \
+												GLFW_VERSION_REVISION)
 `, "TODO"
 );
 
