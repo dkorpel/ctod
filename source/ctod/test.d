@@ -151,7 +151,17 @@ pragma(inline, true) private void foo(int* x, int function() y) {
 }
 ");
 
-	// Future enhancement: add `cast(int*)` to return value of malloc
+	// array parameters
+	test(`
+		void farrays(int x[1], int y[][4], int z[3][5], int *w[5], int (*v)[5]);
+	`, `
+		void farrays(ref int[1] x, int[4]* y, ref int[5][3] z, ref int*[5] w, int[5]* v);
+	`);
+
+	// TODO: qualifiers in array parameter
+	// "void fquals(int x[const static 5]) {}"
+
+	// enhancement: add `cast(int*)` to return value of malloc
 	test("
 void main() {
 	int *x = malloc(4);
@@ -237,7 +247,6 @@ void main() {
 typedef struct T {
 	S *ptr;
 	int arr[3];
-	int parr[];
 	int32_t capacity;
 	__u8 type;
 } T;
@@ -245,7 +254,6 @@ typedef struct T {
 struct T {
 	S* ptr;
 	int[3] arr;
-	int* parr;
 	int capacity;
 	ubyte type;
 }
@@ -441,12 +449,14 @@ char const *p1;
 char *const p2;
 const char p3[] = "abc", p4[] = "";
 const char p5[] = "\nab" "\x22" "";
+char p6[] = MACRO;
 `, `
 const(char)* p0 = "con" ~ "cat" ~ "enated";
 const(char)* p1;
 char* p2;
 const(char)[4] p3 = "abc"; const(char)[1] p4 = "";
 const(char)[5] p5 = "\nab" ~ "\x22" ~ "";
+char[$] p6 = MACRO;
 `);
 
 	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");
@@ -477,13 +487,15 @@ void main() {
 
 	test("
 int x[] = { 0, 3, 5 /*comment*/ , 9 };
+double y[];
 void main() {
-	int y[] = {10};
+	int z[] = {10};
 }
 ", "
 int[4] x = [ 0, 3, 5 /*comment*/ , 9 ];
+double[1] y = 0;
 void main() {
-	int[1] y = [10];
+	int[1] z = [10];
 }
 ");
 

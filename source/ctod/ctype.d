@@ -217,8 +217,6 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		case Sym.struct_specifier: return namedType("struct");
 		case Sym.union_specifier: return namedType("union");
 		case Sym.enum_specifier: return namedType("enum");
-
-
 		default: break;
 	}
 	return null;
@@ -323,6 +321,14 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) 
 				inlineTypes[$-1].name = ctx.uniqueIdentifier(decl.identifier);
 				decl.type.setName(inlineTypes[$-1].name);
 			}
+			if (decl.type.isCArray() && ctx.inParameterList) {
+				// C array parameters decay into pointers
+				decl.type = CType.pointer(decl.type.next[0]);
+			}
+			if (decl.type.isStaticArray() && ctx.inParameterList) {
+				// static arrays in parameter lists are passed by reference
+				decl.type.tag = CType.Tag.staticArrayParam;
+			}
 			result ~= decl;
 		}
 	}
@@ -376,6 +382,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 	switch(node.typeEnum) {
 		case Sym.init_declarator:
 			if (auto declaratorNode = node.childField(Field.declarator)) {
+				decl.initializer = "TMP";
 				parseCtype(ctx, *declaratorNode, decl, inlineTypes);
 			}
 			if (auto valueNode = node.childField(Field.value)) {
@@ -401,7 +408,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 				}
 				const stringSize = stringInitializerSize(*valueNode);
 				if (decl.type.isCArray() && stringSize >= 0) {
-					decl.type = CType.array(decl.type.next[0], intToString(stringSize + 1));
+					decl.type = CType.array(decl.type.next[0], intToString(stringSize));
 				}
 				decl.initializer = valueNode.output();
 			}
@@ -417,6 +424,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 		case Sym.function_declarator:
 			Decl[] paramDecls = [];
 			if (auto paramNode = node.childField(Field.parameters)) {
+				ctx.inParameterList++;
 				foreach(ref c; paramNode.children) {
 					if (c.typeEnum == Sym.parameter_declaration) {
 						auto d = parseDecls(ctx, c, inlineTypes);
@@ -426,6 +434,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 						paramDecls ~= Decl(CQuals.none, CType.named("..."), "", "");
 					}
 				}
+				ctx.inParameterList--;
 			}
 			if (auto declNode = node.childField(Field.declarator)) {
 				decl.type = CType.funcDecl(decl.type, paramDecls);
@@ -468,7 +477,13 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			} else {
 				// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
 				if (auto c1 = node.childField(Field.declarator)) {
-					decl.type = CType.cArray(decl.type);
+					if (ctx.inParameterList || decl.initializer.length > 0) {
+						decl.type = CType.cArray(decl.type);
+					} else {
+						// C arrays without initializer are uncommon (raise a warning),
+						// but defaults to 1 element
+						decl.type = CType.array(decl.type, "1");
+					}
 					parseCtype(ctx, *c1, decl, inlineTypes);
 				}
 			}
@@ -479,52 +494,67 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 	return false;
 }
 
-/// Returns: sizeof string initializer, excluding zero terminator, or -1 if not a string initializer
+/// Returns: sizeof string initializer, including zero terminator, or -1 if not a string initializer
 int stringInitializerSize(ref Node node) {
 	if (node.typeEnum == Sym.concatenated_string) {
 		int stringSize = 0;
 		foreach (ref c; node.children) {
 			if (c.typeEnum == Sym.string_literal) {
-				stringSize += stringLiteralSize(c.source);
+				const s = stringLiteralSize(c.source);
+				if (s < 0) {
+					return -1;
+				}
+				stringSize += s;
 			}
 		}
-		return stringSize;
+		return stringSize + 1;
 	} else if (node.typeEnum == Sym.string_literal) {
-		return stringLiteralSize(node.source);
+		const s = stringLiteralSize(node.source);
+		if (s < 0) {
+			return -1;
+		}
+		return s + 1;
 	} else {
 		return -1;
 	}
 }
 
-/// Returns: sizeof a string literal, excluding zero terminator
-/// because that should only be counted once for concatenated string literals
+/// Returns: sizeof a string literal, or -1 on error
+///
 /// Needed for initializing static char arrays.
+/// Size excludes zero terminator, because concatenated string literals have only one of them
 int stringLiteralSize(string s) {
-	int result = cast(int) (s.length + -2); // +1 for zero terminator, -2 for quotes
+	int result = cast(int) s.length - 2; // -2 for quotes
 	size_t p = 0;
 	while (p+1 < s.length) {
 		// escape sequences usually take 2 bytes but only produce 1
 		// exceptions are: \x32 \u0123 \U01234567
 		if (s[p] == '\\') {
 			p++;
+			result -= 1;
+			// TODO: \x can have more than 2 digits, and \u and \U can produce more than 1 code unit,
+			// so these amounts are not right
 			switch (s[p]) {
 				case 'x':
-					result -= 1 + 2;
+					result -= 2; // \xhh
 					break;
-				// TODO: u and U require parsing to know exact size
 				case 'u':
-					result -= 1 + 2 - 3;
+					result -= 4; // \uhhhh
+					result += 1; // guess that the code point is 2 code unit
 					break;
 				case 'U':
-					result -= 1 + 8 - 3;
+					result -= 8; // \Uhhhhhhhh
+					result += 3; // guess that the code point is 4 code units
 					break;
-				default: result -= 1;
+				default:
+					// \n \r \t etc.
+					break;
 			}
 		}
 		p++;
 	}
 	if (result < 0) {
-		return -1; // malformed string literal, e.g.
+		return -1; // malformed string literal
 	}
 	return cast(uint) result;
 }
@@ -543,6 +573,7 @@ struct CType {
 		unknown,
 		pointer,
 		staticArray,
+		staticArrayParam, // passed by ref
 		cArray,
 		funcDecl,
 		named,
@@ -583,6 +614,7 @@ pure nothrow:
 			case Tag.pointer:
 				return this.next[0] == other.next[0];
 			case Tag.staticArray:
+			case Tag.staticArrayParam:
 				return this.countExpr == other.countExpr && this.next[0] == other.next[0];
 			case Tag.funcDecl:
 				return this.next[0] == other.next[0] && this.params == other.params;
@@ -656,6 +688,7 @@ pure nothrow:
 	string toString() const {
 		final switch(tag) {
 			case Tag.cArray:
+				return next[0].toString() ~ "[$]";
 			case Tag.pointer:
 				if (next[0].isFunction) {
 					return fmtFunction(next[0].next[0], "function", next[0].params);
@@ -663,6 +696,8 @@ pure nothrow:
 					//format(isConst ? "const(%s*)" : "%s*", next[0]);
 					return isConst ? ("const("~next[0].toString()~"*)") : next[0].toString() ~ "*";
 				}
+			case Tag.staticArrayParam:
+				return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
 			case Tag.staticArray:
 				return next[0].toString() ~ "[" ~ countExpr ~ "]";
 			case Tag.funcDecl:

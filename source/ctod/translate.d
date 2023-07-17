@@ -100,6 +100,7 @@ struct CtodCtx {
 	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
 	string inFunction = null; // name of the function we're currently in
 	CType inDeclType = CType.none; // type of the declaration we're currently in
+	int inParameterList = 0; // If we're in a parameter list (function types can be nested, so not a bool)
 
 nothrow:
 
