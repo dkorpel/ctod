@@ -9,8 +9,18 @@
 	<meta name="viewport" charset="utf-8" content="width=device-width, initial-scale=1.0" />
 </head>
 <style type="text/css">
+	html,
+	body {
+		height: 100%;
+	}
+
+	.splitScreen {
+		display: flex;
+		flex-direction: row;
+		height: 100%;
+	}
+
 	.splitScreen div {
-		float: left;
 		width: 50%;
 		padding: 2px;
 		box-sizing: border-box;
@@ -19,8 +29,7 @@
 	textarea {
 		box-sizing: border-box;
 		width: 100%;
-		min-height: 400px;
-		height: 80%;
+		height: calc(100% - 200px);
 		resize: none;
 		font-family: monospace;
 		font-size: 16px;
