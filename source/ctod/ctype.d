@@ -389,6 +389,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 				ctx.inDeclType = decl.type;
 				translateNode(ctx, *valueNode);
 				ctx.inDeclType = CType.none;
+				convertPointerTypes(ctx, decl.type, *valueNode);
 				if (valueNode.typeEnum == Sym.initializer_list) {
 					string firstElem;
 					const len = initializerLength(*valueNode, firstElem);
@@ -595,6 +596,14 @@ struct CType {
 	enum unknown = CType.fromTag(Tag.unknown);
 
 pure nothrow:
+
+	/// Returns: type of string literal
+	static CType stringLiteral() {
+		auto cc = CType.named("char");
+		cc.isConst = true;
+		auto result = CType.pointer(cc);
+		return result;
+	}
 
 	bool opCast() const scope {return tag != Tag.none;}
 	bool isFunction() const {return tag == Tag.funcDecl;}

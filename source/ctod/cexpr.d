@@ -60,12 +60,11 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 			break;
 		case Sym.assignment_expression:
 			depthFirst();
-			if (auto l = node.childField(Field.left)) {
-
-			}
-			if (auto r = node.childField(Field.right)) {
-
-			}
+			auto l = node.childField(Field.left);
+			auto r = node.childField(Field.right);
+			assert(l);
+			assert(r);
+			convertPointerTypes(ctx, ctx.expType(*l), *r);
 			break;
 		case Sym.binary_expression:
 			depthFirst();
@@ -147,10 +146,10 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 					}
 				}
 			}
-			ctx.setExpType(node, CType.pointer(CType.named("char")));
+			ctx.setExpType(node, CType.stringLiteral);
 			return true;
 		case Sym.string_literal:
-			ctx.setExpType(node, CType.pointer(CType.named("char")));
+			ctx.setExpType(node, CType.stringLiteral);
 			return true;
 		case Sym.cast_expression:
 			if (auto c = node.firstChildType(Sym.anon_LPAREN)) {
@@ -193,8 +192,14 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 					}
 				}
 
-				if (translateSpecialFunction(node, *funcNode)) {
-					return true;
+				if (funcNode.typeEnum == Sym.identifier) {
+					const string funcName = funcNode.source;
+					if (funcName == "malloc" || funcName == "calloc" || funcName == "realloc") {
+						ctx.setExpType(node, CType.pointer(CType.named("void")));
+					}
+					if (translateSpecialFunction(node, *funcNode)) {
+						return true;
+					}
 				}
 			}
 			if (auto argsNode = node.childField(Field.arguments)) {
@@ -220,6 +225,33 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 			break;
 	}
 	return false;
+}
+
+/// C allows implicitly converting any T* -> U*, in D only T* -> `void*` gets that treatment
+/// Try to fix this by adding explicit casts
+void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r) {
+	CType rType = ctx.expType(r);
+	if (lType.isPointer && rType.isPointer) {
+		if (lType.next[0] == rType.next[0]) {
+			return;
+		}
+		if (lType.next[0] == CType.named("void")) {
+			return; // D can implicitly convert to `void*`
+		}
+		if (rType == CType.stringLiteral) {
+			// This might be because of const mismatch,
+			// we don't want to simply cast away const with D string literals
+			return;
+		}
+		const castStr = "cast(" ~ lType.toString() ~ ") ";
+		// Always add parentheses to avoid operator precedence issues, except a few easy cases
+		if (r.typeEnum == Sym.call_expression || r.typeEnum == Sym.identifier) {
+			r.prepend(castStr);
+		} else {
+			r.prepend(castStr ~ "(");
+			r.append(")");
+		}
+	}
 }
 
 /// Translate special function calls

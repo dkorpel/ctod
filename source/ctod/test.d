@@ -161,16 +161,24 @@ pragma(inline, true) private void foo(int* x, int function() y) {
 	// TODO: qualifiers in array parameter
 	// "void fquals(int x[const static 5]) {}"
 
-	// enhancement: add `cast(int*)` to return value of malloc
+	// Add `cast(int*)` to return value of malloc
 	test("
 void main() {
 	int *x = malloc(4);
-	x = calloc(4);
+	x = calloc(5);
+	x = realloc(x, 6);
+	void *y = malloc(7);
+	void *z = x;
+	x = z;
 }
 ", "
 void main() {
-	int* x = malloc(4);
-	x = calloc(4);
+	int* x = cast(int*) malloc(4);
+	x = cast(int*) calloc(5);
+	x = cast(int*) realloc(x, 6);
+	void* y = malloc(7);
+	void* z = x;
+	x = cast(int*) z;
 }
 ");
 
