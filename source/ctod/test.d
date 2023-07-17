@@ -439,10 +439,14 @@ void main() {
 const char *p0 = "con" "cat" "enated";
 char const *p1;
 char *const p2;
+const char p3[] = "abc", p4[] = "";
+const char p5[] = "\nab" "\x22" "";
 `, `
 const(char)* p0 = "con" ~ "cat" ~ "enated";
 const(char)* p1;
 char* p2;
+const(char)[4] p3 = "abc"; const(char)[1] p4 = "";
+const(char)[5] p5 = "\nab" ~ "\x22" ~ "";
 `);
 
 	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");

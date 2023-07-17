@@ -371,6 +371,7 @@ unittest {
 
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
+/// Returns: whether a type was found and parsed in `node`
 bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
 	switch(node.typeEnum) {
 		case Sym.init_declarator:
@@ -397,6 +398,10 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 					if (decl.type.isCArray()) {
 						decl.type = CType.array(decl.type.next[0], intToString(len));
 					}
+				}
+				const stringSize = stringInitializerSize(*valueNode);
+				if (decl.type.isCArray() && stringSize >= 0) {
+					decl.type = CType.array(decl.type.next[0], intToString(stringSize + 1));
 				}
 				decl.initializer = valueNode.output();
 			}
@@ -472,6 +477,63 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			break;
 	}
 	return false;
+}
+
+/// Returns: sizeof string initializer, excluding zero terminator, or -1 if not a string initializer
+int stringInitializerSize(ref Node node) {
+	if (node.typeEnum == Sym.concatenated_string) {
+		int stringSize = 0;
+		foreach (ref c; node.children) {
+			if (c.typeEnum == Sym.string_literal) {
+				stringSize += stringLiteralSize(c.source);
+			}
+		}
+		return stringSize;
+	} else if (node.typeEnum == Sym.string_literal) {
+		return stringLiteralSize(node.source);
+	} else {
+		return -1;
+	}
+}
+
+/// Returns: sizeof a string literal, excluding zero terminator
+/// because that should only be counted once for concatenated string literals
+/// Needed for initializing static char arrays.
+int stringLiteralSize(string s) {
+	int result = cast(int) (s.length + -2); // +1 for zero terminator, -2 for quotes
+	size_t p = 0;
+	while (p+1 < s.length) {
+		// escape sequences usually take 2 bytes but only produce 1
+		// exceptions are: \x32 \u0123 \U01234567
+		if (s[p] == '\\') {
+			p++;
+			switch (s[p]) {
+				case 'x':
+					result -= 1 + 2;
+					break;
+				// TODO: u and U require parsing to know exact size
+				case 'u':
+					result -= 1 + 2 - 3;
+					break;
+				case 'U':
+					result -= 1 + 8 - 3;
+					break;
+				default: result -= 1;
+			}
+		}
+		p++;
+	}
+	if (result < 0) {
+		return -1; // malformed string literal, e.g.
+	}
+	return cast(uint) result;
+}
+
+unittest {
+	assert(stringLiteralSize(`"abc"`) == 3);
+	assert(stringLiteralSize(`"\x22\n"`) == 2);
+	assert(stringLiteralSize(`"\U"`) == -1); // malformed
+	assert(stringLiteralSize(``) == -1); // malformed
 }
 
 package
