@@ -131,6 +131,20 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 				nameNode.prepend("(");
 				nameNode.append(") {");
 			} else if (auto c = node.firstChildType(Sym.aux_preproc_ifdef_token2)) {
+				// Recognize `#ifndef X (#define X Y) #endif`, treat as just `#define X Y`
+				if (node.children.length == 4) {
+					Node b = node.children[2];
+					if (b.typeEnum == Sym.preproc_def) {
+						if (auto cc = b.childField(Field.name)) {
+							if (cc.source == nameNode.source) {
+								translateNode(ctx, b);
+								node.replace(b.output);
+								return true;
+							}
+						}
+					}
+				}
+
 				// "#ifndef"
 				c.replace("version");
 				nameNode.prepend("(");

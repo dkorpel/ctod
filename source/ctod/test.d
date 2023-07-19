@@ -564,11 +564,19 @@ public import small;
 #define NO_HEADER_GUARD 3
 #endif
 ", "
-version (NO_HEADER_GUARD) {} else {
 enum NO_HEADER_GUARD = 3;
-}
+
 ");
 
+	test("
+#ifndef CONDITION
+#define NOT_THE_IFNDEF_CONDITION 99
+#endif
+", "
+version (CONDITION) {} else {
+enum NOT_THE_IFNDEF_CONDITION = 99;
+}
+");
 
 	test("
 #define TEST
