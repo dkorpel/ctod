@@ -152,11 +152,8 @@ pragma(inline, true) private void foo(int* x, int function() y) {
 ");
 
 	// array parameters
-	test(`
-		void farrays(int x[1], int y[][4], int z[3][5], int *w[5], int (*v)[5]);
-	`, `
-		void farrays(ref int[1] x, int[4]* y, ref int[5][3] z, ref int*[5] w, int[5]* v);
-	`);
+	test(`void farrays(int x[1], int y[][4], int z[3][5], int *w[5], int (*v)[5]);`,
+		`void farrays(int* x, int[4]* y, int[5]* z, int** w, int[5]* v);`);
 
 	// TODO: qualifiers in array parameter
 	// "void fquals(int x[const static 5]) {}"

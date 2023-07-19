@@ -698,6 +698,11 @@ pure nothrow:
 		final switch(tag) {
 			case Tag.cArray:
 				return next[0].toString() ~ "[$]";
+			case Tag.staticArrayParam:
+				// Possible to translate as `ref` parameter, but we also translate passing `sa` to `sa.ptr`
+				// So translating as pointer makes this more consistent
+				// return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
+				goto case;
 			case Tag.pointer:
 				if (next[0].isFunction) {
 					return fmtFunction(next[0].next[0], "function", next[0].params);
@@ -705,8 +710,6 @@ pure nothrow:
 					//format(isConst ? "const(%s*)" : "%s*", next[0]);
 					return isConst ? ("const("~next[0].toString()~"*)") : next[0].toString() ~ "*";
 				}
-			case Tag.staticArrayParam:
-				return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
 			case Tag.staticArray:
 				return next[0].toString() ~ "[" ~ countExpr ~ "]";
 			case Tag.funcDecl:
