@@ -172,9 +172,8 @@ nothrow:
 		currentTypeScope().fieldIndex++;
 	}
 
-	int uniqueIdCounter = 0;
 	string uniqueIdentifier(string suggestion) {
-		static toUpper(char c) {return cast(char) (c - (c >= 'a' && c <= 'z') * ('a' - 'A'));}
+		static char toUpper(char c) {return cast(char) (c - (c >= 'a' && c <= 'z') * ('a' - 'A'));}
 		if (suggestion.length > 0) {
 			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1..$];
 		} else {

@@ -294,13 +294,19 @@ bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals) {
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes) {
+Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, scope string* apiMacro = null) {
 	auto typeNode = node.childField(Field.type);
 	if (!typeNode) {
 		return null;
 	}
 	const oldLen = inlineTypes.length;
 	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes, false);
+
+	// This happens with API macros, which get parsed as a return type.
+	if (apiMacro && node.children.length > 1 && node.children[1].typeEnum == Sym.error) {
+		*apiMacro = primitiveType;
+		primitiveType = node.children[1].source;
+	}
 
 	// there may be multiple type_qualifier fields
 	// if (auto qualNode = node.childField(Field.type_qualifier))

@@ -151,6 +151,13 @@ union U {
 	);
 
 	test("inline static void foo(int x);", "pragma(inline, true) private void foo(int x);");
+
+	// Test API macro before function definition
+	test("WINAPI int** Whoa(void);", "WINAPI int** Whoa();");
+	// Unfortunately, tree-sitter sees this as 2 declarations with a missing ';',
+	// so there's no translation unsigned int => uint, but it should be clear what happened
+	test("MYAPI unsigned int f(void);", "MYAPI unsigned; int f();");
+
 	test("
 int main(void) {
 	static int xx;
@@ -389,7 +396,7 @@ alias B = X.B;
 
 	test("int so9 = sizeof(int) * 5;", "int so9 = int.sizeof * 5;");
 	test("int soA = sizeof(unsigned char) * 5;", "int soA = ubyte.sizeof * 5;");
-	test("int soB = = sizeof(int*) * 5;", "int soB = (int*).sizeof * 5;");
+	test("int soB = sizeof(int*) * 5;", "int soB = (int*).sizeof * 5;");
 	test("int soC = sizeof(struct mg_dns_header);", "int soC = mg_dns_header.sizeof;");
 
 	test("int of = offsetof(S, f);", "int of = S.f.offsetof;");

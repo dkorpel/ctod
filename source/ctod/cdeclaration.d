@@ -12,8 +12,13 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 	InlineType[] inlinetypes;
 
 	bool translateDecl(string suffix, bool cInit) {
-		Decl[] decls = parseDecls(ctx, node, inlinetypes);
+		string apiMacro;
+		Decl[] decls = parseDecls(ctx, node, inlinetypes, &apiMacro);
+
 		string result = "";
+		if (apiMacro.length > 0) {
+			result ~= apiMacro ~ " ";
+		}
 		foreach(s; inlinetypes) {
 			result ~= s.toString();
 		}

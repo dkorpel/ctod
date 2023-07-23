@@ -254,6 +254,7 @@ enum Field : ubyte {
 
 /// Identifies a C tree-sitter node
 enum Sym : ushort {
+	error = 0xFFFF,
 	identifier = 1,
 	aux_preproc_include_token1 = 2,
 	anon_LF = 3,
