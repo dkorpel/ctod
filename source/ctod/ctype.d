@@ -118,10 +118,12 @@ private string enumMemberAliases(string enumName, ref Node c) {
 string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque) {
 
 	// keyword = struct, union or enum
-	string namedType(string keyword) {
+	string namedType(string keyword, Sym sym) {
 		auto nameNode = node.childField(Field.name);
 		if (auto c = node.childField(Field.body_)) {
+			ctx.pushTypeScope(sym);
 			translateNode(ctx, *c);
+			ctx.popTypeScope();
 			string name = nameNode ? nameNode.source : null;
 
 			// Put enum members into the global scope with aliases
@@ -214,9 +216,9 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 				}
 			}
 			return primitive;
-		case Sym.struct_specifier: return namedType("struct");
-		case Sym.union_specifier: return namedType("union");
-		case Sym.enum_specifier: return namedType("enum");
+		case Sym.struct_specifier: return namedType("struct", node.typeEnum);
+		case Sym.union_specifier: return namedType("union", node.typeEnum);
+		case Sym.enum_specifier: return namedType("enum", node.typeEnum);
 		default: break;
 	}
 	return null;

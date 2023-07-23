@@ -99,6 +99,47 @@ struct S {
 }
 ");
 
+	// float in union
+	test("
+typedef union
+{
+    uint u;
+    float f;
+} FP32;
+", "
+union _FP32 {
+    uint_ u;
+    float f;
+}alias FP32 = _FP32;
+");
+
+	test("
+union U { float f, x; };
+", "
+union U { float f = 0, x; }
+");
+
+	// Nested scopes
+	test("
+union U {
+	float x;
+	struct {
+		float y;
+		union { float z; float a; };
+		float b;
+	};
+	float c;
+};", "
+union U {
+	float x = 0;
+	struct  {
+		float y = 0;
+		union  { float z = 0; float a; };
+		float b = 0;
+	};
+	float c;
+}");
+
 	test(
 		"int (*f1[4])(void);",
 		"int function()[4] f1;"

@@ -19,11 +19,12 @@ bool ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 		}
 		CType previousType = CType.none;
 		foreach(d; decls) {
-			// `char x;` => `char x = 0;`
 			if (cInit && d.initializer.length == 0) {
 				if (ctx.inFunction && !d.quals.staticFunc) {
+					// void initialize function local variables
 					d.initializer = "void";
-				} else if (noZeroInitInD(d.type)) {
+				} else if (noZeroInitInD(d.type) && !(ctx.inUnion && ctx.currentTypeScope().fieldIndex > 0)) {
+					// `char x;` => `char x = 0;`
 					d.initializer = "0";
 				}
 			}

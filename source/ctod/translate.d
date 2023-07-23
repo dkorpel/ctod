@@ -73,6 +73,11 @@ enum MacroType {
 	staticIf,
 }
 
+/// Variables for a `struct` / `union` / `enum` declaration
+struct TypeScope {
+	Sym sym; // Sym.union_specifier, Sym.struct_specifier, Sym.enum_specifier
+	int fieldIndex = 0; // counts up every declaration
+}
 /// Translation context, all 'global' state
 package
 struct CtodCtx {
@@ -101,21 +106,38 @@ struct CtodCtx {
 	string inFunction = null; // name of the function we're currently in
 	CType inDeclType = CType.none; // type of the declaration we're currently in
 	int inParameterList = 0; // If we're in a parameter list (function types can be nested, so not a bool)
+	private TypeScope[] typeScope = null; // stack of "struct" "enum" "union"
 
 nothrow:
 
 	this(string fileName, string source) {
 		this.fileName = fileName;
 		this.source = source;
+		this.typeScope = [TypeScope(Sym.null_)];
 	}
 
 	void enterFunction(string functionName) {
-		inFunction = functionName;
+		this.inFunction = functionName;
 	}
 
 	void leaveFunction() @trusted {
-		inFunction = null;
-		localSymbolTable.clear();
+		this.inFunction = null;
+		this.localSymbolTable.clear();
+	}
+
+	void pushTypeScope(Sym sym) {
+		this.typeScope ~= TypeScope(sym);
+	}
+
+	void popTypeScope() {
+		this.typeScope.length--;
+	}
+
+	/// Gives info what struct / union we're in
+	ref TypeScope currentTypeScope() { return this.typeScope[$-1]; }
+
+	bool inUnion() {
+		return currentTypeScope().sym == Sym.union_specifier;
 	}
 
 	CType expType(ref Node node) {
@@ -147,6 +169,7 @@ nothrow:
 				symbolTable[decl.identifier] = decl;
 			}
 		}
+		currentTypeScope().fieldIndex++;
 	}
 
 	int uniqueIdCounter = 0;

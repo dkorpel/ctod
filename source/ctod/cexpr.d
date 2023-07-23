@@ -244,13 +244,28 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r) {
 			return;
 		}
 		const castStr = "cast(" ~ lType.toString() ~ ") ";
-		// Always add parentheses to avoid operator precedence issues, except a few easy cases
-		if (r.typeEnum == Sym.call_expression || r.typeEnum == Sym.identifier) {
+		if (!mayNeedParens(r)) {
 			r.prepend(castStr);
 		} else {
 			r.prepend(castStr ~ "(");
 			r.append(")");
 		}
+	}
+}
+
+/// Returns: `true` if attaching an operator to this `node` may introduce operator precedence issues,
+///   `false` if it's an atomic primairy expression where surrounding it with parens is always redundant
+private bool mayNeedParens(ref Node node) {
+	switch (node.typeEnum) {
+		case Sym.call_expression:
+		case Sym.identifier:
+		case Sym.null_:
+		case Sym.number_literal:
+		case Sym.parenthesized_expression:
+		case Sym.string_literal:
+			return false;
+		default:
+			return true;
 	}
 }
 
