@@ -8,13 +8,6 @@ import ctod.cdeclaration;
 import ctod.cexpr;
 import ctod.cpreproc;
 
-// Enable switching to custom Associative Array type
-version(none) {
-	import bops.ds.hashtable: Map = HashTable;
-} else {
-	alias Map(K, V) = V[K];
-}
-
 import tree_sitter.api;
 
 private immutable hasVersion = `

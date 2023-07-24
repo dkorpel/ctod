@@ -227,6 +227,9 @@ void main() {
 }
 ");
 
+	// convert 0 to `null`
+	test(`void f() { FILE *f = 0; f = 0; f = 1; }`, `void f() { FILE* f = null; f = null; f = cast(FILE*) 1; }`);
+
 	test("typedef int intArr[3], intScalar;", "alias intArr = int[3];\nalias intScalar = int;");
 
 	test("typedef struct X X;", "");
@@ -738,6 +741,19 @@ double f(int count, ...)
 	return 0.0;
 }
 `);
+
+	// TODO: prevent disappearing source code
+	test(`void main(void) {
+	if (1) {}
+#if defined(SUPPORT_XXX)
+	else if (cmp(n, "XXX")) x = LoadX(n, 0);
+#endif
+}`, `void main() {
+	if (1) {}
+version (SUPPORT_XXX) {
+	else if = LoadX(n, 0);
+}
+}`);
 
 	// tree-sitter doesn't parse this right, need to do manual preprocessing
 	version(none) test("

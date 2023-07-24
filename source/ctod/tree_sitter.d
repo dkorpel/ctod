@@ -2,8 +2,9 @@ module ctod.tree_sitter;
 
 nothrow @safe:
 
+// Enable switching to custom Associative Array type
 version(none) {
-	import bops.ds.hashtable: Map = HashTable;
+	public import bops.ds.hashtable: Map = HashTable;
 } else {
 	alias Map(K, V) = V[K];
 }

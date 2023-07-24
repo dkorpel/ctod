@@ -227,10 +227,24 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 	return false;
 }
 
+/// Fix assignment/initialization of node `r` to a node of type `lType`
+///
 /// C allows implicitly converting any T* -> U*, in D only T* -> `void*` gets that treatment
 /// Try to fix this by adding explicit casts
+/// C also allows converting numbers to pointers.
 void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r) {
 	CType rType = ctx.expType(r);
+
+	void castR() {
+		const castStr = "cast(" ~ lType.toString() ~ ") ";
+		if (!mayNeedParens(r)) {
+			r.prepend(castStr);
+		} else {
+			r.prepend(castStr ~ "(");
+			r.append(")");
+		}
+	}
+
 	if (lType.isPointer && rType.isPointer) {
 		if (lType.next[0] == rType.next[0]) {
 			return;
@@ -243,12 +257,15 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r) {
 			// we don't want to simply cast away const with D string literals
 			return;
 		}
-		const castStr = "cast(" ~ lType.toString() ~ ") ";
-		if (!mayNeedParens(r)) {
-			r.prepend(castStr);
+		castR();
+	}
+	if (lType.isPointer && r.typeEnum == Sym.number_literal) {
+		if (r.source == "0") {
+			// int* x = 0; => int* x = null;
+			r.replace("null");
 		} else {
-			r.prepend(castStr ~ "(");
-			r.append(")");
+			// int* x = 3; => int* x = cast(int*) 3;
+			castR();
 		}
 	}
 }
