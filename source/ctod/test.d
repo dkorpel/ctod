@@ -527,6 +527,7 @@ void main() {
 	int z[4] = { 0 };
 	float w[4] = {};
 }
+int b[4] = { 0, 1 };
 ", "
 int[4] x = 0;
 int[4] y = [ 1 ];
@@ -534,6 +535,7 @@ void main() {
 	int[4] z = 0;
 	float[4] w = 0;
 }
+int[4] b = [ 0, 1 ];
 ");
 
 	test(

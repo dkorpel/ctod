@@ -63,6 +63,7 @@ enum MacroType {
 	manifestConstant, // #define three 3
 	inlineFunc, // #define SQR(x) (x*x)
 	versionId, // #ifdef _WIN32_
+	emptyFunc, // #define F(x)
 	staticIf,
 }
 

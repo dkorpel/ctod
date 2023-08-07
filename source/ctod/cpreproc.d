@@ -93,7 +93,9 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 				return true;
 			}
 			if (!valueNode) {
+				// #define F(x)
 				node.prepend("//");
+				ctx.macroTable[nameNode.output()] = MacroType.emptyFunc;
 				return true;
 			}
 			// #define

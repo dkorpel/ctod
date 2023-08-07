@@ -404,7 +404,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 					// int x[4] = {0} => int[4] x = 0
 					// Important because in function scope, all elements must be in [] initializer
 					if (decl.type.isStaticArray()) {
-						if (firstElem == "0" || len == 0) {
+						if ((len == 1 && firstElem == "0") || len == 0) {
 							valueNode.replace("0");
 						}
 					}
