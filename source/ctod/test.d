@@ -27,7 +27,7 @@ version(none)
 	);
 }
 
-@("test time complexity") unittest {
+@("time complexity") unittest {
 	// Accidental binary recursion when constructing the node tree gave exponential time complexity
 	// This test won't finish in a reasonable time if that happens again
 	test("int y = (((((((((((((((((((((((((((((((((((((((((((((((((((((x)))))))))))))))))))))))))))))))))))))))))))))))))))));",
@@ -113,11 +113,7 @@ union _FP32 {
 }alias FP32 = _FP32;
 ");
 
-	test("
-union U { float f, x; };
-", "
-union U { float f = 0, x; }
-");
+	test("union U { float f, x; };", "union U { float f = 0, x; }");
 
 	// Nested scopes
 	test("
@@ -215,6 +211,7 @@ void main() {
 	void *y = malloc(7);
 	void *z = x;
 	x = z;
+	x = NULL;
 }
 ", "
 void main() {
@@ -224,6 +221,7 @@ void main() {
 	void* y = malloc(7);
 	void* z = x;
 	x = cast(int*) z;
+	x = null;
 }
 ");
 
@@ -401,6 +399,7 @@ alias B = X.B;
 	test("int soA = sizeof(unsigned char) * 5;", "int soA = ubyte.sizeof * 5;");
 	test("int soB = sizeof(int*) * 5;", "int soB = (int*).sizeof * 5;");
 	test("int soC = sizeof(struct mg_dns_header);", "int soC = mg_dns_header.sizeof;");
+	test("int soD = sizeof(struct {int x; int y;});", "int soD = .sizeof;"); // TODO
 
 	test("int of = offsetof(S, f);", "int of = S.f.offsetof;");
 	test("int of = offsetof(S, f, g);", "int of = offsetof(S, f, g);");
@@ -410,7 +409,8 @@ alias B = X.B;
 
 @("numbers") unittest {
 	test("float x = 1.f;", "float x = 1.0f;");
-	test("float x = FLT_MAX;", "float x = FLT_MAX;"); // TODO
+	test("float x = FLT_MAX;", "float x = float.max;");
+	test("int x = DBL_MAX_10_EXP + DBL_MAX_EXP;", "int x = double.max_10_exp + double.max_exp;");
 }
 
 @("cast") unittest {
@@ -443,6 +443,8 @@ int *bar(int y, ...) {
 	}
 	for (;;);
 	for (unsigned short x = 0;;);
+	for (int x = 0, *y = NULL;;);
+
 	switch(0) {
 		case 1: break;
 	}
@@ -457,6 +459,8 @@ int* bar(int y, ...) {
 	}
 	for (;;){}
 	for (ushort x = 0;;){}
+	for ({int x = 0; int* y = null;};){}
+
 	switch(0) {
 		case 1: break;
 	default: break;}
@@ -591,11 +595,29 @@ S a = {
 #include <string.h>
 # include <stdio.h>
 #include \"small.c\"
+#include <winuser.h>
+#include <linux/limits.h>
+#include <sys/inotify.h>
+#include <sys/timerfd.h>
+#include <sys/ioctl.h>
+#include \"my/lib.h\"
+#include <pthread.h>
+#include <cfile.c>
+#include <x>
 ", "
 public import core.stdc.assert_;
 public import core.stdc.string;
 public import core.stdc.stdio;
 public import small;
+public import core.sys.windows.winuser;
+public import core.stdc.limits;
+public import core.sys.linux.sys.inotify;
+public import core.sys.linux.sys.timerfd;
+public import core.sys.posix.sys.ioctl;
+public import my.lib;
+public import core.sys.posix.pthread;
+public import cfile;
+public import x;
 ");
 
 	test("#undef X", "");
@@ -636,6 +658,9 @@ enum NOT_THE_IFNDEF_CONDITION = 99;
 #define PI 3.14159265
 #define LOL(x)
 #define SQR(x) (x*x)
+int x = SQR(3);
+#define MIN(a,b) (((a)<(b))?(a):(b))
+int y = MIN(1,2);
 #define WITHCOMMENT//c
 #define WITHCOMMENT1 '@'// c
 #define WITHCOMMENTS /*a*/ '@' /*b*/ // c
@@ -643,7 +668,10 @@ enum NOT_THE_IFNDEF_CONDITION = 99;
 version = TEST;
 enum PI = 3.14159265;
 //#define LOL(x)
-enum string SQR(string x) = ` (x*x)`;
+enum string SQR(string x) = `(` ~ x ~ `*` ~ x ~ `)`;
+int x = mixin(SQR!(`3`));
+enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
+int y = mixin(MIN!(`1`,`2`));
 version = WITHCOMMENT;//c
 enum WITHCOMMENT1 = '@';// c
 enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
@@ -768,13 +796,29 @@ extern \"C\" {
 #endif
 ");
 
-	version(none) test(`
-#define _GLFW_CONCAT_VERSION(m, n, r) #m "." #n "." #r
-#define _GLFW_MAKE_VERSION(m, n, r) _GLFW_CONCAT_VERSION(m, n, r)
-#define _GLFW_VERSION_NUMBER _GLFW_MAKE_VERSION(GLFW_VERSION_MAJOR, \
-												GLFW_VERSION_MINOR, \
-												GLFW_VERSION_REVISION)
-`, "TODO"
+	test(`
+#define _CONCAT_VERSION(m, n, r) #m "." #n "." #r
+#define _MAKE_VERSION(m, n, r) _CONCAT_VERSION(m, n, r)
+`, "
+enum string _CONCAT_VERSION(string m, string n, string r) = `#m \".\" #n \".\" #r`;
+enum string _MAKE_VERSION(string m, string n, string r) = `` ~ _CONCAT_VERSION!(` ~ `m` ~ `, ` ~ `n` ~ `, ` ~ `r` ~ `) ~ ``;
+"
 );
 
+	test(`
+#define _VERSION_NUMBER _MAKE_VERSION(VERSION_MAJOR, \
+	VERSION_MINOR, \
+	VERSION_REVISION)
+`, "
+enum _VERSION_NUMBER = _MAKE_VERSION(VERSION_MAJOR, \\
+	VERSION_MINOR, \\
+	VERSION_REVISION);
+"
+);
+
+}
+
+@("misc") unittest {
+	// strip backslash before newline
+	test("int x = 3\\\n*4;", "int x = 3\n*4;");
 }

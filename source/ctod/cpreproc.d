@@ -20,7 +20,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 			return node.replace("}");
 		case Sym.aux_preproc_include_token1: // "#include"
 			return node.replace("public import");
-		case Sym.preproc_call:
+		case Sym.preproc_call: // #error, #pragma, #undef
 			auto argument = node.childField(Field.argument);
 			if (auto directive = node.childField(Field.directive)) {
 				if (directive.source == "#error") {
@@ -108,11 +108,16 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 			string[] params;
 			foreach(ref param; parametersNode.children) {
 				if (param.typeEnum == Sym.identifier) {
+					ctx.macroFuncParams[param.source] = true;
 					params ~= param.source;
 					param.prepend("string ");
 				}
 			}
-			valueNode.replace(" = `" ~ valueNode.source ~ "`;");
+
+			valueNode.prepend(" = `");
+			valueNode.replace(ctodMacroFunc(ctx, valueNode.source));
+			(() @trusted => ctx.macroFuncParams.clear())();
+			valueNode.append("`;");
 			break;
 		case Sym.preproc_ifdef:
 			removeSemicolons(node);
@@ -124,7 +129,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 				return true;
 			}
 			string versionName = nameNode.source;
-			if (string s = ctodVersion(nameNode.source)) {
+			if (string s = mapLookup(versionMap, nameNode.source, null)) {
 				nameNode.replace(s);
 				versionName = s;
 			}
@@ -210,7 +215,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 			if (node.source.length < "<>".length) {
 				return false; // to short to slice
 			}
-			string lib = node.source[1..$-1]; // slice to strip off angle brackets in <stdio.h>
+			string lib = node.source[1 .. $-1]; // slice to strip off angle brackets in <stdio.h>
 			node.replace(ctodSysLib(lib));
 			break;
 		case Sym.preproc_include:
@@ -231,6 +236,31 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 	return false;
 }
 
+/// Find params in macroText, and surround them with ~""~
+string ctodMacroFunc(ref CtodCtx ctx, string macroText) {
+	while (macroText.length > 0 && macroText[0] == ' ') {
+		macroText = macroText[1 .. $];
+	}
+	// Assume the macro expand to an expression, statement, or variable declaration
+	// We need to wrap it in a function because tree-sitter parses a translation unit
+	// Then extract the function body and remove braces
+	string funcStr = "void __macroFunc(void) {"~macroText~"}";
+	auto root = parseCtree(ctx.parser, funcStr);
+	if (!root || !root.children.length > 0) {
+		return macroText;
+	}
+	translateNode(ctx, *root);
+	auto f = root.children[0].childField(Field.body_);
+	if (!f || !f.children.length > 0) {
+		return macroText;
+	}
+	foreach (ref c; f.children) {
+		if (c.typeEnum == Sym.anon_LBRACE || c.typeEnum == Sym.anon_RBRACE) {
+			c.replace("");
+		}
+	}
+	return f.output();
+}
 
 /// Try to remove a header guard
 ///
@@ -297,7 +327,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode) {
 bool replaceDefined(ref CtodCtx ctx, ref Node node, bool inVersionStatement) {
 	if (auto c = node.firstChildType(Sym.identifier)) {
 		string replacement = c.source;
-		if (string s = ctodVersion(c.source)) {
+		if (string s = mapLookup(versionMap, c.source, null)) {
 			c.replace(s); // known #define translation
 			replacement = s;
 		} else {
@@ -313,6 +343,7 @@ bool replaceDefined(ref CtodCtx ctx, ref Node node, bool inVersionStatement) {
 	return false;
 }
 
+/// Map C define to D version identifier, to replace e.g. `#ifdef _WIN32` with `version(Windows)`
 private immutable string[2][] versionMap = [
 	["__WIN32__",   "Windows"],
 	["WIN32",       "Windows"],
@@ -325,15 +356,6 @@ private immutable string[2][] versionMap = [
 	["__cplusplus", "none"],
 ];
 
-/// Find version string to e.g. replace `#ifdef _WIN32` with `version(Windows)`
-string ctodVersion(string s) {
-	return mapLookup(versionMap, s, null);
-}
-
-@("ctodVersion") unittest {
-	assert(ctodVersion("__WIN32__") == "Windows");
-}
-
 /// Translate the include <> or "" path, for:
 ///
 /// #include <folder/file.h> => import folder.file;
@@ -341,14 +363,20 @@ string ctodIncludePath(string s) pure {
 	if (s.length < 5) {
 		return null; // <a.h>
 	}
-	auto res = s[1..$-2].dup;
-	foreach(i; 0..res.length) {
-		if (res[i] == '/') {
-			res[i] = '.';
-		}
-	}
+	s = s[1 .. $-2];
+	auto res = s.dup;
+	replaceChar(res, '/', '.');
 	res[$-1] = ';';
 	return (() @trusted => cast(immutable) res)();
+}
+
+/// Replace all occurences of `from` with `to` in `s`
+void replaceChar(char[] s, char from, char to) pure {
+	foreach(i; 0 .. s.length) {
+		if (s[i] == from) {
+			s[i] = to;
+		}
+	}
 }
 
 @("ctodIncludePath") unittest {
@@ -357,264 +385,73 @@ string ctodIncludePath(string s) pure {
 
 // C standard lib header translation
 // prefix: core.stdc.
-private immutable string[2][] libcMap = [
-	["assert.h",   "assert_"],
-	["complex.h",  "complex"],
-	["config.h",   "config"],
-	["ctype.h",    "ctype"],
-	["errno.h",    "errno"],
-	["fenv.h",     "fenv"],
-	["float_.h",   "float_"],
-	["inttypes.h", "inttypes"],
-	["limits.h",   "limits"],
-	["locale.h",   "locale"],
-	["math.h",     "math"],
-	["signal.h",   "signal"],
-	["stdarg.h",   "stdarg"],
-	["stddef.h",   "stddef"],
-	["stdint.h",   "stdint"],
-	["stdio.h",    "stdio"],
-	["stdlib.h",   "stdlib"],
-	["string.h",   "string"],
-	["tgmath.h",   "tgmath"],
-	["time.h",     "time"],
-	["wchar.h",    "wchar_"],
-	["wctype.h",   "wctype"],
+private immutable string[] libcMap = [
+	"complex", "config", "ctype", "errno", "fenv",
+	"inttypes", "limits", "locale", "math", "signal",
+	"stdarg", "stddef", "stdint", "stdio", "stdlib",
+	"string", "tgmath", "time", "wctype",
 ];
 
 // Windows header translation
 // prefix: core.sys.windows
-private immutable string[2][] windowsMap = [
-	["accctrl.h",       "accctrl"],
-	["aclapi.h",        "aclapi"],
-	["aclui.h",         "aclui"],
-	["basetsd.h",       "basetsd"],
-	["basetyps.h",      "basetyps"],
-	["cderr.h",         "cderr"],
-	["cguid.h",         "cguid"],
-	["com.h",           "com"],
-	["comcat.h",        "comcat"],
-	["commctrl.h",      "commctrl"],
-	["commdlg.h",       "commdlg"],
-	["core.h",          "core"],
-	["cpl.h",           "cpl"],
-	["cplext.h",        "cplext"],
-	["custcntl.h",      "custcntl"],
-	["dbghelp.h",       "dbghelp"],
-	["dbghelp_types.h", "dbghelp_types"],
-	["dbt.h",           "dbt"],
-	["dde.h",           "dde"],
-	["ddeml.h",         "ddeml"],
-	["dhcpcsdk.h",      "dhcpcsdk"],
-	["dlgs.h",          "dlgs"],
-	["dll.h",           "dll"],
-	["docobj.h",        "docobj"],
-	["errorrep.h",      "errorrep"],
-	["exdisp.h",        "exdisp"],
-	["exdispid.h",      "exdispid"],
-	["httpext.h",       "httpext"],
-	["idispids.h",      "idispids"],
-	["imagehlp.h",      "imagehlp"],
-	["imm.h",           "imm"],
-	["intshcut.h",      "intshcut"],
-	["ipexport.h",      "ipexport"],
-	["iphlpapi.h",      "iphlpapi"],
-	["ipifcons.h",      "ipifcons"],
-	["iprtrmib.h",      "iprtrmib"],
-	["iptypes.h",       "iptypes"],
-	["isguids.h",       "isguids"],
-	["lm.h",            "lm"],
-	["lmaccess.h",      "lmaccess"],
-	["lmalert.h",       "lmalert"],
-	["lmapibuf.h",      "lmapibuf"],
-	["lmat.h",          "lmat"],
-	["lmaudit.h",       "lmaudit"],
-	["lmbrowsr.h",      "lmbrowsr"],
-	["lmchdev.h",       "lmchdev"],
-	["lmconfig.h",      "lmconfig"],
-	["lmcons.h",        "lmcons"],
-	["lmerr.h",         "lmerr"],
-	["lmerrlog.h",      "lmerrlog"],
-	["lmmsg.h",         "lmmsg"],
-	["lmremutl.h",      "lmremutl"],
-	["lmrepl.h",        "lmrepl"],
-	["lmserver.h",      "lmserver"],
-	["lmshare.h",       "lmshare"],
-	["lmsname.h",       "lmsname"],
-	["lmstats.h",       "lmstats"],
-	["lmsvc.h",         "lmsvc"],
-	["lmuse.h",         "lmuse"],
-	["lmuseflg.h",      "lmuseflg"],
-	["lmwksta.h",       "lmwksta"],
-	["lzexpand.h",      "lzexpand"],
-	["mapi.h",          "mapi"],
-	["mciavi.h",        "mciavi"],
-	["mcx.h",           "mcx"],
-	["mgmtapi.h",       "mgmtapi"],
-	["mmsystem.h",      "mmsystem"],
-	["msacm.h",         "msacm"],
-	["mshtml.h",        "mshtml"],
-	["mswsock.h",       "mswsock"],
-	["nb30.h",          "nb30"],
-	["nddeapi.h",       "nddeapi"],
-	["nspapi.h",        "nspapi"],
-	["ntdef.h",         "ntdef"],
-	["ntdll.h",         "ntdll"],
-	["ntldap.h",        "ntldap"],
-	["ntsecapi.h",      "ntsecapi"],
-	["ntsecpkg.h",      "ntsecpkg"],
-	["oaidl.h",         "oaidl"],
-	["objbase.h",       "objbase"],
-	["objfwd.h",        "objfwd"],
-	["objidl.h",        "objidl"],
-	["objsafe.h",       "objsafe"],
-	["ocidl.h",         "ocidl"],
-	["odbcinst.h",      "odbcinst"],
-	["ole.h",           "ole"],
-	["ole2.h",          "ole2"],
-	["ole2ver.h",       "ole2ver"],
-	["oleacc.h",        "oleacc"],
-	["oleauto.h",       "oleauto"],
-	["olectl.h",        "olectl"],
-	["olectlid.h",      "olectlid"],
-	["oledlg.h",        "oledlg"],
-	["oleidl.h",        "oleidl"],
-	["pbt.h",           "pbt"],
-	["powrprof.h",      "powrprof"],
-	["prsht.h",         "prsht"],
-	["psapi.h",         "psapi"],
-	["rapi.h",          "rapi"],
-	["ras.h",           "ras"],
-	["rasdlg.h",        "rasdlg"],
-	["raserror.h",      "raserror"],
-	["rassapi.h",       "rassapi"],
-	["reason.h",        "reason"],
-	["regstr.h",        "regstr"],
-	["richedit.h",      "richedit"],
-	["richole.h",       "richole"],
-	["rpc.h",           "rpc"],
-	["rpcdce.h",        "rpcdce"],
-	["rpcdce2.h",       "rpcdce2"],
-	["rpcdcep.h",       "rpcdcep"],
-	["rpcndr.h",        "rpcndr"],
-	["rpcnsi.h",        "rpcnsi"],
-	["rpcnsip.h",       "rpcnsip"],
-	["rpcnterr.h",      "rpcnterr"],
-	["schannel.h",      "schannel"],
-	["sdkddkver.h",     "sdkddkver"],
-	["secext.h",        "secext"],
-	["security.h",      "security"],
-	["servprov.h",      "servprov"],
-	["setupapi.h",      "setupapi"],
-	["shellapi.h",      "shellapi"],
-	["shldisp.h",       "shldisp"],
-	["shlguid.h",       "shlguid"],
-	["shlobj.h",        "shlobj"],
-	["shlwapi.h",       "shlwapi"],
-	["snmp.h",          "snmp"],
-	["sql.h",           "sql"],
-	["sqlext.h",        "sqlext"],
-	["sqltypes.h",      "sqltypes"],
-	["sqlucode.h",      "sqlucode"],
-	["sspi.h",          "sspi"],
-	["stacktrace.h",    "stacktrace"],
-	["stat.h",          "stat"],
-	["subauth.h",       "subauth"],
-	["threadaux.h",     "threadaux"],
-	["tlhelp32.h",      "tlhelp32"],
-	["tmschema.h",      "tmschema"],
-	["unknwn.h",        "unknwn"],
-	["uuid.h",          "uuid"],
-	["vfw.h",           "vfw"],
-	["w32api.h",        "w32api"],
-	["winbase.h",       "winbase"],
-	["winber.h",        "winber"],
-	["wincon.h",        "wincon"],
-	["wincrypt.h",      "wincrypt"],
-	["windef.h",        "windef"],
-	["windows.h",       "windows"],
-	["winerror.h",      "winerror"],
-	["wingdi.h",        "wingdi"],
-	["winhttp.h",       "winhttp"],
-	["wininet.h",       "wininet"],
-	["winioctl.h",      "winioctl"],
-	["winldap.h",       "winldap"],
-	["winnetwk.h",      "winnetwk"],
-	["winnls.h",        "winnls"],
-	["winnt.h",         "winnt"],
-	["winperf.h",       "winperf"],
-	["winreg.h",        "winreg"],
-	["winsock2.h",      "winsock2"],
-	["winspool.h",      "winspool"],
-	["winsvc.h",        "winsvc"],
-	["winuser.h",       "winuser"],
-	["winver.h",        "winver"],
-	["wtsapi32.h",      "wtsapi32"],
-	["wtypes.h",        "wtypes"],
+private immutable string[] windowsMap = [
+	"accctrl", "aclapi", "aclui", "basetsd", "basetyps", "cderr", "cguid", "com", "comcat", "commctrl", "commdlg",
+	"core", "cpl", "cplext", "custcntl", "dbghelp", "dbghelp_types", "dbt", "dde", "ddeml", "dhcpcsdk", "dlgs",
+	"dll", "docobj", "errorrep", "exdisp", "exdispid", "httpext", "idispids", "imagehlp", "imm", "intshcut",
+	"ipexport", "iphlpapi", "ipifcons", "iprtrmib", "iptypes", "isguids", "lm", "lmaccess", "lmalert", "lmapibuf",
+	"lmat", "lmaudit", "lmbrowsr", "lmchdev", "lmconfig", "lmcons", "lmerr", "lmerrlog", "lmmsg", "lmremutl",
+	"lmrepl", "lmserver", "lmshare", "lmsname", "lmstats", "lmsvc", "lmuse", "lmuseflg", "lmwksta", "lzexpand",
+	"mapi", "mciavi", "mcx", "mgmtapi", "mmsystem", "msacm", "mshtml", "mswsock", "nb30", "nddeapi", "nspapi",
+	"ntdef", "ntdll", "ntldap", "ntsecapi", "ntsecpkg", "oaidl", "objbase", "objfwd", "objidl", "objsafe", "ocidl",
+	"odbcinst", "ole", "ole2", "ole2ver", "oleacc", "oleauto", "olectl", "olectlid", "oledlg", "oleidl", "pbt",
+	"powrprof", "prsht", "psapi", "rapi", "ras", "rasdlg", "raserror", "rassapi", "reason", "regstr", "richedit",
+	"richole", "rpc", "rpcdce", "rpcdce2", "rpcdcep", "rpcndr", "rpcnsi", "rpcnsip", "rpcnterr", "schannel",
+	"sdkddkver", "secext", "security", "servprov", "setupapi", "shellapi", "shldisp", "shlguid", "shlobj",
+	"shlwapi", "snmp", "sql", "sqlext", "sqltypes", "sqlucode", "sspi", "stacktrace", "stat", "subauth",
+	"threadaux", "tlhelp32", "tmschema", "unknwn", "uuid", "vfw", "w32api", "winbase", "winber", "wincon",
+	"wincrypt", "windef", "windows", "winerror", "wingdi", "winhttp", "wininet", "winioctl", "winldap",
+	"winnetwk", "winnls", "winnt", "winperf", "winreg", "winsock2", "winspool", "winsvc", "winuser",
+	"winver", "wtsapi32", "wtypes"
 ];
 
 // prefix: core.sys.posix
-private immutable string[2][] posixMap = [
-	["aio.h",          "aio"],
-	["ar.h",           "ar"],
-	["dirent.h",       "dirent"],
-	["dlfcn.h",        "dlfcn"],
-	["fcntl.h",        "fcntl"],
-	["grp.h",          "grp"],
-	["iconv.h",        "iconv"],
-	["libgen.h",       "libgen"],
-	["n.h",            "n"],
-	["netdb.h",        "netdb"],
-	["netin.h",        "netin"],
-	["poll.h",         "poll"],
-	["pthread.h",      "pthread"],
-	["pwd.h",          "pwd"],
-	["s.h",            "s"],
-	["sched.h",        "sched"],
-	["semaphore.h",    "semaphore"],
-	["setjmp.h",       "setjmp"],
-	["sys/filio.h",    "sys.filio"],
-	["sys/ioccom.h",   "sys.ioccom"],
-	["sys/ioctl.h",    "sys.ioctl"],
-	["sys/ipc.h",      "sys.ipc"],
-	["sys/mman.h",     "sys.mman"],
-	["sys/msg.h",      "sys.msg"],
-	["sys/resource.h", "sys.resource"],
-	["sys/select.h",   "sys.select"],
-	["sys/shm.h",      "sys.shm"],
-	["sys/socket.h",   "sys.socket"],
-	["sys/stat.h",     "sys.stat"],
-	["sys/statvfs.h",  "sys.statvfs"],
-	["sys/time.h",     "sys.time"],
-	["sys/ttycom.h",   "sys.ttycom"],
-	["sys/types.h",    "sys.types"],
-	["sys/uio.h",      "sys.uio"],
-	["sys/un.h",       "sys.un"],
-	["sys/utsname.h",  "sys.utsname"],
-	["sys/wait.h",     "sys.wait"],
-	["syslog.h",       "syslog"],
-	["termios.h",      "termios"],
-	["ucontext.h",     "ucontext"],
-	["unistd.h",       "unistd"],
-	["utime.h",        "utime"],
+private immutable string[] posixMap = [
+	"aio", "ar", "dirent", "dlfcn", "fcntl", "grp", "iconv", "libgen", "n",
+	"netdb", "netin", "poll", "pthread", "pwd", "s", "sched", "semaphore",
+	"setjmp",
+	"syslog", "termios", "ucontext", "unistd", "utime"
+];
 
-	// Covered by libc:
-	["config.h",   "config"],
-	["inttypes.h", "inttypes"],
-	["signal.h",   "signal"],
-	["stdio.h",    "stdio"],
-	["stdlib.h",   "stdlib"],
-	["time.h",     "time"],
+private immutable string[] posixSysMap = [
+	"sys/filio", "sys/ioccom", "sys/ioctl", "sys/ipc", "sys/mman", "sys/msg",
+	"sys/resource", "sys/select", "sys/shm", "sys/socket", "sys/stat",
+	"sys/statvfs", "sys/time", "sys/ttycom", "sys/types", "sys/uio", "sys/un",
+	"sys/utsname", "sys/wait"
 ];
 
 private immutable string[2][] miscMap = [
+	["assert",   "core.stdc.assert_"],
+	["float_",   "core.stdc.float_"],
+	["wchar",    "core.stdc.wchar_"],
 	["linux/limits" ,  "core.stdc.limits"],
-	["sys/inotify.h",  "core.sys.linux.sys.inotify"],
+	["sys/inotify",    "core.sys.linux.sys.inotify"],
 	["sys/timerfd",    "core.sys.linux.sys.timerfd"],
 ];
 
 /// translate #include<> to an import in druntime.
 string ctodSysLib(string s) {
+	if (s.length < 2) {
+		return s ~ ";";
+	}
+	// strip .h or .c extension
+	const ext = s[$-1];
+	if (s[$-2] == '.' && ext == 'h' || ext == 'i' || ext == 'c') {
+		s = s[0 .. $-2];
+		if (ext != 'h') {
+			return s ~ ";";
+		}
+	}
+
 	if (auto r = mapLookup(libcMap, s, null)) {
 		return "core.stdc." ~ r ~ ";";
 	}
@@ -624,19 +461,12 @@ string ctodSysLib(string s) {
 	if (auto r = mapLookup(posixMap, s, null)) {
 		return "core.sys.posix." ~ r ~ ";";
 	}
+	if (auto r = mapLookup(posixSysMap, s, null)) {
+		return "core.sys.posix.sys." ~ r["sys/".length .. $] ~ ";";
+	}
 	if (auto r = mapLookup(miscMap, s, null)) {
-		return r;
+		return r ~ ";";
 	}
 
-	if (s.length < 2) {
-		return null;
-	}
-	// strip .h or .c extension
-	const ext = s[$-1];
-	if (s[$-2] == '.' && ext == 'h' || ext == 'i' || ext == 'c') {
-		return s[0..$-2] ~ ";";
-	}
-
-	// unknown extension
-	return null;
+	return s ~ ";";
 }

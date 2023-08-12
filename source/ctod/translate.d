@@ -18,15 +18,30 @@ private template HasVersion(string versionId) {
 
 struct TranslationSettings {
 	bool includeHeader = true;
-	bool stripComments = false;
 }
 
-///
+/// Returns: tree-sitter C parser
+private TSParser* getCParser() @trusted {
+	TSParser* parser = ts_parser_new();
+	TSLanguage* language = tree_sitter_c();
+	const success = ts_parser_set_language(parser, language);
+	assert(success);
+	return parser;
+}
+
+/// Params:
+///   source = C source code
+///   moduleName = name for the `module` declaration on the D side
+///   settings = translation settings
+/// Returns: `source` translated from C to D
 string translateFile(string source, string moduleName, ref TranslationSettings settings) {
-	Node* root = parseCtree(source);
+
+	auto parser = getCParser();
+	// scope(exit) ts_parser_delete(parser);
+	// ts_tree_delete(tree);
+	auto ctx = CtodCtx(source, parser);
+	Node* root = parseCtree(ctx.parser, source);
 	assert(root);
-	auto ctx = CtodCtx("foo.c", source);
-	ctx.stripComments = settings.stripComments;
 	translateNode(ctx, *root);
 
 	string result = "";
@@ -35,8 +50,7 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 		if (moduleName.length > 0) {
 			result ~= "module "~moduleName~";\n";
 		}
-		result ~= "@nogc nothrow:
-extern(C): __gshared:\n";
+		result ~= "@nogc nothrow:\nextern(C): __gshared:\n";
 	}
 
 	if (ctx.needsHasVersion) {
@@ -52,7 +66,7 @@ extern(C): __gshared:\n";
 		result ~= "alias c_bool = int;\n";
 	}
 	// white space leading up to the first AST element is not included in the AST, so add it
-	result ~= source[0..root.start];
+	result ~= source[0 .. root.start];
 	result ~= root.output();
 	return result;
 }
@@ -76,10 +90,10 @@ struct TypeScope {
 package
 struct CtodCtx {
 
-	string fileName;
+	/// input C  source code
 	string source;
-	string moduleName;
-
+	/// C parser
+	TSParser* parser;
 	/// HasVersion(string) template is needed
 	bool needsHasVersion = false;
 	/// needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
@@ -89,24 +103,33 @@ struct CtodCtx {
 	/// needs `alias c_bool = int;`
 	bool needsCbool = false;
 
-	bool stripComments = false;
-
 	/// global variables and function declarations
 	Map!(string, Decl) symbolTable;
+	/// for function local variables
 	Map!(string, Decl) localSymbolTable;
+	/// Table of all #define macros
 	Map!(string, MacroType) macroTable;
+	/// Set of macro func names, #define S(x, y) ... => [x: true, y: true]
+	Map!(string, bool) macroFuncParams;
+	/// Type of expression nodes
 	Map!(ulong, CType) nodeTypes;
-	InlineType[] inlineTypes; // collect structs, unions and enums definitions that were defined in expressions
-	string inFunction = null; // name of the function we're currently in
-	CType inDeclType = CType.none; // type of the declaration we're currently in
-	int inParameterList = 0; // If we're in a parameter list (function types can be nested, so not a bool)
-	private TypeScope[] typeScope = null; // stack of "struct" "enum" "union"
+
+	/// collect structs, unions and enums definitions that were defined in expressions
+	InlineType[] inlineTypes;
+	/// name of the function we're currently in
+	string inFunction = null;
+	/// type of the declaration we're currently in
+	CType inDeclType = CType.none;
+	/// If we're in a parameter list (function types can be nested, so not a bool)
+	int inParameterList = 0;
+	/// stack of "struct" "enum" "union"
+	private TypeScope[] typeScope = null;
 
 nothrow:
 
-	this(string fileName, string source) {
-		this.fileName = fileName;
+	this(string source, TSParser* parser) {
 		this.source = source;
+		this.parser = parser;
 		this.typeScope = [TypeScope(Sym.null_)];
 	}
 
@@ -117,6 +140,10 @@ nothrow:
 	void leaveFunction() @trusted {
 		this.inFunction = null;
 		this.localSymbolTable.clear();
+	}
+
+	bool inMacroFunction() {
+		return this.macroFuncParams.length > 0;
 	}
 
 	void pushTypeScope(Sym sym) {
@@ -186,6 +213,9 @@ void translateNode(ref CtodCtx ctx, ref Node node) {
 	if (ctodTryPreprocessor(ctx, node)) {
 		return;
 	}
+	if (ctodTryInitializer(ctx, node)) {
+		return;
+	}
 	if (ctodTryDeclaration(ctx, node)) {
 		return;
 	}
@@ -233,12 +263,6 @@ bool hasDefaultStatement(ref Node node) {
 
 package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 	switch(node.typeEnum) {
-		case Sym.comment:
-			// TODO: maybe convert doxygen to Ddoc?
-			if (ctx.stripComments) {
-				node.replace("");
-			}
-			return true;
 		case Sym.if_statement:
 		case Sym.while_statement:
 		case Sym.for_statement:
@@ -252,6 +276,22 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 				if (a.typeEnum == Sym.assignment_expression) {
 					a.prepend("(");
 					a.append(") != 0");
+				}
+			}
+			if (auto initializer = node.childField(Field.initializer)) {
+				if (auto decls = ctodTryDeclaration(ctx, *initializer))
+				{
+					CType prevType = CType.none;
+					foreach (decl; decls)
+					{
+						if (!prevType) {
+							prevType = decl.type;
+						} else if (decl.type != prevType) {
+							initializer.prepend("{");
+							initializer.append("}");
+							break;
+						}
+					}
 				}
 			}
 			break;
@@ -314,42 +354,8 @@ package void removeSemicolons(ref Node node) {
 	}
 }
 
-private immutable string[2][] limitMap = [
-	["DBL_DIG", "double.dig"],
-	["DBL_EPSILON", "double.epsilon"],
-	["DBL_MANT_DIG", "double.mant_dig"],
-	["DBL_MAX_10_EXP", "double.max_10_exp"],
-	["DBL_MAX_EXP", "double.max_exp"],
-	["DBL_MAX", "double.max"],
-	["DBL_MIN_10_EXP", "double.min_10_exp"],
-	["DBL_MIN_EXP", "double.min_exp"],
-	["DBL_MIN", "double.min"],
-	["FLT_DIG", "float.dig"],
-	["FLT_EPSILON", "float.epsilon"],
-	["FLT_MANT_DIG", "float.mant_dig"],
-	["FLT_MAX_10_EXP", "float.max_10_exp"],
-	["FLT_MAX_EXP", "float.max_exp"],
-	["FLT_MAX", "float.max"],
-	["FLT_MIN_10_EXP", "float.min_10_exp"],
-	["FLT_MIN_EXP", "float.min_exp"],
-	["FLT_MIN", "float.min"],
-	["LDBL_DIG", "real.dig"],
-	["LDBL_EPSILON", "real.epsilon"],
-	["LDBL_MANT_DIG", "real.mant_dig"],
-	["LDBL_MAX_10_EXP", "real.max_10_exp"],
-	["LDBL_MAX_EXP", "real.max_exp"],
-	["LDBL_MAX", "real.max"],
-	["LDBL_MIN_10_EXP", "real.min_10_exp"],
-	["LDBL_MIN_EXP", "real.min_exp"],
-	["LDBL_MIN", "real.min"],
-	//["FLT_EVAL_METHOD", ""],
-	//["FLT_ROUNDS", ""],
-	//["FLT_RADIX", ""],
-	//["DECIMAL_DIG", ""],
-];
-
 package string mapLookup(const string[2][] map, string str, string orElse) {
-	// #optimization: binary serach?
+	// #optimization: use binary search
 	foreach(p; map) {
 		if (str == p[0]) {
 			return p[1];
@@ -358,19 +364,20 @@ package string mapLookup(const string[2][] map, string str, string orElse) {
 	return orElse;
 }
 
-/// Params:
-///   str = macro from <float.h>
-/// Returns: corresponding D type property, or `null` if no match
-string ctodLimit(string str) {
-	return mapLookup(limitMap, str, str);
-}
-
-@("ctodLimit") unittest {
-	assert(ctodLimit("FLT_MAX") == "float.max");
+package string mapLookup(const string[] map, string str, string orElse) {
+	// #optimization: use binary search
+	foreach(p; map) {
+		if (str == p) {
+			return p;
+		}
+	}
+	return orElse;
 }
 
 /// Translate C number literal to D one
-///
+/// Params:
+///   str = number literal
+///   type = gets set to number type of the literal
 string ctodNumberLiteral(string str, ref CType type) {
 
 	string typeName = "int";

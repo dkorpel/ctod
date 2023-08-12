@@ -14,7 +14,7 @@ Node* getParenContent(return scope Node* node) {
 	if (node.typeEnum != Sym.parenthesized_expression && node.typeEnum != Sym.parenthesized_declarator) {
 		return node;
 	}
-	foreach(i; 1..node.children.length + -1) {
+	foreach(i; 1 .. node.children.length + -1) {
 		if (node.children[i].typeEnum != Sym.comment) {
 			return &node.children[i];
 		}
@@ -27,8 +27,7 @@ Node* getParenContent(return scope Node* node) {
 /// WIP: type check as well
 /// Things to be done:
 /// - implicit casts from int to short, char, etc. must be explicit in D
-/// - pointer casts (other than void*) must be explicit in D
-/// - pointer arithmetic on static arrays can only be done after .ptr
+/// - pointer arithmetic on static arrays can only be done after adding `.ptr`
 bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 	void depthFirst() {
 		foreach(ref c; node.children) {
@@ -42,6 +41,13 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 		case Sym.identifier:
 			if (string s = translateIdentifier(node.source)) {
 				node.replace(s);
+			}
+			if (string limit = mapLookup(limitMap, node.source, null)) {
+				node.replace(limit);
+			}
+			if (node.source in ctx.macroFuncParams) {
+				node.prepend("` ~ ");
+				node.append(" ~ `");
 			}
 			if (Decl decl = ctx.lookupDecl(node.source)) {
 				ctx.setExpType(node, decl.type);
@@ -176,6 +182,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 			ctx.setExpType(node, CType.unknown);
 			break;
 		case Sym.call_expression:
+			bool isMacroFunc = false;
 			if (auto funcNode = node.childField(Field.function_)) {
 				CType fType = ctx.expType(*funcNode);
 				if (fType.isFunction) {
@@ -201,12 +208,36 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 						return true;
 					}
 				}
+
+				// SQR(...) => mixin(SQR!(...))
+				if (auto mcro = funcNode.source in ctx.macroTable) {
+					if (*mcro == MacroType.inlineFunc) {
+						funcNode.append("!");
+						if (ctx.inMacroFunction) {
+							node.prepend("` ~ ");
+							node.append(" ~ `");
+						} else {
+							node.prepend("mixin(");
+							node.append(")");
+						}
+						isMacroFunc = true;
+					}
+				}
 			}
 			if (auto argsNode = node.childField(Field.arguments)) {
 				if (argsNode.typeEnum != Sym.argument_list) {
 					break;
 				}
 				foreach(ref c; argsNode.children) {
+					if (c.typeEnum == Sym.anon_COMMA || c.typeEnum == Sym.comment ||
+						c.typeEnum == Sym.anon_LPAREN || c.typeEnum == Sym.anon_RPAREN) {
+						continue;
+					}
+					if (isMacroFunc) {
+						c.prepend("`");
+						c.append("`");
+						continue;
+					}
 					if (c.typeEnum != Sym.identifier) {
 						continue;
 					}
@@ -251,6 +282,9 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r) {
 		}
 		if (lType.next[0] == CType.named("void")) {
 			return; // D can implicitly convert to `void*`
+		}
+		if (rType.next[0] == CType.named("noreturn")) {
+			return; // `null` can convert to any pointer type
 		}
 		if (rType == CType.stringLiteral) {
 			// This might be because of const mismatch,
@@ -377,3 +411,33 @@ private bool ctodSizeof(ref CtodCtx ctx, ref Node node) {
 	}
 	return false;
 }
+
+private immutable string[2][] limitMap = [
+	["DBL_DIG", "double.dig"],
+	["DBL_EPSILON", "double.epsilon"],
+	["DBL_MANT_DIG", "double.mant_dig"],
+	["DBL_MAX_10_EXP", "double.max_10_exp"],
+	["DBL_MAX_EXP", "double.max_exp"],
+	["DBL_MAX", "double.max"],
+	["DBL_MIN_10_EXP", "double.min_10_exp"],
+	["DBL_MIN_EXP", "double.min_exp"],
+	["DBL_MIN", "double.min"],
+	["FLT_DIG", "float.dig"],
+	["FLT_EPSILON", "float.epsilon"],
+	["FLT_MANT_DIG", "float.mant_dig"],
+	["FLT_MAX_10_EXP", "float.max_10_exp"],
+	["FLT_MAX_EXP", "float.max_exp"],
+	["FLT_MAX", "float.max"],
+	["FLT_MIN_10_EXP", "float.min_10_exp"],
+	["FLT_MIN_EXP", "float.min_exp"],
+	["FLT_MIN", "float.min"],
+	["LDBL_DIG", "real.dig"],
+	["LDBL_EPSILON", "real.epsilon"],
+	["LDBL_MANT_DIG", "real.mant_dig"],
+	["LDBL_MAX_10_EXP", "real.max_10_exp"],
+	["LDBL_MAX_EXP", "real.max_exp"],
+	["LDBL_MAX", "real.max"],
+	["LDBL_MIN_10_EXP", "real.min_10_exp"],
+	["LDBL_MIN_EXP", "real.min_exp"],
+	["LDBL_MIN", "real.min"],
+];

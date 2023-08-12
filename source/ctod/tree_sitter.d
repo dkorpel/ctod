@@ -15,20 +15,11 @@ import tree_sitter.api;
 extern(C) TSLanguage* tree_sitter_c();
 
 /// Returns: a concrete syntax tree for C source code
-Node* parseCtree(string source) @trusted {
-	scope TSParser *parser = ts_parser_new();
-	scope(exit) ts_parser_delete(parser);
-	TSLanguage* language = tree_sitter_c();
-	const success = ts_parser_set_language(parser, language);
-	assert(success);
+Node* parseCtree(TSParser* parser, string source) @trusted {
 	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
-
-	// To delete the tree: ts_tree_delete(tree);
-
 	if (ts_node_is_null(ts_tree_root_node(tree))) {
 		return null;
 	}
-
 	Extra* extra = new Extra(source);
 	Node* result = new Node(ts_tree_root_node(tree), extra);
 	return result;
@@ -183,7 +174,7 @@ struct Node {
 	/// `false` if this is null
 	bool opCast() const {return !isNone;}
 
-	private static void appendOutput(const ref Node node, ref string result) {
+	private static void appendOutput(O)(const ref Node node, ref O result) {
 		result ~= node.prefix;
 		if (node.hasBeenReplaced) {
 			result ~= node.replacement;
@@ -195,7 +186,12 @@ struct Node {
 				if (!c || c.noLayout) {
 					//dprint(node.source);
 				} else {
-					result ~= node.fullSource[lc .. c.start]; // add layout
+					const layout = node.fullSource[lc .. c.start];
+					foreach (i; 0 .. layout.length) {
+						if (layout[i] != '\\') { //#filter '\' from layout
+							result ~= layout[i];
+						}
+					}
 				}
 				lc = c.end;
 				appendOutput(c, result);
@@ -207,10 +203,17 @@ struct Node {
 	}
 
 	/// Returns: full translated D source code of this node after translation
-	string output() const {
-		string result = "";
-		appendOutput(this, result);
-		return result;
+	string output() const @trusted {
+		version(none) {
+			import bops.memory : AppenderM;
+			AppenderM!char appender;
+			appendOutput(this, appender);
+			return cast(string) appender.release();
+		} else {
+			string result = "";
+			appendOutput(this, result);
+			return result;
+		}
 	}
 
 	inout(Node)* childField(Field field) @trusted inout {
