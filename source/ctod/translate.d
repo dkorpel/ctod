@@ -10,6 +10,8 @@ import ctod.cpreproc;
 
 import tree_sitter.api;
 
+import std.algorithm.searching : startsWith;
+
 private immutable hasVersion = `
 private template HasVersion(string versionId) {
 	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
@@ -29,6 +31,48 @@ private TSParser* getCParser() @trusted {
 	return parser;
 }
 
+// Remove `#ifdef __cplusplus \n extern "C" { \n #endif` blocks since tree-sitter can't parse the unmatched braces inside them
+string filterCppBlocks(string source) {
+	size_t[3] s = 0; // loop over line triples by keeping 3 indices of the start of a line
+	for (size_t i = 0; i < source.length; i++) {
+		if (source[i] == '\n') {
+			const s3 = i + 1;
+			if (source[s[0] .. s[1]].startsWith("#ifdef __cplusplus") && source[s[2] .. s3].startsWith("#endif")) {
+				source = source[0 .. s[0]] ~ source[s3 .. $];
+				i = s[0];
+				s[] = 0;
+				continue;
+			} else {
+				s[0] = s[1];
+				s[1] = s[2];
+				s[2] = s3;
+			}
+		}
+	}
+	return source;
+}
+
+unittest {
+	string source = "
+#ifdef __cplusplus
+extern \"C\" {
+#endif
+int main() {
+	return 0;
+}
+#ifdef __cplusplus
+}
+#endif
+";
+
+	string expected = "
+int main() {
+	return 0;
+}
+";
+	assert(filterCppBlocks(source) == expected);
+}
+
 /// Params:
 ///   source = C source code
 ///   moduleName = name for the `module` declaration on the D side
@@ -39,6 +83,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	auto parser = getCParser();
 	// scope(exit) ts_parser_delete(parser);
 	// ts_tree_delete(tree);
+
+	source = filterCppBlocks(source);
+
 	auto ctx = CtodCtx(source, parser);
 	Node* root = parseCtree(ctx.parser, source);
 	assert(root);

@@ -823,14 +823,20 @@ version (SUPPORT_XXX) {
 }`);
 
 	// tree-sitter doesn't parse this right, need to do manual preprocessing
-	version(none) test("
+	test("
+uint8_t x = 1;
 #ifdef __cplusplus
 extern \"C\" {
 #endif
-
+uint8_t y = 2;
 #ifdef __cplusplus
-}
+} // extern \"C\"
 #endif
+uint8_t z = 3;
+", "
+ubyte x = 1;
+ubyte y = 2;
+ubyte z = 3;
 ");
 
 }
