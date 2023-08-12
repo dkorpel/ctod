@@ -657,24 +657,61 @@ enum NOT_THE_IFNDEF_CONDITION = 99;
 #define TEST
 #define PI 3.14159265
 #define LOL(x)
-#define SQR(x) (x*x)
-int x = SQR(3);
-#define MIN(a,b) (((a)<(b))?(a):(b))
-int y = MIN(1,2);
-#define WITHCOMMENT//c
-#define WITHCOMMENT1 '@'// c
-#define WITHCOMMENTS /*a*/ '@' /*b*/ // c
 ", "
 version = TEST;
 enum PI = 3.14159265;
 //#define LOL(x)
+");
+
+	test("
+#define SQR(x) (x*x)
+int x = SQR(3);
+#define MIN(a,b) (((a)<(b))?(a):(b))
+int y = MIN(1,2);
+", "
 enum string SQR(string x) = `(` ~ x ~ `*` ~ x ~ `)`;
 int x = mixin(SQR!(`3`));
 enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
 int y = mixin(MIN!(`1`,`2`));
+");
+
+	test("
+#define WITHCOMMENT//c
+#define WITHCOMMENT1 '@'// c
+#define WITHCOMMENTS /*a*/ '@' /*b*/ // c
+", "
 version = WITHCOMMENT;//c
 enum WITHCOMMENT1 = '@';// c
 enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
+");
+
+
+	test(`
+#define _CONCAT_VERSION(m, n, r) #m "." #n "." #r
+#define _MAKE_VERSION(m, n, r) _CONCAT_VERSION(m, n, r)
+`, "
+enum string _CONCAT_VERSION(string m, string n, string r) = `#m \".\" #n \".\" #r`;
+enum string _MAKE_VERSION(string m, string n, string r) = `` ~ _CONCAT_VERSION!(` ~ `m` ~ `, ` ~ `n` ~ `, ` ~ `r` ~ `) ~ ``;
+"
+);
+
+	test(`
+#define _VERSION_NUMBER _MAKE_VERSION(VERSION_MAJOR, \
+	VERSION_MINOR, \
+	VERSION_REVISION)
+`, "
+enum _VERSION_NUMBER = _MAKE_VERSION(VERSION_MAJOR, \\
+	VERSION_MINOR, \\
+	VERSION_REVISION);
+"
+);
+
+	test("
+#define MIN(a,b) (((a)<(b))?(a):(b))
+pixels[y*image->width + x+1].r = MIN((int)pixels[y*image->width + x+1].r + (int)((float)rError*7.0f/16), 0xff);
+", "
+enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
+pixels[y*image.width + x+1].r = mixin(MIN!(`cast(int)pixels[y*image.width + x+1].r + cast(int)(cast(float)rError*7.0f/16)`, `0xff`));
 ");
 
 	test("
@@ -795,26 +832,6 @@ extern \"C\" {
 }
 #endif
 ");
-
-	test(`
-#define _CONCAT_VERSION(m, n, r) #m "." #n "." #r
-#define _MAKE_VERSION(m, n, r) _CONCAT_VERSION(m, n, r)
-`, "
-enum string _CONCAT_VERSION(string m, string n, string r) = `#m \".\" #n \".\" #r`;
-enum string _MAKE_VERSION(string m, string n, string r) = `` ~ _CONCAT_VERSION!(` ~ `m` ~ `, ` ~ `n` ~ `, ` ~ `r` ~ `) ~ ``;
-"
-);
-
-	test(`
-#define _VERSION_NUMBER _MAKE_VERSION(VERSION_MAJOR, \
-	VERSION_MINOR, \
-	VERSION_REVISION)
-`, "
-enum _VERSION_NUMBER = _MAKE_VERSION(VERSION_MAJOR, \\
-	VERSION_MINOR, \\
-	VERSION_REVISION);
-"
-);
 
 }
 
