@@ -24,3 +24,6 @@ jobs:
 
             - name: Run tests
               run: dub test --arch=x86_64
+
+            - name: Build app
+              run: dub build --arch=x86_64
