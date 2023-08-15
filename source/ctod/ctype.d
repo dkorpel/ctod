@@ -81,7 +81,7 @@ struct InlineType {
 	string keyword;
 	string name = null;
 	string body_;
-	string enumAliases = null;
+	Node* node; // body node
 
 pure nothrow:
 
@@ -93,7 +93,7 @@ pure nothrow:
 
 /// Generate alias declarations to put enum members into the global namespace
 /// C enums don't have a scope for their members
-private string enumMemberAliases(string enumName, ref Node c) {
+string enumMemberAliases(string enumName, ref Node c) {
 	if (c.typeEnum != Sym.enumerator_list) {
 		return null;
 	}
@@ -107,32 +107,34 @@ private string enumMemberAliases(string enumName, ref Node c) {
 	return res;
 }
 
+private string typeSymToKeyword(Sym sym) {
+	switch(sym) {
+		case Sym.struct_specifier: return "struct";
+		case Sym.union_specifier: return "union";
+		case Sym.enum_specifier: return "enum";
+		default: return null;
+	}
+}
+
 /// C declarations are declared this way:
 /// First, a 'base type' which is a primitive type or identifier
 /// Then, one or more expressions that should evaluate to a value of 'base type'
 ///
 /// Note: the base-type can be an (anonymous) struct / union / enum, which is not allowed in D.
-/// Therefor, the second return value is a type declaration that the primitive type depends on.
+/// These are stored in `inlineTypes`, and the caller should emit these
 ///
-/// Returns: [primitive type, dependent type]
+/// Returns: primitive type
 string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque) {
 
 	// keyword = struct, union or enum
-	string namedType(string keyword, Sym sym) {
+	string namedType(Sym sym) {
 		auto nameNode = node.childField(Field.name);
 		if (auto c = node.childField(Field.body_)) {
 			ctx.pushTypeScope(sym);
 			translateNode(ctx, *c);
 			ctx.popTypeScope();
 			string name = nameNode ? nameNode.source : null;
-
-			// Put enum members into the global scope with aliases
-			string enumAliases = enumMemberAliases(name, *c);
-
-			if (name && enumAliases)
-				c.append(enumAliases);
-
-			inlineTypes ~= InlineType(keyword, name, c.output(), enumAliases);
+			inlineTypes ~= InlineType(typeSymToKeyword(sym), name, c.output(), c);
 			return name;
 		} else if (nameNode) {
 			if (keepOpaque) {
@@ -173,55 +175,62 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 				}
 			}
 		case Sym.sized_type_specifier:
-			bool signed = true;
-			int longCount = 0;
-			string primitive = "";
-			foreach(ref c; node.children) {
-				switch(c.typeEnum) {
-					case Sym.comment: continue;
-					case Sym.anon_unsigned:
-						signed = false;
-						break;
-					case Sym.anon_long:
-						longCount++;
-						break;
-					case Sym.primitive_type:
-						primitive = ctodPrimitiveType(c.source);
-						break;
-					case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
-						primitive = "short";
-						break;
-					default: break;
-				}
-			}
-
-			if (longCount > 0 && primitive == "double") {
-				primitive = "real";
-			} else if (longCount == 1 && primitive == "") {
-				primitive = "c_long";
-				ctx.needsClong = true;
-			} else if (longCount == 2 && primitive == "") {
-				primitive = "long";
-			} else if (!signed && primitive == "") {
-				primitive = "int";
-			}
-
-			if (!signed && primitive.length && primitive[0] != 'u') {
-				if (primitive == "char") {
-					primitive = "ubyte";
-				} else if (primitive == "c_long") {
-					primitive = "c_ulong";
-				} else {
-					primitive = "u" ~ primitive;
-				}
-			}
-			return primitive;
-		case Sym.struct_specifier: return namedType("struct", node.typeEnum);
-		case Sym.union_specifier: return namedType("union", node.typeEnum);
-		case Sym.enum_specifier: return namedType("enum", node.typeEnum);
+			return ctodSizedTypeSpecifier(ctx, node);
+		case Sym.struct_specifier:
+		case Sym.union_specifier:
+		case Sym.enum_specifier:
+			return namedType(node.typeEnum);
 		default: break;
 	}
 	return null;
+}
+
+/// Translate built-in integral types (int, long, short, char, etc.)
+string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node) {
+	bool signed = true;
+	int longCount = 0;
+	string primitive = "";
+	foreach(ref c; node.children) {
+		switch(c.typeEnum) {
+			case Sym.comment:
+				continue;
+			case Sym.anon_unsigned:
+				signed = false;
+				break;
+			case Sym.anon_long:
+				longCount++;
+				break;
+			case Sym.primitive_type:
+				primitive = ctodPrimitiveType(c.source);
+				break;
+			case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
+				primitive = "short";
+				break;
+			default: break;
+		}
+	}
+
+	if (longCount > 0 && primitive == "double") {
+		primitive = "real";
+	} else if (longCount == 1 && primitive == "") {
+		primitive = "c_long";
+		ctx.needsClong = true;
+	} else if (longCount == 2 && primitive == "") {
+		primitive = "long";
+	} else if (!signed && primitive == "") {
+		primitive = "int";
+	}
+
+	if (!signed && primitive.length > 0 && primitive[0] != 'u') {
+		if (primitive == "char") {
+			primitive = "ubyte";
+		} else if (primitive == "c_long") {
+			primitive = "c_ulong";
+		} else {
+			primitive = "u" ~ primitive;
+		}
+	}
+	return primitive;
 }
 
 /// Qualifiers for a C declaration

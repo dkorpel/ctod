@@ -75,31 +75,53 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 			return translateDecl(";", true);
 		case Sym.declaration: // global / local variable
 			return translateDecl(";", true);
-		case Sym.type_definition:
-			Decl[] decls = parseDecls(ctx, node, inlinetypes);
-			string result = "";
-			foreach(s; inlinetypes) {
-				result ~= s.toString();
-			}
-			bool first = true;
-			foreach(d; decls) {
-				if (d.type == CType.named(d.identifier)) {
-					// result ~= "/*alias " ~ d.toString() ~ ";*/";
-				} else {
-					if (first) {
-						first = false;
-					} else {
-						result ~= "\n";
-					}
-					result ~= "alias " ~ d.identifier ~ " = " ~ d.type.toString() ~ ";";
-				}
-			}
-			node.replace(result);
-			return decls;
 		default:
 			break;
 	}
 	return null;
+}
+
+bool ctodTryTypedef(ref CtodCtx ctx, ref Node node) {
+	InlineType[] inlinetypes;
+	if (node.typeEnum != Sym.type_definition) {
+		return false;
+	}
+	Decl[] decls = parseDecls(ctx, node, inlinetypes);
+	string result = "";
+
+	// It's very common to typedef an anonymous type with a single name:
+	// `typedef struct {...} X`
+	// No need to give temporary name `_X` and create `alias X = _X`,
+	// just pretend the type was named `X` all along
+	if (inlinetypes.length == 1 && decls.length == 1) {
+		if (decls[0].type == CType.named(inlinetypes[0].name)) {
+			inlinetypes[0].name = decls[0].identifier;
+			decls = null;
+		}
+	}
+
+	foreach(s; inlinetypes) {
+		result ~= s.toString();
+		if (s.node) {
+			// Put enum members into the global scope with aliases
+			node.append(enumMemberAliases(s.name, *s.node));
+		}
+	}
+	bool first = true;
+	foreach(d; decls) {
+		if (d.type == CType.named(d.identifier)) {
+			// result ~= "/*alias " ~ d.toString() ~ ";*/";
+		} else {
+			if (first) {
+				first = false;
+			} else {
+				result ~= "\n";
+			}
+			result ~= "alias " ~ d.identifier ~ " = " ~ d.type.toString() ~ ";";
+		}
+	}
+	node.replace(result);
+	return true;
 }
 
 /// Try translating variable initializers

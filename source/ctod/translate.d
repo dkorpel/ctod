@@ -266,24 +266,17 @@ void translateNode(ref CtodCtx ctx, ref Node node) {
 	if (ctodTryDeclaration(ctx, node)) {
 		return;
 	}
+	if (ctodTryTypedef(ctx, node)) {
+		return;
+	}
 	if (ctodExpression(ctx, node)) {
+		return;
+	}
+	if (ctodTryStatement(ctx, node)) {
 		return;
 	}
 	if (ctodMisc(ctx, node)) {
 		return;
-	}
-
-	// This comes up in sizeof(unsigned short), or possibly a macro if tree-sitter can parse it
-	// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
-
-	InlineType[] inlineTypes;
-	if (auto s = parseTypeNode(ctx, node, inlineTypes, /*keepOpaque*/ true)) {
-		// #twab: it was translating global struct definitions as inline types
-		if (inlineTypes.length == 0)
-		{
-			node.replace(s);
-			return;
-		}
 	}
 
 	foreach(ref c; node.children) {
@@ -308,7 +301,7 @@ bool hasDefaultStatement(ref Node node) {
 	return false;
 }
 
-package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
+package bool ctodTryStatement(ref CtodCtx ctx, ref Node node) {
 	switch(node.typeEnum) {
 		case Sym.if_statement:
 		case Sym.while_statement:
@@ -328,6 +321,7 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 			if (auto initializer = node.childField(Field.initializer)) {
 				if (auto decls = ctodTryDeclaration(ctx, *initializer))
 				{
+					// If there are multiple declarations with different types, need to wrap in {}
 					CType prevType = CType.none;
 					foreach (decl; decls)
 					{
@@ -357,13 +351,18 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 				bodyNode.children[$-1].prepend("default: break;");
 			}
 			break;
+		default: break;
+	}
+	return false;
+}
+
+package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
+	switch(node.typeEnum) {
 		case Sym.primitive_type:
 			if (string s = ctodPrimitiveType(node.source)) {
 				node.replace(s);
-				return true;
 			}
-			return false;
-
+			return true;
 		case Sym.anon_DASH_GT:
 			return node.replace("."); // s->field => s.field
 		case Sym.expression_statement:
@@ -374,11 +373,22 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 			break;
 		case Sym.struct_specifier:
 		case Sym.union_specifier:
-			// Trailing ; are children of the translation unit, and they are removed
-			// However, opaque structs/unions still need them
+		case Sym.enum_specifier:
 			if (auto bodyNode = node.childField(Field.body_)) {
-				//
+				// This comes up in sizeof(unsigned short), or possibly a macro if tree-sitter can parse it
+				// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
+				InlineType[] inlineTypes;
+				if (auto s = parseTypeNode(ctx, node, inlineTypes, /*keepOpaque*/ true)) {
+					// #twab: it was translating global struct definitions as inline types
+					if (inlineTypes.length > 0) {
+						if (auto n = inlineTypes[0].node) {
+							node.append(enumMemberAliases(s, *n));
+						}
+					}
+				}
 			} else {
+				// Trailing ; are children of the translation unit, and they are removed
+				// However, opaque structs/unions still need them
 				node.append(";");
 			}
 			break;
@@ -434,7 +444,7 @@ string ctodNumberLiteral(string str, ref CType type) {
 	}
 
 	// float must have digits after dot, 1.f => 1.0f
-	if ((str[$-1] == 'f' || str[$-1] == 'F')) {
+	if (str[$-1] == 'f' || str[$-1] == 'F') {
 		if (str[$-2] == '.') {
 			auto res = new char[str.length+1];
 			res[0..str.length] = str[];
@@ -447,8 +457,6 @@ string ctodNumberLiteral(string str, ref CType type) {
 		return str;
 	}
 
-	// TODO:
-	/// long specifier must be capitalized in D, 1llu => 1LLu
 	char[] cap = null;
 	int longCount = 0;
 	bool unsigned = false;

@@ -103,14 +103,14 @@ struct S {
 	test("
 typedef union
 {
-    uint u;
-    float f;
+	uint u;
+	float f;
 } FP32;
 ", "
-union _FP32 {
-    uint_ u;
-    float f;
-}alias FP32 = _FP32;
+union FP32 {
+	uint_ u;
+	float f;
+}
 ");
 
 	test("union U { float f, x; };", "union U { float f = 0, x; }");
@@ -234,6 +234,7 @@ void main() {
 
 	test("struct OpaqueS;", "struct OpaqueS;");
 	test("union OpaqueU;", "union OpaqueU;");
+	test("enum OpaqueE;", "enum OpaqueE;");
 
 	test("
 struct S {
@@ -342,6 +343,10 @@ alias one = AnEnum.one;
 alias two = AnEnum.two;
 
 ");
+
+	test("typedef enum { a, b } Foo;", "enum Foo { a, b }\nalias a = Foo.a;\nalias b = Foo.b;\n");
+
+	test("typedef enum { a } *Foo;", "enum _Foo { a }alias Foo = _Foo*;\nalias a = _Foo.a;\n");
 
 	test("
 typedef enum AnEnum

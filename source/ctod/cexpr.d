@@ -98,9 +98,9 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 			break;
 		case Sym.conditional_expression:
 			depthFirst();
-		    // condition:
-        	// consequence:
-        	// alternative:
+			// condition:
+			// consequence:
+			// alternative:
 			break;
 		case Sym.pointer_expression:
 			depthFirst();
