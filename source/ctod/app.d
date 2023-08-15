@@ -30,9 +30,7 @@ int main(string[] args)  {
 	try {
 		foreach(i; 1..args.length) {
 			TranslationSettings settings;
-			if (args[i] == "--strip") {
-				settings.stripComments = true;
-			} else if (args[i] == "--help") {
+			if (args[i] == "--help") {
 				printHelp(args[0]);
 			} else {
 				const fname = args[i];
