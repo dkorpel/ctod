@@ -7,10 +7,9 @@ import ctod.ctype;
 import ctod.cdeclaration;
 import ctod.cexpr;
 import ctod.cpreproc;
+import ctod.util : Map;
 
 import tree_sitter.api;
-
-import std.algorithm.searching : startsWith;
 
 private immutable hasVersion = `
 private template HasVersion(string versionId) {
@@ -29,48 +28,6 @@ private TSParser* getCParser() @trusted {
 	const success = ts_parser_set_language(parser, language);
 	assert(success);
 	return parser;
-}
-
-// Remove `#ifdef __cplusplus \n extern "C" { \n #endif` blocks since tree-sitter can't parse the unmatched braces inside them
-string filterCppBlocks(string source) {
-	size_t[3] s = 0; // loop over line triples by keeping 3 indices of the start of a line
-	for (size_t i = 0; i < source.length; i++) {
-		if (source[i] == '\n') {
-			const s3 = i + 1;
-			if (source[s[0] .. s[1]].startsWith("#ifdef __cplusplus") && source[s[2] .. s3].startsWith("#endif")) {
-				source = source[0 .. s[0]] ~ source[s3 .. $];
-				i = s[0];
-				s[] = 0;
-				continue;
-			} else {
-				s[0] = s[1];
-				s[1] = s[2];
-				s[2] = s3;
-			}
-		}
-	}
-	return source;
-}
-
-unittest {
-	string source = "
-#ifdef __cplusplus
-extern \"C\" {
-#endif
-int main() {
-	return 0;
-}
-#ifdef __cplusplus
-}
-#endif
-";
-
-	string expected = "
-int main() {
-	return 0;
-}
-";
-	assert(filterCppBlocks(source) == expected);
 }
 
 /// Params:
@@ -108,6 +65,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	}
 	if (ctx.needsWchar) {
 		result ~= "import core.stdc.stddef: wchar_t;\n";
+	}
+	if (ctx.needsInt128) {
+		result ~= "import core.int128;\n";
 	}
 	if (ctx.needsCbool) {
 		result ~= "alias c_bool = int;\n";
@@ -149,6 +109,8 @@ struct CtodCtx {
 	bool needsWchar = false;
 	/// needs `alias c_bool = int;`
 	bool needsCbool = false;
+	/// needs `Cent` type
+	bool needsInt128 = false;
 
 	/// global variables and function declarations
 	Map!(string, Decl) symbolTable;
@@ -279,14 +241,14 @@ void translateNode(ref CtodCtx ctx, ref Node node) {
 		return;
 	}
 
-	foreach(ref c; node.children) {
+	foreach (ref c; node.children) {
 		translateNode(ctx, c);
 	}
 }
 
 /// Returns: whether the body of a switch statement `node` contains a default statement
 bool hasDefaultStatement(ref Node node) {
-	foreach(ref c; node.children) {
+	foreach (ref c; node.children) {
 		if (c.typeEnum == Sym.anon_default) {
 			return true;
 		}
@@ -302,7 +264,7 @@ bool hasDefaultStatement(ref Node node) {
 }
 
 package bool ctodTryStatement(ref CtodCtx ctx, ref Node node) {
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.if_statement:
 		case Sym.while_statement:
 		case Sym.for_statement:
@@ -357,7 +319,7 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node) {
 }
 
 package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.primitive_type:
 			if (string s = ctodPrimitiveType(node.source)) {
 				node.replace(s);
@@ -402,9 +364,9 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node) {
 
 /// In C there are trailing ; after union and struct definitions.
 /// We don't want them in D
-/// This should be called on a translation_unit or preproc_if(def) node
+/// This should be called on a translation_unit, preproc_if, or preproc_ifdef node
 package void removeSemicolons(ref Node node) {
-	foreach(ref c; node.children) {
+	foreach (ref c; node.children) {
 		if (c.typeEnum == Sym.anon_SEMI) {
 			c.replace("");
 		}
@@ -413,7 +375,7 @@ package void removeSemicolons(ref Node node) {
 
 package string mapLookup(const string[2][] map, string str, string orElse) {
 	// #optimization: use binary search
-	foreach(p; map) {
+	foreach (p; map) {
 		if (str == p[0]) {
 			return p[1];
 		}
@@ -423,7 +385,7 @@ package string mapLookup(const string[2][] map, string str, string orElse) {
 
 package string mapLookup(const string[] map, string str, string orElse) {
 	// #optimization: use binary search
-	foreach(p; map) {
+	foreach (p; map) {
 		if (str == p) {
 			return p;
 		}
@@ -504,3 +466,5 @@ string ctodNumberLiteral(string str, ref CType type) {
 	assert(ctodNumberLiteral("1llu", type) != "1Lu");
 	assert(type == CType.named("ulong"));
 }
+
+

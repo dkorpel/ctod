@@ -14,7 +14,7 @@ Node* getParenContent(return scope Node* node) {
 	if (node.typeEnum != Sym.parenthesized_expression && node.typeEnum != Sym.parenthesized_declarator) {
 		return node;
 	}
-	foreach(i; 1 .. node.children.length + -1) {
+	foreach (i; 1 .. node.children.length + -1) {
 		if (node.children[i].typeEnum != Sym.comment) {
 			return &node.children[i];
 		}
@@ -30,7 +30,7 @@ Node* getParenContent(return scope Node* node) {
 /// - pointer arithmetic on static arrays can only be done after adding `.ptr`
 bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 	void depthFirst() {
-		foreach(ref c; node.children) {
+		foreach (ref c; node.children) {
 			translateNode(ctx, c);
 		}
 	}
@@ -143,7 +143,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 		case Sym.concatenated_string:
 			// "a" "b" "c" => "a"~"b"~"c"
 			bool first = true;
-			foreach(ref c; node.children) {
+			foreach (ref c; node.children) {
 				if (c.typeEnum == Sym.string_literal) {
 					if (first) {
 						first = false;
@@ -228,7 +228,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node) {
 				if (argsNode.typeEnum != Sym.argument_list) {
 					break;
 				}
-				foreach(ref c; argsNode.children) {
+				foreach (ref c; argsNode.children) {
 					if (c.typeEnum == Sym.anon_COMMA || c.typeEnum == Sym.comment ||
 						c.typeEnum == Sym.anon_LPAREN || c.typeEnum == Sym.anon_RPAREN) {
 						continue;
@@ -339,7 +339,7 @@ bool translateSpecialFunction(ref Node node, ref Node funcNode) {
 			}
 			string[2] argNames;
 			size_t i = 0;
-			foreach(ref c; args.children) {
+			foreach (ref c; args.children) {
 				if (c.typeEnum == Sym.identifier) {
 					if (i >= 2) {
 						i = 0; // too many arguments

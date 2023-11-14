@@ -7,13 +7,14 @@ nothrow @safe:
 
 import ctod.translate;
 import ctod.tree_sitter;
+import ctod.util;
 
 package
 /// If `node` is a recognized preprocessor node, translate it to D
 ///
 /// Returns: `true` on success
 bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.aux_preproc_else_token1: // "#else"
 			return node.replace("} else {");
 		case Sym.aux_preproc_if_token2: // "#endif"
@@ -46,33 +47,55 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 		case Sym.preproc_def:
 			if (auto valueNode = node.childField(Field.value)) {
 				// aux_sym_preproc_def_token1 = "#define"
-				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
-					c.replace("enum");
-				}
 				if (auto c = node.childField(Field.name)) {
 					translateNode(ctx, *c);
 					ctx.macroTable[c.output()] = MacroType.manifestConstant;
 				}
-				if (auto c = node.firstChildType(Sym.preproc_arg)) {
-					// tree sitter doesn't parse line comments inside preproc arg,
-					// so we need to manually split it so that:
-					// #define X Y // comment
-					// Becomes:
-					// enum X = Y; // comment
-					// Instead of:
-					// enum X = Y // comment;
-					size_t p = 0;
-					while (p+1 < c.source.length) {
-						if (c.source[p] == '/' && c.source[p+1] == '/') {
-							while (p > 0 && c.source[p-1] == ' ') {
-								p--;
-							}
-							return c.replace(" =" ~ c.source[0..p] ~ ";" ~ c.source[p..$]);
-						}
-						p++;
-					}
-					c.replace(" =" ~ c.source ~ ";");
+				auto argNode = node.firstChildType(Sym.preproc_arg);
+				assert(argNode);
+				const argText = argNode.source;
+				size_t p = 0;
+				while (p < argText.length && argText[p].isWhite) {
+					p++;
 				}
+				string whitespace = argText[0..p];
+				string value = argText[p..$];
+				string comment = "";
+
+				// tree sitter doesn't parse line comments inside preproc arg,
+				// so we need to manually split it so that:
+				// #define X Y // comment
+				// Becomes:
+				// enum X = Y; // comment
+				// Instead of:
+				// enum X = Y // comment;
+				p = 0;
+				while (p+1 < value.length) {
+					if (value[p] == '/' && value[p+1] == '/') {
+						while (p > 0 && value[p-1].isWhite) {
+							p--;
+						}
+						comment = value[p..$];
+						value = value[0..p];
+						break;
+					}
+					p++;
+				}
+
+				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
+					import ctod.ctype : ctodPrimitiveType;
+					const newValue = ctodPrimitiveType(value);
+					if (newValue != value) {
+						c.replace("alias");
+						value = newValue;
+					} else if (value == "int") { // TODO: generalize to all D types
+						c.replace("alias");
+					} else {
+						c.replace("enum");
+					}
+				}
+				argNode.replace(" =" ~ whitespace ~ value ~ ";" ~ comment);
+
 			} else {
 				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
 					c.replace("version =");
@@ -106,7 +129,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 			ctx.macroTable[nameNode.output()] = MacroType.inlineFunc;
 
 			string[] params;
-			foreach(ref param; parametersNode.children) {
+			foreach (ref param; parametersNode.children) {
 				if (param.typeEnum == Sym.identifier) {
 					ctx.macroFuncParams[param.source] = true;
 					params ~= param.source;
@@ -116,7 +139,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 
 			valueNode.prepend(" = `");
 			valueNode.replace(ctodMacroFunc(ctx, valueNode.source));
-			(() @trusted => ctx.macroFuncParams.clear())();
+			ctx.macroFuncParams = ctx.macroFuncParams.init; //.clear();
 			valueNode.append("`;");
 			break;
 		case Sym.preproc_ifdef:
@@ -238,7 +261,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 
 /// Find params in macroText, and surround them with ~""~
 string ctodMacroFunc(ref CtodCtx ctx, string macroText) {
-	while (macroText.length > 0 && macroText[0] == ' ') {
+	while (macroText.length > 0 && macroText[0].isWhite) {
 		macroText = macroText[1 .. $];
 	}
 	// Assume the macro expand to an expression, statement, or variable declaration
@@ -284,8 +307,8 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode) {
 	// second node is always field `name` with a `Sym.identifier`
 	string id = ifdefNode.children[1].source;
 
-	foreach(i; 0..ifdefNode.children.length) {
-		switch(ifdefNode.children[i].typeEnum) {
+	foreach (i; 0..ifdefNode.children.length) {
+		switch (ifdefNode.children[i].typeEnum) {
 			case Sym.comment:
 				commentCount++;
 				continue;
@@ -305,7 +328,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode) {
 						return false;
 					}
 					// put remaining children under translation unit instead of the ifdef
-					foreach(j; 0..ifdefNode.children.length) {
+					foreach (j; 0..ifdefNode.children.length) {
 						if (j <= i || j + 1 == ifdefNode.children.length) {
 							ifdefNode.children[j].replace(""); // header guard nodes
 						} else {
@@ -372,7 +395,7 @@ string ctodIncludePath(string s) pure {
 
 /// Replace all occurences of `from` with `to` in `s`
 void replaceChar(char[] s, char from, char to) pure {
-	foreach(i; 0 .. s.length) {
+	foreach (i; 0 .. s.length) {
 		if (s[i] == from) {
 			s[i] = to;
 		}
@@ -469,4 +492,47 @@ string ctodSysLib(string s) {
 	}
 
 	return s ~ ";";
+}
+
+// Remove `#ifdef __cplusplus \n extern "C" { \n #endif` blocks since tree-sitter can't parse the unmatched braces inside them
+string filterCppBlocks(string source) {
+	size_t[3] s = 0; // loop over line triples by keeping 3 indices of the start of a line
+	for (size_t i = 0; i < source.length; i++) {
+		if (source[i] == '\n') {
+			const s3 = i + 1;
+			if (source[s[0] .. s[1]].startsWith("#ifdef __cplusplus") && source[s[2] .. s3].startsWith("#endif")) {
+				source = source[0 .. s[0]] ~ source[s3 .. $];
+				i = s[0];
+				s[] = 0;
+				continue;
+			} else {
+				s[0] = s[1];
+				s[1] = s[2];
+				s[2] = s3;
+			}
+		}
+	}
+	return source;
+}
+
+unittest {
+	string source = "
+#ifdef __cplusplus
+extern \"C\" {
+#endif
+int main() {
+	return 0;
+}
+#ifdef __cplusplus
+}
+#endif
+";
+
+	string expected = "
+int main() {
+	return 0;
+}
+";
+	import ctod.util: assertEq;
+	assertEq(filterCppBlocks(source), expected);
 }

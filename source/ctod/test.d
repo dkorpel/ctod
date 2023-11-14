@@ -19,14 +19,6 @@ private void test(string c, string d) {
 	}
 }
 
-version(none)
-@("known bugs") unittest {
-	test(
-		"#define CONSTANT ((size_t)1 << (sizeof(size_t) * 2))",
-		"enum CONSTANT = (cast(size_t)1 << (size_t.sizeof * 2))"
-	);
-}
-
 @("time complexity") unittest {
 	// Accidental binary recursion when constructing the node tree gave exponential time complexity
 	// This test won't finish in a reasonable time if that happens again
@@ -54,8 +46,8 @@ version(none)
 	test("unsigned *in = i, *out = o;", "uint* in_ = i, out_ = o;");
 	test("unsigned *in = i, *out = o;", "uint* in_ = i, out_ = o;");
 	test(
-		"void f() {for(int i = 1, j = 2; i < 5; ++i);}",
-		"void f() {for(int i = 1, j = 2; i < 5; ++i){}}"
+		"void f() {for (int i = 1, j = 2; i < 5; ++i);}",
+		"void f() {for (int i = 1, j = 2; i < 5; ++i){}}"
 	);
 
 	// inline struct/enum
@@ -80,6 +72,12 @@ version(none)
 	test(
 		"void (*f0)(int x, float, char*, char[], char*[], char***);",
 		"void function(int x, float, char*, char, char*, char***) f0;"
+	);
+
+	// 128 bit types
+	test(
+		"typedef __uint128_t tb_uint128_t;\ntypedef __int128_t tb_int128_t;",
+		"import core.int128;\nalias tb_uint128_t = Cent;\nalias tb_int128_t = Cent;"
 	);
 
 	// TODO: add missing const
@@ -319,8 +317,7 @@ typedef struct S S;
 typedef union U U;
 typedef struct S0 S1;
 typedef union U0 U1;
-", "
-
+", "\n
 
 alias S1 = S0;
 alias U1 = U0;
@@ -450,10 +447,10 @@ int *bar(int y, ...) {
 	for (unsigned short x = 0;;);
 	for (int x = 0, *y = NULL;;);
 
-	switch(0) {
+	switch (0) {
 		case 1: break;
 	}
-	switch(0) {
+	switch (0) {
 		default: break;
 	}
 	T *t;
@@ -466,10 +463,10 @@ int* bar(int y, ...) {
 	for (ushort x = 0;;){}
 	for ({int x = 0; int* y = null;};){}
 
-	switch(0) {
+	switch (0) {
 		case 1: break;
 	default: break;}
-	switch(0) {
+	switch (0) {
 		default: break;
 	}
 	T* t = void;
@@ -496,12 +493,12 @@ void main() {
 test("
 void main() {
 	int x = !(y = 3) + 4;
-	while(!(x = 5)) { break; }
+	while (!(x = 5)) { break; }
 
 }", "
 void main() {
 	int x = ((y = 3) == 0) + 4;
-	while(((x = 5) == 0)) { break; }
+	while (((x = 5) == 0)) { break; }
 
 }");
 
@@ -668,6 +665,10 @@ enum PI = 3.14159265;
 //#define LOL(x)
 ");
 
+	test("#define MY_INT int", "alias MY_INT = int;");
+	test("#define KEY_LENGTH_TYPE uint8_t", "alias KEY_LENGTH_TYPE = ubyte;");
+	test("#define MY_SHORT short", "enum MY_SHORT = short;"); // TODO
+
 	test("
 #define SQR(x) (x*x)
 int x = SQR(3);
@@ -689,7 +690,6 @@ version = WITHCOMMENT;//c
 enum WITHCOMMENT1 = '@';// c
 enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
 ");
-
 
 	test(`
 #define _CONCAT_VERSION(m, n, r) #m "." #n "." #r
@@ -718,6 +718,12 @@ pixels[y*image->width + x+1].r = MIN((int)pixels[y*image->width + x+1].r + (int)
 enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
 pixels[y*image.width + x+1].r = mixin(MIN!(`cast(int)pixels[y*image.width + x+1].r + cast(int)(cast(float)rError*7.0f/16)`, `0xff`));
 ");
+
+	version(none) // TODO
+	test(
+		"#define CONSTANT ((size_t)1 << (sizeof(size_t) * 2))",
+		"enum CONSTANT = (cast(size_t)1 << (size_t.sizeof * 2))"
+	);
 
 	test("
 #ifdef _WIN32

@@ -18,11 +18,11 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 		if (apiMacro.length > 0) {
 			result ~= apiMacro ~ " ";
 		}
-		foreach(s; inlinetypes) {
+		foreach (s; inlinetypes) {
 			result ~= s.toString();
 		}
 		CType previousType = CType.none;
-		foreach(d; decls) {
+		foreach (d; decls) {
 			if (cInit && d.initializer.length == 0) {
 				if (ctx.inFunction && !d.quals.staticFunc) {
 					// void initialize function local variables
@@ -50,7 +50,7 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 		return decls;
 	}
 
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.function_definition:
 			if (auto bodyNode = node.childField(Field.body_)) {
 				auto declNode = node.childField(Field.declarator);
@@ -100,7 +100,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node) {
 		}
 	}
 
-	foreach(s; inlinetypes) {
+	foreach (s; inlinetypes) {
 		result ~= s.toString();
 		if (s.node) {
 			// Put enum members into the global scope with aliases
@@ -108,7 +108,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node) {
 		}
 	}
 	bool first = true;
-	foreach(d; decls) {
+	foreach (d; decls) {
 		if (d.type == CType.named(d.identifier)) {
 			// result ~= "/*alias " ~ d.toString() ~ ";*/";
 		} else {
@@ -127,16 +127,16 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node) {
 /// Try translating variable initializers
 /// Returns: true if translation is done, no need to translate children
 bool ctodTryInitializer(ref CtodCtx ctx, ref Node node) {
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.compound_literal_expression:
 			// (Rectangle){x, y, width, height} => Rectangle(x, y, width, height)
-			foreach(ref c; node.children) {
+			foreach (ref c; node.children) {
 				if (c.typeEnum == Sym.anon_LPAREN) {
 					c.replace("");
 				} else if (c.typeEnum == Sym.anon_RPAREN) {
 					c.replace("");
 				} else if (c.typeEnum == Sym.initializer_list) {
-					foreach(ref c2; c.children) {
+					foreach (ref c2; c.children) {
 						if (c2.typeEnum == Sym.anon_LBRACE) {
 							c2.replace("(");
 						} else if (c2.typeEnum == Sym.anon_RBRACE) {
@@ -156,7 +156,7 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node) {
 			// The current type check is rather primitive, it doesn't look up type aliases and
 			// doesn't consider nested types (e.g. struct of array of struct of ...)
 			// So also inspect the literal itself to gain clues
-			foreach(ref c; node.children) {
+			foreach (ref c; node.children) {
 				// Array literal can have `[0] = 3`, struct can have `.field = 3`
 				if (c.typeEnum == Sym.initializer_pair) {
 					if (auto c1 = c.childField(Field.designator)) {

@@ -65,7 +65,7 @@ private string fmtFunction(const CType retType, string name, const Decl[] params
 	result ~= " ";
 	result ~= name;
 	result ~= "(";
-	foreach(i, par; params) {
+	foreach (i, par; params) {
 		if (i > 0) {
 			result ~= ", ";
 		}
@@ -98,7 +98,7 @@ string enumMemberAliases(string enumName, ref Node c) {
 		return null;
 	}
 	string res = "\n";
-	foreach(ref c2; c.children) {
+	foreach (ref c2; c.children) {
 		if (c2.typeEnum == Sym.enumerator) {
 			string mem = c2.childField(Field.name).source;
 			res ~= "alias " ~ mem ~ " = " ~ enumName ~ "." ~ mem ~ ";\n";
@@ -108,7 +108,7 @@ string enumMemberAliases(string enumName, ref Node c) {
 }
 
 private string typeSymToKeyword(Sym sym) {
-	switch(sym) {
+	switch (sym) {
 		case Sym.struct_specifier: return "struct";
 		case Sym.union_specifier: return "union";
 		case Sym.enum_specifier: return "enum";
@@ -147,7 +147,7 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		return null;
 	}
 
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.type_descriptor:
 			if (auto c = node.childField(Field.type)) {
 				return parseTypeNode(ctx, *c, inlineTypes, keepOpaque);
@@ -162,6 +162,12 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 			} else if (node.source == "bool") {
 				ctx.needsCbool = true;
 				return "c_bool";
+			} else if (node.source == "__int128_t") {
+				ctx.needsInt128 = true;
+				return "Cent";
+			} else if (node.source == "__uint128_t") {
+				ctx.needsInt128 = true;
+				return "Cent";
 			} else {
 				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
 				// so also do ctodPrimitiveType here.
@@ -190,8 +196,8 @@ string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node) {
 	bool signed = true;
 	int longCount = 0;
 	string primitive = "";
-	foreach(ref c; node.children) {
-		switch(c.typeEnum) {
+	foreach (ref c; node.children) {
+		switch (c.typeEnum) {
 			case Sym.comment:
 				continue;
 			case Sym.anon_unsigned:
@@ -278,7 +284,7 @@ pure nothrow:
 /// Returns: `true` on success
 bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals) {
 	if (node.typeEnum == Sym.type_qualifier || node.typeEnum == Sym.storage_class_specifier) {
-		switch(node.children[0].typeEnum) {
+		switch (node.children[0].typeEnum) {
 			case Sym.anon_const: quals.const_ = true; return true;
 			case Sym.anon_volatile: quals.volatile_ = true; return true;
 			case Sym.anon_restrict: quals.restrict = true; return true;
@@ -320,13 +326,13 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 	// there may be multiple type_qualifier fields
 	// if (auto qualNode = node.childField(Field.type_qualifier))
 	CQuals quals;
-	foreach(ref c; node.children) {
+	foreach (ref c; node.children) {
 		cast(void) tryParseTypeQual(ctx, c, quals);
 	}
 	CType baseType = CType.named(primitiveType);
 	baseType.setConst(quals.const_);
 	Decl[] result;
-	foreach(ref c; node.children) {
+	foreach (ref c; node.children) {
 		if (&c == typeNode) {
 			// the type field may pass as a declarator, resulting in e.g.
 			// T* t; => T T; T* t;
@@ -363,7 +369,7 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 uint initializerLength(ref Node node, ref string firstElement) {
 	firstElement = null;
 	uint commaCount = 0;
-	foreach(ref e; node.children) {
+	foreach (ref e; node.children) {
 		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE) {
 			continue;
 		}
@@ -396,7 +402,7 @@ unittest {
 /// identifier: gets set to identifier of decl
 /// Returns: whether a type was found and parsed in `node`
 bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
-	switch(node.typeEnum) {
+	switch (node.typeEnum) {
 		case Sym.init_declarator:
 			if (auto declaratorNode = node.childField(Field.declarator)) {
 				decl.initializer = "TMP";
@@ -443,7 +449,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			Decl[] paramDecls = [];
 			if (auto paramNode = node.childField(Field.parameters)) {
 				ctx.inParameterList++;
-				foreach(ref c; paramNode.children) {
+				foreach (ref c; paramNode.children) {
 					if (c.typeEnum == Sym.parameter_declaration) {
 						auto d = parseDecls(ctx, c, inlineTypes);
 						paramDecls ~= d;
@@ -635,7 +641,7 @@ pure nothrow:
 		if (other.isConst != this.isConst) {
 			return false;
 		}
-		final switch(tag) {
+		final switch (tag) {
 			case Tag.cArray:
 			case Tag.pointer:
 				return this.next[0] == other.next[0];
@@ -712,7 +718,7 @@ pure nothrow:
 	}
 
 	string toString() const {
-		final switch(tag) {
+		final switch (tag) {
 			case Tag.cArray:
 				return next[0].toString() ~ "[$]";
 			case Tag.staticArrayParam:

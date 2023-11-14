@@ -2,14 +2,8 @@ module ctod.tree_sitter;
 
 nothrow @safe:
 
-// Enable switching to custom Associative Array type
-version(none) {
-	public import bops.ds.hashtable: Map = HashTable;
-} else {
-	alias Map(K, V) = V[K];
-}
-
 import tree_sitter.api;
+import ctod.util : Map;
 
 /// Returns: C language parser for tree-sitter
 extern(C) TSLanguage* tree_sitter_c();
@@ -131,7 +125,7 @@ struct Node {
 	}
 
 	private void findChildren() @trusted return {
-		foreach(i, ref c; children_) {
+		foreach (i, ref c; children_) {
 			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
 		}
 	}
@@ -163,7 +157,7 @@ struct Node {
 
 	/// Returns: first child node with `type`
 	Node* firstChildType(TSSymbol type) {
-		foreach(ref c; this.children) {
+		foreach (ref c; this.children) {
 			if (c.typeEnum == type) {
 				return &c;
 			}
@@ -182,7 +176,7 @@ struct Node {
 			result ~= node.source;
 		} else {
 			size_t lc = node.start; // layout cursor
-			foreach(ref c; node.children) {
+			foreach (ref c; node.children) {
 				if (!c || c.noLayout) {
 					//dprint(node.source);
 				} else {
@@ -205,8 +199,8 @@ struct Node {
 	/// Returns: full translated D source code of this node after translation
 	string output() const @trusted {
 		version(none) {
-			import bops.memory : AppenderM;
-			AppenderM!char appender;
+			import bops.memory : OutBuffer;
+			OutBuffer appender;
 			appendOutput(this, appender);
 			return cast(string) appender.release();
 		} else {
@@ -218,7 +212,7 @@ struct Node {
 
 	inout(Node)* childField(Field field) @trusted inout {
 		auto f = ts_node_child_by_field_id(tsnode, field);
-		foreach(ref c; children) {
+		foreach (ref c; children) {
 			if (ts_node_eq(c.tsnode, f)) {
 				return &c;
 			}
