@@ -150,8 +150,11 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node) {
 			return true;
 		case Sym.initializer_list:
 			auto t = ctx.inDeclType;
-			bool arrayInit = t.isCArray || t.isStaticArray;
-
+			bool arrayInit = false;
+			if (t.isCArray || t.isStaticArray) {
+				arrayInit = true;
+				ctx.inDeclType = t.next[0];
+			}
 			// In D, the initializer braces depend on whether it's a struct {} or array []
 			// The current type check is rather primitive, it doesn't look up type aliases and
 			// doesn't consider nested types (e.g. struct of array of struct of ...)
@@ -167,7 +170,9 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node) {
 						}
 					}
 				}
+				ctx.translateNode(c);
 			}
+			ctx.inDeclType = t;
 
 			if (arrayInit) {
 				if (auto c = node.firstChildType(Sym.anon_LBRACE)) {

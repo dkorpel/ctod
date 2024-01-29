@@ -575,6 +575,23 @@ S a = {
 	fieldB: 2,
 };
 ");
+
+	test("
+struct S { double x; int y; }
+Sarray[2] = {
+	{1.5, 2},
+	{2.5, 3}
+};
+
+struct S1 { struct { int y; }; } Sarray[1][1] = {{ {{2}} }};
+", "
+struct S { double x = 0; int y; }S[2] Sarray = [
+	{1.5, 2},
+	{2.5, 3}
+];
+
+struct S1 { struct  { int y; }; }S1[1][1] Sarray = [[ {{2}} ]];
+");
 }
 
 @("preprocessor") unittest {
