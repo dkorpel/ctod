@@ -32,7 +32,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 					}
 				} else if (directive.source == "#pragma") {
 					// preceeding whitespace is part of the argument node
-					if (argument && argument.source.length >= 4 && argument.source[$-4..$] == "once") {
+					if (argument && argument.source.length >= 4 && argument.source[$-4 .. $] == "once") {
 						node.prepend("//");
 						return true;
 					}
@@ -58,8 +58,8 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 				while (p < argText.length && argText[p].isWhite) {
 					p++;
 				}
-				string whitespace = argText[0..p];
-				string value = argText[p..$];
+				string whitespace = argText[0 .. p];
+				string value = argText[p .. $];
 				string comment = "";
 
 				// tree sitter doesn't parse line comments inside preproc arg,
@@ -75,15 +75,15 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 						while (p > 0 && value[p-1].isWhite) {
 							p--;
 						}
-						comment = value[p..$];
-						value = value[0..p];
+						comment = value[p .. $];
+						value = value[0 .. p];
 						break;
 					}
 					p++;
 				}
 
 				if (auto c = node.firstChildType(Sym.aux_preproc_def_token1)) {
-					import ctod.ctype : ctodPrimitiveType;
+					import ctod.ctype: ctodPrimitiveType;
 					const newValue = ctodPrimitiveType(value);
 					if (newValue != value) {
 						c.replace("alias");
@@ -139,7 +139,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node) {
 
 			valueNode.prepend(" = `");
 			valueNode.replace(ctodMacroFunc(ctx, valueNode.source));
-			ctx.macroFuncParams = ctx.macroFuncParams.init; //.clear();
+			(() @trusted => ctx.macroFuncParams.clear())();
 			valueNode.append("`;");
 			break;
 		case Sym.preproc_ifdef:
@@ -307,7 +307,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode) {
 	// second node is always field `name` with a `Sym.identifier`
 	string id = ifdefNode.children[1].source;
 
-	foreach (i; 0..ifdefNode.children.length) {
+	foreach (i; 0 .. ifdefNode.children.length) {
 		switch (ifdefNode.children[i].typeEnum) {
 			case Sym.comment:
 				commentCount++;
@@ -328,7 +328,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode) {
 						return false;
 					}
 					// put remaining children under translation unit instead of the ifdef
-					foreach (j; 0..ifdefNode.children.length) {
+					foreach (j; 0 .. ifdefNode.children.length) {
 						if (j <= i || j + 1 == ifdefNode.children.length) {
 							ifdefNode.children[j].replace(""); // header guard nodes
 						} else {
@@ -402,7 +402,8 @@ void replaceChar(char[] s, char from, char to) pure {
 	}
 }
 
-@("ctodIncludePath") unittest {
+@("ctodIncludePath") unittest
+{
 	assert(ctodIncludePath("<folder/file.h>") == "folder.file;");
 }
 
@@ -515,7 +516,8 @@ string filterCppBlocks(string source) {
 	return source;
 }
 
-unittest {
+unittest
+{
 	string source = "
 #ifdef __cplusplus
 extern \"C\" {

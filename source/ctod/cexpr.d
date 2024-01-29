@@ -361,7 +361,7 @@ bool translateSpecialFunction(ref Node node, ref Node funcNode) {
 }
 
 private string toSizeof(scope string str) {
-	foreach (i; 0..str.length) {
+	foreach (i; 0 .. str.length) {
 		// A pointer / array needs brackets, can't have `int*.sizeof` or `int[].sizeof`
 		if (str[i] == '*' || str[i] == ']') {
 			return "(" ~ str ~ ").sizeof";

@@ -11,7 +11,8 @@ import ctod.cdeclaration;
 import ctod.cexpr;
 
 /// Declaration
-struct Decl {
+struct Decl
+{
 	CQuals quals; /// qualifiers / storage classes
 	CType type = CType.none;
 	string identifier = ""; /// name of variable / function
@@ -52,10 +53,11 @@ pure nothrow:
 	///
 	enum none = Decl.init;
 	///
-	bool opCast() const scope {return cast(bool) type;}
+	bool opCast() const scope { return cast(bool) type; }
 }
 
-unittest {
+unittest
+{
 	assert(Decl(CQuals.init, CType.named("int"), "x", "3").toString() ==  "int x = 3");
 }
 
@@ -77,7 +79,8 @@ private string fmtFunction(const CType retType, string name, const Decl[] params
 
 /// A type in the middle of an expression.
 /// C allows to e.g. define a struct inside a parameter list.
-struct InlineType {
+struct InlineType
+{
 	string keyword;
 	string name = null;
 	string body_;
@@ -85,7 +88,7 @@ struct InlineType {
 
 pure nothrow:
 
-	bool hasBody() const {return body_.length > 0;}
+	bool hasBody() const { return body_.length > 0; }
 	string toString() const {
 		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : ";");
 	}
@@ -240,7 +243,8 @@ string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node) {
 }
 
 /// Qualifiers for a C declaration
-struct CQuals {
+struct CQuals
+{
 	bool const_;
 	bool volatile_;
 	bool restrict;
@@ -392,7 +396,8 @@ private string intToString(uint i) {
 	}
 }
 
-unittest {
+unittest
+{
 	assert(intToString(0) == "0");
 	assert(intToString(9) == "9");
 	assert(intToString(4790) == "4790");
@@ -583,7 +588,8 @@ int stringLiteralSize(string s) {
 	return cast(uint) result;
 }
 
-unittest {
+unittest
+{
 	assert(stringLiteralSize(`"abc"`) == 3);
 	assert(stringLiteralSize(`"\x22\n"`) == 2);
 	assert(stringLiteralSize(`"\U"`) == -1); // malformed
@@ -591,7 +597,8 @@ unittest {
 }
 
 package
-struct CType {
+struct CType
+{
 	enum Tag {
 		none,
 		unknown,
@@ -628,11 +635,11 @@ pure nothrow:
 		return result;
 	}
 
-	bool opCast() const scope {return tag != Tag.none;}
-	bool isFunction() const {return tag == Tag.funcDecl;}
-	bool isStaticArray() const {return tag == Tag.staticArray;}
-	bool isCArray() const {return tag == Tag.cArray;}
-	bool isPointer() const {return tag == Tag.pointer;}
+	bool opCast() const scope { return tag != Tag.none; }
+	bool isFunction() const { return tag == Tag.funcDecl; }
+	bool isStaticArray() const { return tag == Tag.staticArray; }
+	bool isCArray() const { return tag == Tag.cArray; }
+	bool isPointer() const { return tag == Tag.pointer; }
 
 	bool opEquals(const CType other) const scope {
 		if (other.tag != this.tag) {
@@ -747,7 +754,8 @@ pure nothrow:
 	}
 }
 
-unittest {
+unittest
+{
 	assert(CType.array(CType.array(CType.named("float"), "2"), "10").toString() == "float[2][10]");
 	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
@@ -763,7 +771,8 @@ bool noZeroInitInD(const CType t) {
 	return false;
 }
 
-unittest {
+unittest
+{
 	assert(noZeroInitInD(CType.named("float")));
 	assert(noZeroInitInD(CType.array(CType.array(CType.named("char"), "2"), "10")));
 	assert(!noZeroInitInD(CType.pointer(CType.named("float"))));
@@ -813,7 +822,8 @@ string ctodPrimitiveType(string s) {
 	return mapLookup(basicTypeMap, s, s);
 }
 
-unittest {
+unittest
+{
 	assert(ctodPrimitiveType("int16_t") == "short");
 	assert(ctodPrimitiveType("float") == "float");
 }

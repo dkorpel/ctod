@@ -58,7 +58,7 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node) {
 				// Translation of function signautre is pretty destructive regarding layout,
 				// but at least it's rare to have comments inside the parameter list
 				// For now: add whitespace before bodyNode to preserve brace style and comments after the signature
-				const layout = node.fullSource[declNode.end..bodyNode.start];
+				const layout = node.fullSource[declNode.end .. bodyNode.start];
 				ctx.enterFunction("???");
 				translateNode(ctx, *bodyNode);
 				ctx.leaveFunction();

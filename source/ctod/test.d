@@ -84,13 +84,15 @@ private void test(string c, string d) {
 	test("char * const(*(* const bar)[5])(int);", "char* function(int)[5]* bar;");
 
 	test("
-struct S {
+struct S
+{
 	char x[10];
 	float y;
 	int z;
 };
 ", "
-struct S {
+struct S
+{
 	char[10] x = 0;
 	float y = 0;
 	int z;
@@ -235,12 +237,14 @@ void main() {
 	test("enum OpaqueE;", "enum OpaqueE;");
 
 	test("
-struct S {
+struct S
+{
 	int in;
 	unsigned char out[2];
 };
 ", "
-struct S {
+struct S
+{
 	int in_;
 	ubyte[2] out_;
 }
@@ -342,25 +346,7 @@ alias two = AnEnum.two;
 ");
 
 	test("typedef enum { a, b } Foo;", "enum Foo { a, b }\nalias a = Foo.a;\nalias b = Foo.b;\n");
-
 	test("typedef enum { a } *Foo;", "enum _Foo { a }alias Foo = _Foo*;\nalias a = _Foo.a;\n");
-
-	test("
-typedef enum AnEnum
-{
-	one = 1000123000,
-	two = 0x7FFFFFFF
-} AnEnum;
-", "
-enum AnEnum {
-	one = 1000123000,
-	two = 0x7FFFFFFF
-}
-alias one = AnEnum.one;
-alias two = AnEnum.two;
-
-");
-
 	test("enum {A};", "enum {A}"); // don't create aliases for anonymous enums
 
 	test("
@@ -767,15 +753,15 @@ static assert(0, \"error message\");
 
 	test("
 #ifndef _WIN32
-   int x;
+	int x;
 #else
-   int y;
+	int y;
 #endif
 ", "
 version (Windows) {} else {
-   int x;
+	int x;
 } version (Windows) {
-   int y;
+	int y;
 }
 ");
 

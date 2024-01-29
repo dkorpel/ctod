@@ -7,7 +7,7 @@ import ctod.ctype;
 import ctod.cdeclaration;
 import ctod.cexpr;
 import ctod.cpreproc;
-import ctod.util : Map;
+import ctod.util: Map;
 
 import tree_sitter.api;
 
@@ -17,14 +17,18 @@ private template HasVersion(string versionId) {
 }
 `;
 
-struct TranslationSettings {
+struct TranslationSettings
+{
 	bool includeHeader = true;
 }
+
+/// Returns: C language parser for tree-sitter
+extern(C) void* tree_sitter_c();
 
 /// Returns: tree-sitter C parser
 private TSParser* getCParser() @trusted {
 	TSParser* parser = ts_parser_new();
-	TSLanguage* language = tree_sitter_c();
+	TSLanguage* language = cast(TSLanguage*) tree_sitter_c();
 	const success = ts_parser_set_language(parser, language);
 	assert(success);
 	return parser;
@@ -52,7 +56,9 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 
 	if (settings.includeHeader) {
 		if (moduleName.length > 0) {
-			result ~= "module "~moduleName~";\n";
+			result ~= "module ";
+			result ~= moduleName;
+			result ~= ";\n";
 		}
 		result ~= "@nogc nothrow:\nextern(C): __gshared:\n";
 	}
@@ -79,7 +85,8 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 }
 
 /// What the C macro is for
-enum MacroType {
+enum MacroType
+{
 	none, // und
 	manifestConstant, // #define three 3
 	inlineFunc, // #define SQR(x) (x*x)
@@ -89,14 +96,15 @@ enum MacroType {
 }
 
 /// Variables for a `struct` / `union` / `enum` declaration
-struct TypeScope {
+struct TypeScope
+{
 	Sym sym; // Sym.union_specifier, Sym.struct_specifier, Sym.enum_specifier
 	int fieldIndex = 0; // counts up every declaration
 }
 /// Translation context, all 'global' state
 package
-struct CtodCtx {
-
+struct CtodCtx
+{
 	/// input C  source code
 	string source;
 	/// C parser
@@ -203,9 +211,9 @@ nothrow:
 	}
 
 	string uniqueIdentifier(string suggestion) {
-		static char toUpper(char c) {return cast(char) (c - (c >= 'a' && c <= 'z') * ('a' - 'A'));}
+		static char toUpper(char c) { return cast(char) (c - (c >= 'a' && c <= 'z') * ('a' - 'A')); }
 		if (suggestion.length > 0) {
-			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1..$];
+			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1 .. $];
 		} else {
 			assert(0);
 		}
@@ -409,7 +417,7 @@ string ctodNumberLiteral(string str, ref CType type) {
 	if (str[$-1] == 'f' || str[$-1] == 'F') {
 		if (str[$-2] == '.') {
 			auto res = new char[str.length+1];
-			res[0..str.length] = str[];
+			res[0 .. str.length] = str[];
 			res[$-2] = '0';
 			res[$-1] = str[$-1];
 			type = CType.named("float");
@@ -422,7 +430,7 @@ string ctodNumberLiteral(string str, ref CType type) {
 	char[] cap = null;
 	int longCount = 0;
 	bool unsigned = false;
-	foreach_reverse(i; 0..str.length) {
+	foreach_reverse(i; 0 .. str.length) {
 		if (str[i] == 'l') {
 			if (!cap) {
 				cap = str.dup;
@@ -452,7 +460,8 @@ string ctodNumberLiteral(string str, ref CType type) {
 	return str;
 }
 
-@("ctodNumberLiteral") unittest {
+@("ctodNumberLiteral") unittest
+{
 	CType type;
 	assert(ctodNumberLiteral("0", type) == "0");
 	assert(type == CType.named("int"));
