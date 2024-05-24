@@ -17,11 +17,6 @@ private template HasVersion(string versionId) {
 }
 `;
 
-struct TranslationSettings
-{
-	bool includeHeader = true;
-}
-
 /// Returns: C language parser for tree-sitter
 extern (C) void* tree_sitter_c();
 
@@ -35,12 +30,22 @@ private TSParser* getCParser() @trusted
 	return parser;
 }
 
+package void headerString(ref OutBuffer result, string moduleName)
+{
+	if (moduleName.length > 0)
+	{
+		result ~= "module ";
+		result ~= moduleName;
+		result ~= ";\n";
+	}
+	result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
+}
+
 /// Params:
 ///   source = C source code
 ///   moduleName = name for the `module` declaration on the D side
-///   settings = translation settings
 /// Returns: `source` translated from C to D
-string translateFile(string source, string moduleName, ref TranslationSettings settings)
+string translateFile(string source, string moduleName)
 {
 	auto parser = getCParser();
 	// scope(exit) ts_parser_delete(parser);
@@ -63,38 +68,23 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	translateNode(ctx, *root);
 
 	OutBuffer result;
-
-	if (settings.includeHeader)
-	{
-		if (moduleName.length > 0)
-		{
-			result ~= "module ";
-			result ~= moduleName;
-			result ~= ";\n";
-		}
-		result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
-	}
+	headerString(result, moduleName);
 
 	if (ctx.needsHasVersion)
-	{
 		result ~= hasVersion;
-	}
+
 	if (ctx.needsClong)
-	{
 		result ~= "import core.stdc.config: c_long, c_ulong;\n";
-	}
+
 	if (ctx.needsWchar)
-	{
 		result ~= "import core.stdc.stddef: wchar_t;\n";
-	}
+
 	if (ctx.needsInt128)
-	{
 		result ~= "import core.int128;\n";
-	}
+
 	if (ctx.needsCbool)
-	{
 		result ~= "alias c_bool = int;\n";
-	}
+
 	// white space leading up to the first AST element is not included in the AST, so add it
 	result ~= source[0 .. root.start];
 	result ~= root.output();

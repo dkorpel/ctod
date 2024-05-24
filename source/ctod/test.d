@@ -3,12 +3,12 @@ module ctod.test;
 @safe:
 
 import ctod.translate;
+import ctod.util;
 
 private void test(string c, string d)
 {
-	TranslationSettings settings;
-	settings.includeHeader = false;
-	const actual = translateFile(c, "testmodule", settings);
+	const actual = translateFile(c, "testmodule")[56 .. $];
+
 	if (actual != d)
 	{
 		import std.stdio: writeln;
