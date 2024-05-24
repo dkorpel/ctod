@@ -3,6 +3,8 @@ Helper functions / dependencies
 */
 module ctod.util;
 
+@safe:
+
 version(none)
 {
 	public import bops.ds.hashtable: Map = HashTable;
@@ -15,6 +17,11 @@ version(none)
 	void mapClear(T)(ref T map)
 	{
 		map.clear();
+	}
+
+	auto extractOutBuffer(ref OutBuffer o) @trusted
+	{
+		return cast(string) o[];
 	}
 }
 else
@@ -33,5 +40,10 @@ else
 	void mapClear(T)(ref T map) @trusted if (is(T == K[V], K, V))
 	{
 		map.clear();
+	}
+
+	auto extractOutBuffer(ref OutBuffer o)
+	{
+		return o.data();
 	}
 }

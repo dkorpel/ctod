@@ -885,3 +885,35 @@ ubyte z = 3;
 	test(`char16_t c = u'\u00F6';`, `wchar c = wchar('\u00F6');`);
 	test(`char32_t d = U'\U0010FFFF';`, `dchar d = dchar('\U0010FFFF');`);
 }
+
+@"misc" unittest
+{
+	// strip backslash before newline
+	test("int x = 3\\\n*4;", "int x = 3\n*4;");
+
+	enum wcharImp = "import core.stdc.stddef: wchar_t;\n";
+
+	test(`wchar_t *x = L"Msg";`, wcharImp ~ `wchar_t* x = "Msg"w;`);
+	test(`char16_t *x = u"Msg";`, `wchar* x = "Msg"w;`);
+	test(`char32_t *x = U"Msg";`, `dchar* x = "Msg"d;`);
+
+	test(`wchar_t  b = L'\xFFEF';`, wcharImp ~ `wchar_t b = wchar('\xFFEF');`);
+	test(`char16_t c = u'\u00F6';`, `wchar c = wchar('\u00F6');`);
+	test(`char32_t d = U'\U0010FFFF';`, `dchar d = dchar('\U0010FFFF');`);
+}
+
+@"remove forward declarations" unittest
+{
+	test(`
+void f(void);
+void f(void) { }`,
+	`
+
+void f() { }`);
+
+	test(`void f(void), g(float);`, `void f(); void g(float);`);
+	test(`void f(), g();`, `void f(); void g();`);
+
+	// Missing identifier field requires null check to prevent segfault
+	test(`void () {}`, `void {}`);
+}

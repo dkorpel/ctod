@@ -940,24 +940,24 @@ unittest
 }
 
 /// Returns: `true` if `t` would not be default initialized to all zero like in C, but e.g. `char.init` or NaN
-bool noZeroInitInD(const CType t)
+bool zeroInitInD(const CType t)
 {
 	if (t.name == "float" || t.name == "char" || t.name == "double" || t.name == "real")
 	{
-		return true;
+		return false;
 	}
 	if (t.isStaticArray())
 	{
-		return noZeroInitInD(t.next[0]);
+		return zeroInitInD(t.next[0]);
 	}
-	return false;
+	return true;
 }
 
 unittest
 {
-	assert(noZeroInitInD(CType.named("float")));
-	assert(noZeroInitInD(CType.array(CType.array(CType.named("char"), "2"), "10")));
-	assert(!noZeroInitInD(CType.pointer(CType.named("float"))));
+	assert(!zeroInitInD(CType.named("float")));
+	assert(!zeroInitInD(CType.array(CType.array(CType.named("char"), "2"), "10")));
+	assert(zeroInitInD(CType.pointer(CType.named("float"))));
 }
 
 // `int8_t` etc. are from stdint.h

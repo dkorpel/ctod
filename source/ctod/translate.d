@@ -7,7 +7,7 @@ import ctod.ctype;
 import ctod.cdeclaration;
 import ctod.cexpr;
 import ctod.cpreproc;
-import ctod.util : Map;
+import ctod.util;
 
 import tree_sitter.api;
 
@@ -42,7 +42,6 @@ private TSParser* getCParser() @trusted
 /// Returns: `source` translated from C to D
 string translateFile(string source, string moduleName, ref TranslationSettings settings)
 {
-
 	auto parser = getCParser();
 	// scope(exit) ts_parser_delete(parser);
 	// ts_tree_delete(tree);
@@ -52,9 +51,18 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	auto ctx = CtodCtx(source, parser);
 	Node* root = parseCtree(ctx.parser, source);
 	assert(root);
+
+	// checkErrors();
+	// if (node.typeEnum == Sym.error)
+	// {
+	// 	import ctod.util;
+	// 	stderr.writeln("Error (", node.lineNumber, "):", node.source);
+	// }
+
+	findFuncDecls(ctx, *root);
 	translateNode(ctx, *root);
 
-	string result = "";
+	OutBuffer result;
 
 	if (settings.includeHeader)
 	{
@@ -64,7 +72,7 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 			result ~= moduleName;
 			result ~= ";\n";
 		}
-		result ~= "@nogc nothrow:\nextern(C): __gshared:\n";
+		result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
 	}
 
 	if (ctx.needsHasVersion)
@@ -90,7 +98,7 @@ string translateFile(string source, string moduleName, ref TranslationSettings s
 	// white space leading up to the first AST element is not included in the AST, so add it
 	result ~= source[0 .. root.start];
 	result ~= root.output();
-	return result;
+	return result.extractOutBuffer();
 }
 
 /// What the C macro is for
@@ -139,6 +147,8 @@ struct CtodCtx
 	Map!(string, bool) macroFuncParams;
 	/// Type of expression nodes
 	Map!(ulong, CType) nodeTypes;
+	/// Keeps track of all global functions with a body
+	Map!(string, bool) functionDefinitions;
 
 	/// collect structs, unions and enums definitions that were defined in expressions
 	InlineType[] inlineTypes;
@@ -191,7 +201,7 @@ nothrow:
 
 	bool inUnion()
 	{
-		return currentTypeScope().sym == Sym.union_specifier;
+		return currentTypeScope.sym == Sym.union_specifier;
 	}
 
 	CType expType(ref Node node)
@@ -237,7 +247,7 @@ nothrow:
 				symbolTable[decl.identifier] = decl;
 			}
 		}
-		currentTypeScope().fieldIndex++;
+		currentTypeScope.fieldIndex++;
 	}
 
 	string uniqueIdentifier(string suggestion)
@@ -254,54 +264,58 @@ nothrow:
 	}
 }
 
-///
 void translateNode(ref CtodCtx ctx, ref Node node)
 {
 	if (node.isTranslated)
-	{
 		return;
-	}
 	scope (exit)
 		node.isTranslated = true;
 
 	if (ctodTryPreprocessor(ctx, node))
-	{
 		return;
-	}
-	if (ctodTryInitializer(ctx, node))
-	{
-		return;
-	}
-	if (ctodTryDeclaration(ctx, node))
-	{
-		return;
-	}
-	if (ctodTryTypedef(ctx, node))
-	{
-		return;
-	}
-	if (ctodExpression(ctx, node))
-	{
-		return;
-	}
-	if (ctodTryStatement(ctx, node))
-	{
-		return;
-	}
-	if (ctodMisc(ctx, node))
-	{
-		return;
-	}
 
-	if (node.typeEnum == Sym.error)
-	{
-		// import ctod.util;
-		// stderr.writeln("ERROR: ", node.source);
-	}
+	if (ctodTryInitializer(ctx, node))
+		return;
+
+	if (ctodTryDeclaration(ctx, node))
+		return;
+
+	if (ctodTryTypedef(ctx, node))
+		return;
+
+	if (ctodExpression(ctx, node))
+		return;
+
+	if (ctodTryStatement(ctx, node))
+		return;
+
+	if (ctodMisc(ctx, node))
+		return;
 
 	foreach (ref c; node.children)
 	{
 		translateNode(ctx, c);
+	}
+}
+
+/// Start looking for function definitions so redundant extern function declarations can be removed
+/// during translation. (C requires forward function declarations, D doesn't)
+void findFuncDecls(ref CtodCtx ctx, ref Node node)
+{
+	if (node.typeEnum == Sym.function_definition)
+	{
+		if (auto declNode = node.childField(Field.declarator))
+		{
+			if (auto idNode = declNode.childField(Field.declarator))
+				ctx.functionDefinitions[idNode.source] = true;
+		}
+	}
+	else
+	{
+		foreach (ref c; node.children)
+		{
+			findFuncDecls(ctx, c);
+		}
 	}
 }
 

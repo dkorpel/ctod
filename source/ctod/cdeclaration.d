@@ -6,12 +6,14 @@ import ctod.tree_sitter;
 import ctod.translate;
 import ctod.ctype;
 
-/// Returns: true if a declaration was matched and replaced
+/// Returns: list of parsed declarations from `node`
 Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 {
 	InlineType[] inlinetypes;
 
-	Decl[] translateDecl(string suffix, bool cInit)
+	// cInit = if the variable gets initialized in D,
+	//   which might differ from C which 0 initialized floats and void initializes parameters
+	Decl[] translateDecl(string suffix, Sym sym)
 	{
 		string apiMacro;
 		Decl[] decls = parseDecls(ctx, node, inlinetypes, &apiMacro);
@@ -26,41 +28,49 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 			result ~= s.toString();
 		}
 		CType previousType = CType.none;
-		foreach (d; decls)
+		size_t finalCount = 0;
+		foreach (decl; decls)
 		{
-			if (cInit && d.initializer.length == 0)
+			bool cInit = sym == Sym.declaration || sym == Sym.field_declaration;
+			if (cInit && decl.initializer.length == 0)
 			{
-				if (ctx.inFunction && !d.quals.staticFunc)
+				if (ctx.inFunction && !decl.quals.staticFunc)
 				{
 					// void initialize function local variables
-					d.initializer = "void";
+					decl.initializer = "void";
 				}
-				else if (noZeroInitInD(d.type) && !(ctx.inUnion && ctx.currentTypeScope()
-						.fieldIndex > 0))
+				else if (!zeroInitInD(decl.type) && !(ctx.inUnion && ctx.currentTypeScope.fieldIndex > 0))
 				{
 					// `char x;` => `char x = 0;`
-					d.initializer = "0";
+					decl.initializer = "0";
 				}
 			}
 
-			if (d.type != previousType)
+			if (sym != Sym.function_definition && decl.type.isFunction
+				&& decl.identifier in ctx.functionDefinitions)
+				continue;
+
+			// Try to combine `int* x; int* y;` into `int* x, y`
+			// But: cannot combine function types: `void f(), g;` doesn't work in D (#twab)
+			if (decl.type != previousType || decl.type.isFunction())
 			{
 				if (previousType != CType.none)
 				{
 					result ~= "; ";
 				}
-				result ~= d.toString();
+				result ~= decl.toString();
 			}
 			else
 			{
-				result ~= ", " ~ d.identifier ~ d.initializerAssign;
+				result ~= ", " ~ decl.identifier ~ decl.initializerAssign;
 			}
-			ctx.registerDecl(d);
-			previousType = d.type;
+			ctx.registerDecl(decl);
+			previousType = decl.type;
+			finalCount++;
 		}
-		result ~= suffix;
+		if (finalCount > 0)
+			result ~= suffix;
 		node.replace(result);
-		node.isTranslated = true;
 		return decls;
 	}
 
@@ -78,20 +88,21 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 			ctx.enterFunction("???");
 			translateNode(ctx, *bodyNode);
 			ctx.leaveFunction();
-			return translateDecl(layout ~ bodyNode.output(), false);
+
+			return translateDecl(layout ~ bodyNode.output(), node.typeEnum);
 		}
 		break;
 	case Sym.parameter_declaration:
-		return translateDecl("", false);
+		return translateDecl("", node.typeEnum);
 	case Sym.field_declaration: // struct / union field
 		if (auto bitNode = node.firstChildType(Sym.bitfield_clause))
 		{
 			translateNode(ctx, *bitNode);
 			node.append("/*" ~ bitNode.output ~ " !!*/");
 		}
-		return translateDecl(";", true);
+		return translateDecl(";", node.typeEnum);
 	case Sym.declaration: // global / local variable
-		return translateDecl(";", true);
+		return translateDecl(";", node.typeEnum);
 	default:
 		break;
 	}

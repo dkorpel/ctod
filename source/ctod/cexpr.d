@@ -245,14 +245,6 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 				ctx.setExpType(node, decls[0].type);
 			}
 		}
-
-		// if (auto r = node.childField(Field.value)) {
-		// 	ctodExpression(ctx, *r, type);
-		// }
-		// if (auto l = node.childField(Field.type)) {
-		// 	ctodExpression(ctx, *l, type);
-		// }
-		// break;
 		return false;
 	case Sym.field_expression:
 		// TODO: find type of x->y

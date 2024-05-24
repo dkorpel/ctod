@@ -3,7 +3,7 @@ module ctod.tree_sitter;
 nothrow @safe:
 
 import tree_sitter.api;
-import ctod.util : Map, OutBuffer;
+import ctod.util;
 
 /// Returns: a concrete syntax tree for C source code
 Node* parseCtree(TSParser* parser, string source) @trusted
@@ -151,6 +151,12 @@ nothrow:
 		return true;
 	}
 
+	/// Returns: source line number
+	uint lineNumber() @trusted
+	{
+		return ts_node_start_point(tsnode).row;
+	}
+
 	/// Prevent preceding whitespace / comments from being output
 	void removeLayout()
 	{
@@ -232,7 +238,7 @@ nothrow:
 	{
 		OutBuffer appender;
 		appendOutput(this, appender);
-		return cast(string) appender[];
+		return appender.extractOutBuffer;
 	}
 
 	inout(Node)* childField(Field field) @trusted inout
