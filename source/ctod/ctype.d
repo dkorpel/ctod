@@ -20,16 +20,21 @@ struct Decl
 
 pure nothrow:
 
-	string toString() const {
+	string toString() const
+	{
 		string result = quals.toString();
 		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
-		if (type.tag == CType.Tag.funcDecl) {
+		if (type.tag == CType.Tag.funcDecl)
+		{
 			// result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
 			result ~= fmtFunction(type.next[0], identifier, type.params);
-		} else {
+		}
+		else
+		{
 			result ~= type.toString();
-			if (identifier.length > 0) {
+			if (identifier.length > 0)
+			{
 				result ~= " ";
 				result ~= identifier;
 			}
@@ -38,14 +43,17 @@ pure nothrow:
 		return result;
 	}
 
-	string initializerAssign() const {
-		if (initializer.length > 0) {
+	string initializerAssign() const
+	{
+		if (initializer.length > 0)
+		{
 			return " = " ~ initializer;
 		}
 		return "";
 	}
 
-	bool opEquals(const Decl other) const scope {
+	bool opEquals(const Decl other) const scope
+	{
 		return quals == other.quals && type == other.type
 			&& identifier == other.identifier && initializer == other.initializer;
 	}
@@ -53,22 +61,25 @@ pure nothrow:
 	///
 	enum none = Decl.init;
 	///
-	bool opCast() const scope { return cast(bool) type; }
+	bool opCast() const scope => cast(bool) type;
 }
 
 unittest
 {
-	assert(Decl(CQuals.init, CType.named("int"), "x", "3").toString() ==  "int x = 3");
+	assert(Decl(CQuals.init, CType.named("int"), "x", "3").toString() == "int x = 3");
 }
 
 /// Generate D function type syntax
-private string fmtFunction(const CType retType, string name, const Decl[] params) pure {
+private string fmtFunction(const CType retType, string name, const Decl[] params) pure
+{
 	string result = retType.toString();
 	result ~= " ";
 	result ~= name;
 	result ~= "(";
-	foreach (i, par; params) {
-		if (i > 0) {
+	foreach (i, par; params)
+	{
+		if (i > 0)
+		{
 			result ~= ", ";
 		}
 		result ~= par.toString();
@@ -88,21 +99,26 @@ struct InlineType
 
 pure nothrow:
 
-	bool hasBody() const { return body_.length > 0; }
-	string toString() const {
+	bool hasBody() const => body_.length > 0;
+	string toString() const
+	{
 		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : ";");
 	}
 }
 
 /// Generate alias declarations to put enum members into the global namespace
 /// C enums don't have a scope for their members
-string enumMemberAliases(string enumName, ref Node c) {
-	if (c.typeEnum != Sym.enumerator_list) {
+string enumMemberAliases(string enumName, ref Node c)
+{
+	if (c.typeEnum != Sym.enumerator_list)
+	{
 		return null;
 	}
 	string res = "\n";
-	foreach (ref c2; c.children) {
-		if (c2.typeEnum == Sym.enumerator) {
+	foreach (ref c2; c.children)
+	{
+		if (c2.typeEnum == Sym.enumerator)
+		{
 			string mem = c2.childField(Field.name).source;
 			res ~= "alias " ~ mem ~ " = " ~ enumName ~ "." ~ mem ~ ";\n";
 		}
@@ -110,12 +126,18 @@ string enumMemberAliases(string enumName, ref Node c) {
 	return res;
 }
 
-private string typeSymToKeyword(Sym sym) {
-	switch (sym) {
-		case Sym.struct_specifier: return "struct";
-		case Sym.union_specifier: return "union";
-		case Sym.enum_specifier: return "enum";
-		default: return null;
+private string typeSymToKeyword(Sym sym)
+{
+	switch (sym)
+	{
+	case Sym.struct_specifier:
+		return "struct";
+	case Sym.union_specifier:
+		return "union";
+	case Sym.enum_specifier:
+		return "enum";
+	default:
+		return null;
 	}
 }
 
@@ -127,20 +149,26 @@ private string typeSymToKeyword(Sym sym) {
 /// These are stored in `inlineTypes`, and the caller should emit these
 ///
 /// Returns: primitive type
-string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque) {
+string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque)
+{
 
 	// keyword = struct, union or enum
-	string namedType(Sym sym) {
+	string namedType(Sym sym)
+	{
 		auto nameNode = node.childField(Field.name);
-		if (auto c = node.childField(Field.body_)) {
+		if (auto c = node.childField(Field.body_))
+		{
 			ctx.pushTypeScope(sym);
 			translateNode(ctx, *c);
 			ctx.popTypeScope();
 			string name = nameNode ? nameNode.source : null;
 			inlineTypes ~= InlineType(typeSymToKeyword(sym), name, c.output(), c);
 			return name;
-		} else if (nameNode) {
-			if (keepOpaque) {
+		}
+		else if (nameNode)
+		{
+			if (keepOpaque)
+			{
 				return null;
 			}
 			// Don't emit bodyless types, assume they were defined before
@@ -150,92 +178,124 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		return null;
 	}
 
-	switch (node.typeEnum) {
-		case Sym.type_descriptor:
-			if (auto c = node.childField(Field.type)) {
-				return parseTypeNode(ctx, *c, inlineTypes, keepOpaque);
+	switch (node.typeEnum)
+	{
+	case Sym.type_descriptor:
+		if (auto c = node.childField(Field.type))
+		{
+			return parseTypeNode(ctx, *c, inlineTypes, keepOpaque);
+		}
+		break;
+	case Sym.primitive_type:
+		return ctodPrimitiveType(node.source);
+	case Sym.alias_type_identifier:
+		if (node.source == "wchar_t")
+		{
+			ctx.needsWchar = true;
+			return node.source;
+		}
+		else if (node.source == "bool")
+		{
+			ctx.needsCbool = true;
+			return "c_bool";
+		}
+		else if (node.source == "__int128_t")
+		{
+			ctx.needsInt128 = true;
+			return "Cent";
+		}
+		else if (node.source == "__uint128_t")
+		{
+			ctx.needsInt128 = true;
+			return "Cent";
+		}
+		else
+		{
+			// int8_t is recognized as a primitive type, but __u8 is a type identifier,
+			// so also do ctodPrimitiveType here.
+			const replacement = ctodPrimitiveType(node.source);
+			if (replacement == node.source)
+			{
+				// no replacement to a D-type, so escape keywords (out => out_)
+				return translateIdentifier(node.source);
 			}
-			break;
-		case Sym.primitive_type:
-			return ctodPrimitiveType(node.source);
-		case Sym.alias_type_identifier:
-			if (node.source == "wchar_t") {
-				ctx.needsWchar = true;
-				return node.source;
-			} else if (node.source == "bool") {
-				ctx.needsCbool = true;
-				return "c_bool";
-			} else if (node.source == "__int128_t") {
-				ctx.needsInt128 = true;
-				return "Cent";
-			} else if (node.source == "__uint128_t") {
-				ctx.needsInt128 = true;
-				return "Cent";
-			} else {
-				// int8_t is recognized as a primitive type, but __u8 is a type identifier,
-				// so also do ctodPrimitiveType here.
-				const replacement = ctodPrimitiveType(node.source);
-				if (replacement == node.source) {
-					// no replacement to a D-type, so escape keywords (out => out_)
-					return translateIdentifier(node.source);
-				} else {
-					// replacement to a D-type , e.g. __u8 => ubyte, no escaping
-					return replacement;
-				}
+			else
+			{
+				// replacement to a D-type , e.g. __u8 => ubyte, no escaping
+				return replacement;
 			}
-		case Sym.sized_type_specifier:
-			return ctodSizedTypeSpecifier(ctx, node);
-		case Sym.struct_specifier:
-		case Sym.union_specifier:
-		case Sym.enum_specifier:
-			return namedType(node.typeEnum);
-		default: break;
+		}
+	case Sym.sized_type_specifier:
+		return ctodSizedTypeSpecifier(ctx, node);
+	case Sym.struct_specifier:
+	case Sym.union_specifier:
+	case Sym.enum_specifier:
+		return namedType(node.typeEnum);
+	default:
+		break;
 	}
 	return null;
 }
 
 /// Translate built-in integral types (int, long, short, char, etc.)
-string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node) {
+string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node)
+{
 	bool signed = true;
 	int longCount = 0;
 	string primitive = "";
-	foreach (ref c; node.children) {
-		switch (c.typeEnum) {
-			case Sym.comment:
-				continue;
-			case Sym.anon_unsigned:
-				signed = false;
-				break;
-			case Sym.anon_long:
-				longCount++;
-				break;
-			case Sym.primitive_type:
-				primitive = ctodPrimitiveType(c.source);
-				break;
-			case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
-				primitive = "short";
-				break;
-			default: break;
+	foreach (ref c; node.children)
+	{
+		switch (c.typeEnum)
+		{
+		case Sym.comment:
+			continue;
+		case Sym.anon_unsigned:
+			signed = false;
+			break;
+		case Sym.anon_long:
+			longCount++;
+			break;
+		case Sym.primitive_type:
+			primitive = ctodPrimitiveType(c.source);
+			break;
+		case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
+			primitive = "short";
+			break;
+		default:
+			break;
 		}
 	}
 
-	if (longCount > 0 && primitive == "double") {
+	if (longCount > 0 && primitive == "double")
+	{
 		primitive = "real";
-	} else if (longCount == 1 && primitive == "") {
+	}
+	else if (longCount == 1 && primitive == "")
+	{
 		primitive = "c_long";
 		ctx.needsClong = true;
-	} else if (longCount == 2 && primitive == "") {
+	}
+	else if (longCount == 2 && primitive == "")
+	{
 		primitive = "long";
-	} else if (!signed && primitive == "") {
+	}
+	else if (!signed && primitive == "")
+	{
 		primitive = "int";
 	}
 
-	if (!signed && primitive.length > 0 && primitive[0] != 'u') {
-		if (primitive == "char") {
+	if (!signed && primitive.length > 0 && primitive[0] != 'u')
+	{
+		if (primitive == "char")
+		{
 			primitive = "ubyte";
-		} else if (primitive == "c_long") {
+		}
+		else if (primitive == "c_long")
+		{
 			primitive = "c_ulong";
-		} else {
+		}
+		else
+		{
 			primitive = "u" ~ primitive;
 		}
 	}
@@ -261,24 +321,33 @@ struct CQuals
 
 pure nothrow:
 
-	string toString() const {
+	string toString() const
+	{
 		string result;
-		if (inline) result ~= "pragma(inline, true) ";
-		if (extern_) result ~= "extern ";
+		if (inline)
+			result ~= "pragma(inline, true) ";
+		if (extern_)
+			result ~= "extern ";
 		// C's static meaning 'private to the translation unit' doesn't exist in D
 		// The closest thing is `private extern(D)` which restricts access and
 		// avoids name conflicts, but still emits a symbol
 		// However, we don't do `extern(D)` since that changes abi as well
-		if (staticGlobal) result ~= "private ";
-		if (staticFunc) result ~= "static ";
+		if (staticGlobal)
+			result ~= "private ";
+		if (staticFunc)
+			result ~= "static ";
 		// Also: static can also mean 'array of length at least X'
 		// D has transitive const unlike C
 		// it must surround the primitive type, e.g. `const int*` => `const(int)*`
 		// if (const_) result ~= "const ";
-		if (auto_) result ~= "auto ";
-		if (volatile_) result ~= "/*volatile*/ ";
-		if (restrict) result ~= "/*restrict*/ ";
-		if (atomic) result ~= "/*atomic*/ ";
+		if (auto_)
+			result ~= "auto ";
+		if (volatile_)
+			result ~= "/*volatile*/ ";
+		if (restrict)
+			result ~= "/*restrict*/ ";
+		if (atomic)
+			result ~= "/*atomic*/ ";
 		return result;
 	}
 }
@@ -286,25 +355,48 @@ pure nothrow:
 /// Look for type qualifiers in this node, set the corresponding booleans
 /// Unknown qualifiers are ignored, though the function is supposed to catch all of them.
 /// Returns: `true` on success
-bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals) {
-	if (node.typeEnum == Sym.type_qualifier || node.typeEnum == Sym.storage_class_specifier) {
-		switch (node.children[0].typeEnum) {
-			case Sym.anon_const: quals.const_ = true; return true;
-			case Sym.anon_volatile: quals.volatile_ = true; return true;
-			case Sym.anon_restrict: quals.restrict = true; return true;
-			case Sym.anon__Atomic: quals.atomic = true; return true;
-			case Sym.anon_extern: quals.extern_ = true; return true;
-			case Sym.anon_static:
-				if (ctx.inFunction) {
-					quals.staticFunc = true;
-				} else {
-					quals.staticGlobal = true;
-				}
-				return true;
-			case Sym.anon_auto: quals.auto_ = true; return true;
-			case Sym.anon_register: quals.register = true; return true;
-			case Sym.anon_inline: quals.inline = true; return true;
-			default: break;
+bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals)
+{
+	if (node.typeEnum == Sym.type_qualifier || node.typeEnum == Sym.storage_class_specifier)
+	{
+		switch (node.children[0].typeEnum)
+		{
+		case Sym.anon_const:
+			quals.const_ = true;
+			return true;
+		case Sym.anon_volatile:
+			quals.volatile_ = true;
+			return true;
+		case Sym.anon_restrict:
+			quals.restrict = true;
+			return true;
+		case Sym.anon__Atomic:
+			quals.atomic = true;
+			return true;
+		case Sym.anon_extern:
+			quals.extern_ = true;
+			return true;
+		case Sym.anon_static:
+			if (ctx.inFunction)
+			{
+				quals.staticFunc = true;
+			}
+			else
+			{
+				quals.staticGlobal = true;
+			}
+			return true;
+		case Sym.anon_auto:
+			quals.auto_ = true;
+			return true;
+		case Sym.anon_register:
+			quals.register = true;
+			return true;
+		case Sym.anon_inline:
+			quals.inline = true;
+			return true;
+		default:
+			break;
 		}
 	}
 	return false;
@@ -313,16 +405,19 @@ bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals) {
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, scope string* apiMacro = null) {
+Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, scope string* apiMacro = null)
+{
 	auto typeNode = node.childField(Field.type);
-	if (!typeNode) {
+	if (!typeNode)
+	{
 		return null;
 	}
 	const oldLen = inlineTypes.length;
 	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes, false);
 
 	// This happens with API macros, which get parsed as a return type.
-	if (apiMacro && node.children.length > 1 && node.children[1].typeEnum == Sym.error) {
+	if (apiMacro && node.children.length > 1 && node.children[1].typeEnum == Sym.error)
+	{
 		*apiMacro = primitiveType;
 		primitiveType = node.children[1].source;
 	}
@@ -330,29 +425,36 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 	// there may be multiple type_qualifier fields
 	// if (auto qualNode = node.childField(Field.type_qualifier))
 	CQuals quals;
-	foreach (ref c; node.children) {
+	foreach (ref c; node.children)
+	{
 		cast(void) tryParseTypeQual(ctx, c, quals);
 	}
 	CType baseType = CType.named(primitiveType);
 	baseType.setConst(quals.const_);
 	Decl[] result;
-	foreach (ref c; node.children) {
-		if (&c == typeNode) {
+	foreach (ref c; node.children)
+	{
+		if (&c == typeNode)
+		{
 			// the type field may pass as a declarator, resulting in e.g.
 			// T* t; => T T; T* t;
 			continue;
 		}
 		Decl decl = Decl(quals, baseType, "", "");
-		if (parseCtype(ctx, c, decl, inlineTypes)) {
-			if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$-1].name.length == 0) {
-				inlineTypes[$-1].name = ctx.uniqueIdentifier(decl.identifier);
-				decl.type.setName(inlineTypes[$-1].name);
+		if (parseCtype(ctx, c, decl, inlineTypes))
+		{
+			if (primitiveType.length == 0 && inlineTypes.length > oldLen && inlineTypes[$ - 1].name.length == 0)
+			{
+				inlineTypes[$ - 1].name = ctx.uniqueIdentifier(decl.identifier);
+				decl.type.setName(inlineTypes[$ - 1].name);
 			}
-			if (decl.type.isCArray() && ctx.inParameterList) {
+			if (decl.type.isCArray() && ctx.inParameterList)
+			{
 				// C array parameters decay into pointers
 				decl.type = CType.pointer(decl.type.next[0]);
 			}
-			if (decl.type.isStaticArray() && ctx.inParameterList) {
+			if (decl.type.isStaticArray() && ctx.inParameterList)
+			{
 				// static arrays in parameter lists are passed by reference
 				decl.type.tag = CType.Tag.staticArrayParam;
 			}
@@ -363,24 +465,30 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 	// parameters can have no identifier, e.g. `foo(int named, float)`
 	// if this is called for a parameter declaration, you still want to get an anonymous declaration back
 	// the only exception is empty parameter lists, which in C are declared like `void main(void)`
-	if (result.length == 0 && primitiveType != "void") {
+	if (result.length == 0 && primitiveType != "void")
+	{
 		result = [Decl(quals, baseType, "", "")];
 	}
 	return result;
 }
 
 /// Returns: number of elements in initializer_list
-uint initializerLength(ref Node node, ref string firstElement) {
+uint initializerLength(ref Node node, ref string firstElement)
+{
 	firstElement = null;
 	uint commaCount = 0;
-	foreach (ref e; node.children) {
-		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE) {
+	foreach (ref e; node.children)
+	{
+		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE)
+		{
 			continue;
 		}
-		if (e.typeEnum == Sym.anon_COMMA) {
+		if (e.typeEnum == Sym.anon_COMMA)
+		{
 			commaCount++;
 		}
-		if (!firstElement) {
+		if (!firstElement)
+		{
 			firstElement = e.source;
 		}
 	}
@@ -388,10 +496,14 @@ uint initializerLength(ref Node node, ref string firstElement) {
 }
 
 /// Simple int to string function to avoid `std.conv: text`, which is not yet available for WebAssembly
-private string intToString(uint i) {
-	if (i < 10) {
-		return [cast(char) ('0' + i)];
-	} else {
+private string intToString(uint i)
+{
+	if (i < 10)
+	{
+		return [cast(char)('0' + i)];
+	}
+	else
+	{
 		return intToString(i / 10) ~ intToString(i % 10);
 	}
 }
@@ -406,144 +518,182 @@ unittest
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
 /// Returns: whether a type was found and parsed in `node`
-bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes) {
-	switch (node.typeEnum) {
-		case Sym.init_declarator:
-			if (auto declaratorNode = node.childField(Field.declarator)) {
-				decl.initializer = "TMP";
-				parseCtype(ctx, *declaratorNode, decl, inlineTypes);
-			}
-			if (auto valueNode = node.childField(Field.value)) {
-				ctx.inDeclType = decl.type;
-				translateNode(ctx, *valueNode);
-				ctx.inDeclType = CType.none;
-				convertPointerTypes(ctx, decl.type, *valueNode);
-				if (valueNode.typeEnum == Sym.initializer_list) {
-					string firstElem;
-					const len = initializerLength(*valueNode, firstElem);
-					// int x[4] = {0} => int[4] x = 0
-					// Important because in function scope, all elements must be in [] initializer
-					if (decl.type.isStaticArray()) {
-						if ((len == 1 && firstElem == "0") || len == 0) {
-							valueNode.replace("0");
-						}
-					}
-					// int x[] = {10, 20, 30} => int[3] x = [10, 20 30]
-					// transform into static array with length inferred from initializer
-					// Note: shouldn't be done in struct scope, but initializers are not valid in C there
-					if (decl.type.isCArray()) {
-						decl.type = CType.array(decl.type.next[0], intToString(len));
-					}
-				}
-				const stringSize = stringInitializerSize(*valueNode);
-				if (decl.type.isCArray() && stringSize >= 0) {
-					decl.type = CType.array(decl.type.next[0], intToString(stringSize));
-				}
-				decl.initializer = valueNode.output();
-			}
-			return true;
-		case Sym.parenthesized_declarator:
-			// (*(x));
-			auto pc = getParenContent(&node);
-			if (pc != &node) { // should not happen, but avoid endless recursion at all costs
-				return parseCtype(ctx, *pc, decl, inlineTypes);
-			}
-			break;
-		case Sym.abstract_function_declarator:
-		case Sym.function_declarator:
-			Decl[] paramDecls = [];
-			if (auto paramNode = node.childField(Field.parameters)) {
-				ctx.inParameterList++;
-				foreach (ref c; paramNode.children) {
-					if (c.typeEnum == Sym.parameter_declaration) {
-						auto d = parseDecls(ctx, c, inlineTypes);
-						paramDecls ~= d;
-					} else if (c.typeEnum == Sym.variadic_parameter) {
-						// variadic args
-						paramDecls ~= Decl(CQuals.none, CType.named("..."), "", "");
+bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes)
+{
+	switch (node.typeEnum)
+	{
+	case Sym.init_declarator:
+		if (auto declaratorNode = node.childField(Field.declarator))
+		{
+			decl.initializer = "TMP";
+			parseCtype(ctx, *declaratorNode, decl, inlineTypes);
+		}
+		if (auto valueNode = node.childField(Field.value))
+		{
+			ctx.inDeclType = decl.type;
+			translateNode(ctx, *valueNode);
+			ctx.inDeclType = CType.none;
+			convertPointerTypes(ctx, decl.type, *valueNode);
+			if (valueNode.typeEnum == Sym.initializer_list)
+			{
+				string firstElem;
+				const len = initializerLength(*valueNode, firstElem);
+				// int x[4] = {0} => int[4] x = 0
+				// Important because in function scope, all elements must be in [] initializer
+				if (decl.type.isStaticArray())
+				{
+					if ((len == 1 && firstElem == "0") || len == 0)
+					{
+						valueNode.replace("0");
 					}
 				}
-				ctx.inParameterList--;
-			}
-			if (auto declNode = node.childField(Field.declarator)) {
-				decl.type = CType.funcDecl(decl.type, paramDecls);
-				if (node.typeEnum == Sym.abstract_function_declarator) {
-					decl.type = CType.pointer(decl.type);
+				// int x[] = {10, 20, 30} => int[3] x = [10, 20 30]
+				// transform into static array with length inferred from initializer
+				// Note: shouldn't be done in struct scope, but initializers are not valid in C there
+				if (decl.type.isCArray())
+				{
+					decl.type = CType.array(decl.type.next[0], intToString(len));
 				}
-				parseCtype(ctx, *declNode, decl, inlineTypes);
 			}
-			return true;
-		case Sym.alias_field_identifier: // int x;
-		case Sym.alias_type_identifier: // typedef X Y;
-		case Sym.identifier: // ??
-			decl.identifier = translateIdentifier(node.source);
-			return true;
+			const stringSize = stringInitializerSize(*valueNode);
+			if (decl.type.isCArray() && stringSize >= 0)
+			{
+				decl.type = CType.array(decl.type.next[0], intToString(stringSize));
+			}
+			decl.initializer = valueNode.output();
+		}
+		return true;
+	case Sym.parenthesized_declarator:
+		// (*(x));
+		auto pc = getParenContent(&node);
+		if (pc != &node)
+		{ // should not happen, but avoid endless recursion at all costs
+			return parseCtype(ctx, *pc, decl, inlineTypes);
+		}
+		break;
+	case Sym.abstract_function_declarator:
+	case Sym.function_declarator:
+		Decl[] paramDecls = [];
+		if (auto paramNode = node.childField(Field.parameters))
+		{
+			ctx.inParameterList++;
+			foreach (ref c; paramNode.children)
+			{
+				if (c.typeEnum == Sym.parameter_declaration)
+				{
+					auto d = parseDecls(ctx, c, inlineTypes);
+					paramDecls ~= d;
+				}
+				else if (c.typeEnum == Sym.variadic_parameter)
+				{
+					// variadic args
+					paramDecls ~= Decl(CQuals.none, CType.named("..."), "", "");
+				}
+			}
+			ctx.inParameterList--;
+		}
+		if (auto declNode = node.childField(Field.declarator))
+		{
+			decl.type = CType.funcDecl(decl.type, paramDecls);
+			if (node.typeEnum == Sym.abstract_function_declarator)
+			{
+				decl.type = CType.pointer(decl.type);
+			}
+			parseCtype(ctx, *declNode, decl, inlineTypes);
+		}
+		return true;
+	case Sym.alias_field_identifier: // int x;
+	case Sym.alias_type_identifier: // typedef X Y;
+	case Sym.identifier: // ??
+		decl.identifier = translateIdentifier(node.source);
+		return true;
 		// pointer/array declarators always have a declarator field.
 		// abstract declarators maybe not, for example: void foo(float*, float[])
 		// however, nested pointers/array (`float[][]` or `float**`) do have it until you reach the 'leaf'
-		case Sym.pointer_declarator:
-		case Sym.abstract_pointer_declarator:
-			decl.type = CType.pointer(decl.type);
-			if (auto c = node.firstChildType(Sym.type_qualifier)) {
-				if (c.source == "const" && decl.type.next[0].isConst) {
-					decl.type.setConst();
-					decl.type.next[0].setConst(false); // D has transitive const, so no need for `const(const(int)*)`
-				}
+	case Sym.pointer_declarator:
+	case Sym.abstract_pointer_declarator:
+		decl.type = CType.pointer(decl.type);
+		if (auto c = node.firstChildType(Sym.type_qualifier))
+		{
+			if (c.source == "const" && decl.type.next[0].isConst)
+			{
+				decl.type.setConst();
+				decl.type.next[0].setConst(false); // D has transitive const, so no need for `const(const(int)*)`
 			}
-			if (auto c = node.childField(Field.declarator)) {
-				parseCtype(ctx, *c, decl, inlineTypes);
+		}
+		if (auto c = node.childField(Field.declarator))
+		{
+			parseCtype(ctx, *c, decl, inlineTypes);
+		}
+		return true;
+	case Sym.array_declarator:
+	case Sym.abstract_array_declarator:
+		// static array
+		if (auto sizeNode = node.childField(Field.size))
+		{
+			translateNode(ctx, *sizeNode);
+			decl.type = CType.array(decl.type, sizeNode.output());
+			if (auto c1 = node.childField(Field.declarator))
+			{
+				parseCtype(ctx, *c1, decl, inlineTypes);
 			}
-			return true;
-		case Sym.array_declarator:
-		case Sym.abstract_array_declarator:
-			// static array
-			if (auto sizeNode = node.childField(Field.size)) {
-				translateNode(ctx, *sizeNode);
-				decl.type = CType.array(decl.type, sizeNode.output());
-				if (auto c1 = node.childField(Field.declarator)) {
-					parseCtype(ctx, *c1, decl, inlineTypes);
+		}
+		else
+		{
+			// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
+			if (auto c1 = node.childField(Field.declarator))
+			{
+				if (ctx.inParameterList || decl.initializer.length > 0)
+				{
+					decl.type = CType.cArray(decl.type);
 				}
-			} else {
-				// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
-				if (auto c1 = node.childField(Field.declarator)) {
-					if (ctx.inParameterList || decl.initializer.length > 0) {
-						decl.type = CType.cArray(decl.type);
-					} else {
-						// C arrays without initializer are uncommon (raise a warning),
-						// but defaults to 1 element
-						decl.type = CType.array(decl.type, "1");
-					}
-					parseCtype(ctx, *c1, decl, inlineTypes);
+				else
+				{
+					// C arrays without initializer are uncommon (raise a warning),
+					// but defaults to 1 element
+					decl.type = CType.array(decl.type, "1");
 				}
+				parseCtype(ctx, *c1, decl, inlineTypes);
 			}
-			return true;
-		default:
-			break;
+		}
+		return true;
+	default:
+		break;
 	}
 	return false;
 }
 
 /// Returns: sizeof string initializer, including zero terminator, or -1 if not a string initializer
-int stringInitializerSize(ref Node node) {
-	if (node.typeEnum == Sym.concatenated_string) {
+int stringInitializerSize(ref Node node)
+{
+	if (node.typeEnum == Sym.concatenated_string)
+	{
 		int stringSize = 0;
-		foreach (ref c; node.children) {
-			if (c.typeEnum == Sym.string_literal) {
+		foreach (ref c; node.children)
+		{
+			if (c.typeEnum == Sym.string_literal)
+			{
 				const s = stringLiteralSize(c.source);
-				if (s < 0) {
+				if (s < 0)
+				{
 					return -1;
 				}
 				stringSize += s;
 			}
 		}
 		return stringSize + 1;
-	} else if (node.typeEnum == Sym.string_literal) {
+	}
+	else if (node.typeEnum == Sym.string_literal)
+	{
 		const s = stringLiteralSize(node.source);
-		if (s < 0) {
+		if (s < 0)
+		{
 			return -1;
 		}
 		return s + 1;
-	} else {
+	}
+	else
+	{
 		return -1;
 	}
 }
@@ -552,37 +702,42 @@ int stringInitializerSize(ref Node node) {
 ///
 /// Needed for initializing static char arrays.
 /// Size excludes zero terminator, because concatenated string literals have only one of them
-int stringLiteralSize(string s) {
+int stringLiteralSize(string s)
+{
 	int result = cast(int) s.length - 2; // -2 for quotes
 	size_t p = 0;
-	while (p+1 < s.length) {
+	while (p + 1 < s.length)
+	{
 		// escape sequences usually take 2 bytes but only produce 1
 		// exceptions are: \x32 \u0123 \U01234567
-		if (s[p] == '\\') {
+		if (s[p] == '\\')
+		{
 			p++;
 			result -= 1;
 			// TODO: \x can have more than 2 digits, and \u and \U can produce more than 1 code unit,
 			// so these amounts are not right
-			switch (s[p]) {
-				case 'x':
-					result -= 2; // \xhh
-					break;
-				case 'u':
-					result -= 4; // \uhhhh
-					result += 1; // guess that the code point is 2 code unit
-					break;
-				case 'U':
-					result -= 8; // \Uhhhhhhhh
-					result += 3; // guess that the code point is 4 code units
-					break;
-				default:
-					// \n \r \t etc.
-					break;
+			switch (s[p])
+			{
+			case 'x':
+				result -= 2; // \xhh
+				break;
+			case 'u':
+				result -= 4; // \uhhhh
+				result += 1; // guess that the code point is 2 code unit
+				break;
+			case 'U':
+				result -= 8; // \Uhhhhhhhh
+				result += 3; // guess that the code point is 4 code units
+				break;
+			default:
+				// \n \r \t etc.
+				break;
 			}
 		}
 		p++;
 	}
-	if (result < 0) {
+	if (result < 0)
+	{
 		return -1; // malformed string literal
 	}
 	return cast(uint) result;
@@ -599,7 +754,8 @@ unittest
 package
 struct CType
 {
-	enum Tag {
+	enum Tag
+	{
 		none,
 		unknown,
 		pointer,
@@ -628,74 +784,89 @@ struct CType
 pure nothrow:
 
 	/// Returns: type of string literal
-	static CType stringLiteral() {
+	static CType stringLiteral()
+	{
 		auto cc = CType.named("char");
 		cc.isConst = true;
 		auto result = CType.pointer(cc);
 		return result;
 	}
 
-	bool opCast() const scope { return tag != Tag.none; }
-	bool isFunction() const { return tag == Tag.funcDecl; }
-	bool isStaticArray() const { return tag == Tag.staticArray; }
-	bool isCArray() const { return tag == Tag.cArray; }
-	bool isPointer() const { return tag == Tag.pointer; }
+	bool opCast() const scope => tag != Tag.none;
+	bool isFunction() const => tag == Tag.funcDecl;
+	bool isStaticArray() const => tag == Tag.staticArray;
+	bool isCArray() const => tag == Tag.cArray;
+	bool isPointer() const => tag == Tag.pointer;
 
-	bool opEquals(const CType other) const scope {
-		if (other.tag != this.tag) {
+	bool opEquals(const CType other) const scope
+	{
+		if (other.tag != this.tag)
+		{
 			return false;
 		}
-		if (other.isConst != this.isConst) {
+		if (other.isConst != this.isConst)
+		{
 			return false;
 		}
-		final switch (tag) {
-			case Tag.cArray:
-			case Tag.pointer:
-				return this.next[0] == other.next[0];
-			case Tag.staticArray:
-			case Tag.staticArrayParam:
-				return this.countExpr == other.countExpr && this.next[0] == other.next[0];
-			case Tag.funcDecl:
-				return this.next[0] == other.next[0] && this.params == other.params;
-			case Tag.named:
-				return other.name == this.name;
-			case Tag.unknown:
-			case Tag.none:
-				return true;
+		final switch (tag)
+		{
+		case Tag.cArray:
+		case Tag.pointer:
+			return this.next[0] == other.next[0];
+		case Tag.staticArray:
+		case Tag.staticArrayParam:
+			return this.countExpr == other.countExpr && this.next[0] == other.next[0];
+		case Tag.funcDecl:
+			return this.next[0] == other.next[0] && this.params == other.params;
+		case Tag.named:
+			return other.name == this.name;
+		case Tag.unknown:
+		case Tag.none:
+			return true;
 		}
 	}
 
-	void setConst(bool value = true) {
+	void setConst(bool value = true)
+	{
 		isConst = value;
 	}
 
 	// replace the eventual name of this type
 	// used for giving anonymous structs/unions/enums a name afterwards, based on variable names
-	void setName(string name) {
-		if (tag == Tag.named) {
+	void setName(string name)
+	{
+		if (tag == Tag.named)
+		{
 			this.name = name;
-		} else if (next.length > 0) {
+		}
+		else if (next.length > 0)
+		{
 			next[0].setName(name);
-		} else {
+		}
+		else
+		{
 
 		}
 	}
 
-	static CType pointer(CType to) {
+	static CType pointer(CType to)
+	{
 		CType result;
 		result.next = [to];
 		result.tag = Tag.pointer;
 		return result;
 	}
 
-	static CType cArray(CType to) {
+	static CType cArray(CType to)
+	{
 		CType result;
 		result.next = [to];
 		result.tag = Tag.cArray;
 		return result;
 	}
 
-	static CType array(CType elem, string count) {
+	static CType array(CType elem, string count)
+	{
 		CType result;
 		result.next = [elem];
 		result.countExpr = count;
@@ -703,14 +874,16 @@ pure nothrow:
 		return result;
 	}
 
-	static CType named(string name) {
+	static CType named(string name)
+	{
 		CType result;
 		result.name = name;
 		result.tag = Tag.named;
 		return result;
 	}
 
-	static CType funcDecl(CType ret, Decl[] params) {
+	static CType funcDecl(CType ret, Decl[] params)
+	{
 		CType result;
 		result.next = [ret];
 		result.params = params;
@@ -718,38 +891,44 @@ pure nothrow:
 		return result;
 	}
 
-	private static CType fromTag(Tag tag) {
+	private static CType fromTag(Tag tag)
+	{
 		CType result;
 		result.tag = tag;
 		return result;
 	}
 
-	string toString() const {
-		final switch (tag) {
-			case Tag.cArray:
-				return next[0].toString() ~ "[$]";
-			case Tag.staticArrayParam:
-				// Possible to translate as `ref` parameter, but we also translate passing `sa` to `sa.ptr`
-				// So translating as pointer makes this more consistent
-				// return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
-				goto case;
-			case Tag.pointer:
-				if (next[0].isFunction) {
-					return fmtFunction(next[0].next[0], "function", next[0].params);
-				} else {
-					//format(isConst ? "const(%s*)" : "%s*", next[0]);
-					return isConst ? ("const("~next[0].toString()~"*)") : next[0].toString() ~ "*";
-				}
-			case Tag.staticArray:
-				return next[0].toString() ~ "[" ~ countExpr ~ "]";
-			case Tag.funcDecl:
-				return null; // format("%s FUNC(%(%s, %))", next[0], params);
-			case Tag.named:
-				return isConst ? ("const("~name~")") : name;
-			case Tag.unknown:
-				return "unknown";
-			case Tag.none:
-				return "none";
+	string toString() const
+	{
+		final switch (tag)
+		{
+		case Tag.cArray:
+			return next[0].toString() ~ "[$]";
+		case Tag.staticArrayParam:
+			// Possible to translate as `ref` parameter, but we also translate passing `sa` to `sa.ptr`
+			// So translating as pointer makes this more consistent
+			// return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
+			goto case;
+		case Tag.pointer:
+			if (next[0].isFunction)
+			{
+				return fmtFunction(next[0].next[0], "function", next[0].params);
+			}
+			else
+			{
+				//format(isConst ? "const(%s*)" : "%s*", next[0]);
+				return isConst ? ("const(" ~ next[0].toString() ~ "*)") : next[0].toString() ~ "*";
+			}
+		case Tag.staticArray:
+			return next[0].toString() ~ "[" ~ countExpr ~ "]";
+		case Tag.funcDecl:
+			return null; // format("%s FUNC(%(%s, %))", next[0], params);
+		case Tag.named:
+			return isConst ? ("const(" ~ name ~ ")") : name;
+		case Tag.unknown:
+			return "unknown";
+		case Tag.none:
+			return "none";
 		}
 	}
 }
@@ -761,11 +940,14 @@ unittest
 }
 
 /// Returns: `true` if `t` would not be default initialized to all zero like in C, but e.g. `char.init` or NaN
-bool noZeroInitInD(const CType t) {
-	if (t.name == "float" || t.name == "char" || t.name == "double" || t.name == "real") {
+bool noZeroInitInD(const CType t)
+{
+	if (t.name == "float" || t.name == "char" || t.name == "double" || t.name == "real")
+	{
 		return true;
 	}
-	if (t.isStaticArray()) {
+	if (t.isStaticArray())
+	{
 		return noZeroInitInD(t.next[0]);
 	}
 	return false;
@@ -818,7 +1000,8 @@ private immutable string[2][] basicTypeMap = [
 /// Replace known C primitive types to D-types
 ///
 /// C code often used macros for integer types of standard sizes, which is not needed for D
-string ctodPrimitiveType(string s) {
+string ctodPrimitiveType(string s)
+{
 	return mapLookup(basicTypeMap, s, s);
 }
 

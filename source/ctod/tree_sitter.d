@@ -3,12 +3,14 @@ module ctod.tree_sitter;
 nothrow @safe:
 
 import tree_sitter.api;
-import ctod.util: Map;
+import ctod.util : Map, OutBuffer;
 
 /// Returns: a concrete syntax tree for C source code
-Node* parseCtree(TSParser* parser, string source) @trusted {
+Node* parseCtree(TSParser* parser, string source) @trusted
+{
 	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
-	if (ts_node_is_null(ts_tree_root_node(tree))) {
+	if (ts_node_is_null(ts_tree_root_node(tree)))
+	{
 		return null;
 	}
 	Extra* extra = new Extra(source);
@@ -21,11 +23,15 @@ struct Extra
 	string fullSource;
 	Map!(size_t, Node) nodes;
 
-	ref Node get(TSNode tsnode) @trusted {
+	ref Node get(TSNode tsnode) @trusted
+	{
 		const id = ts_node_start_byte(tsnode);
-		if (auto x = id in nodes) {
+		if (auto x = id in nodes)
+		{
 			return *x;
-		} else {
+		}
+		else
+		{
 			return nodes[id] = Node(tsnode, &this);
 		}
 	}
@@ -40,27 +46,31 @@ struct Children
 	bool named = false;
 	size_t i = 0;
 
-	this(TSNode tsnode, bool named, Extra* extra) @trusted {
+	this(TSNode tsnode, bool named, Extra* extra) @trusted
+	{
 		this.tsnode = tsnode;
 		this.named = named;
 		this.extra = extra;
 		this.length = named ?
-			ts_node_named_child_count(tsnode) :
-			ts_node_child_count(tsnode);
+			ts_node_named_child_count(tsnode) : ts_node_child_count(tsnode);
 	}
 
 	@disable this(this);
 
-	ref Node opIndex(size_t i) @trusted {
+	ref Node opIndex(size_t i) @trusted
+	{
 		return extra.get(named ?
-			ts_node_named_child(tsnode, cast(uint) i) :
-			ts_node_child(tsnode, cast(uint) i)
+				ts_node_named_child(tsnode, cast(uint) i) : ts_node_child(tsnode, cast(uint) i)
 		);
 	}
 
-	bool empty() const { return i >= length; }
-	void popFront() {i++;}
-	ref Node front() { return this[i]; }
+	bool empty() const => i >= length;
+	void popFront()
+	{
+		i++;
+	}
+
+	ref Node front() => this[i];
 
 	Node[] children;
 }
@@ -68,7 +78,7 @@ struct Children
 /// Conrete syntax tree node
 struct Node
 {
-	nothrow:
+nothrow:
 	private TSNode tsnode; // 32 bytes
 
 	/// The entire C source code this belongs in
@@ -88,29 +98,30 @@ struct Node
 	Extra* extra;
 
 	/// Start index fullSource
-	uint start() @trusted const { return ts_node_start_byte(tsnode); }
+	uint start() @trusted const => ts_node_start_byte(tsnode);
 	/// End index in fullSource
-	uint end() @trusted const { return ts_node_end_byte(tsnode); }
+	uint end() @trusted const => ts_node_end_byte(tsnode);
 
 	/// Tag identifying the C AST node type
-	Sym typeEnum() @trusted const { return cast(Sym) ts_node_symbol(tsnode); }
+	Sym typeEnum() @trusted const => cast(Sym) ts_node_symbol(tsnode);
 
 	/// Source code of this node
-	string source() const { return fullSource[start .. end]; }
+	string source() const => fullSource[start .. end];
 
-	bool isNone() @trusted const { return ts_node_is_null(tsnode); }
-	bool hasError() @trusted const { return ts_node_has_error(tsnode); }
+	bool isNone() @trusted const => ts_node_is_null(tsnode);
+	bool hasError() @trusted const => ts_node_has_error(tsnode);
 
 	/// Each node has unique source location, so we can use it as a key
-	ulong id() const { return start | (cast(ulong) end << 32); }
+	ulong id() const => start | (cast(ulong) end << 32);
 
-	size_t toHash() const { return cast(size_t) id; } // #optimization: On 32-bit, we can do better than truncating
+	size_t toHash() const => cast(size_t) id; // #optimization: On 32-bit, we can do better than truncating
 
-	bool opEquals(ref Node other) const { return this.start == other.start && this.end == other.end; }
+	bool opEquals(ref Node other) const => this.start == other.start && this.end == other.end;
 
 	// @disable this(this);
 
-	this(TSNode node, Extra* extra) @trusted {
+	this(TSNode node, Extra* extra) @trusted
+	{
 		this.tsnode = node; //
 		this.extra = extra;
 		this.fullSource = extra.fullSource;
@@ -118,18 +129,22 @@ struct Node
 		this.findChildren();
 	}
 
-	inout(Node[]) children() inout {
+	inout(Node[]) children() inout
+	{
 		return children_;
 	}
 
-	private void findChildren() @trusted return {
-		foreach (i, ref c; children_) {
+	private void findChildren() @trusted return
+	{
+		foreach (i, ref c; children_)
+		{
 			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
 		}
 	}
 
 	/// Replace this entire subtree with a translation
-	bool replace(string s) {
+	bool replace(string s)
+	{
 		this.isTranslated = true;
 		this.hasBeenReplaced = true;
 		this.replacement = s;
@@ -137,26 +152,32 @@ struct Node
 	}
 
 	/// Prevent preceding whitespace / comments from being output
-	void removeLayout() {
+	void removeLayout()
+	{
 		this.noLayout = true;
 	}
 
 	/// For translation purposes, prepend/append `s` to this node's source, without modifying the node's source itself
-	bool prepend(string s) {
+	bool prepend(string s)
+	{
 		this.prefix = s ~ this.prefix;
 		return false;
 	}
 
 	/// ditto
-	bool append(string s) {
+	bool append(string s)
+	{
 		this.suffix ~= s;
 		return false;
 	}
 
 	/// Returns: first child node with `type`
-	Node* firstChildType(TSSymbol type) {
-		foreach (ref c; this.children) {
-			if (c.typeEnum == type) {
+	Node* firstChildType(TSSymbol type)
+	{
+		foreach (ref c; this.children)
+		{
+			if (c.typeEnum == type)
+			{
 				return &c;
 			}
 		}
@@ -164,23 +185,35 @@ struct Node
 	}
 
 	/// `false` if this is null
-	bool opCast() const { return !isNone; }
+	bool opCast() const => !isNone;
 
-	private static void appendOutput(O)(const ref Node node, ref O result) {
+	private static void appendOutput(O)(const ref Node node, ref O result)
+	{
 		result ~= node.prefix;
-		if (node.hasBeenReplaced) {
+		if (node.hasBeenReplaced)
+		{
 			result ~= node.replacement;
-		} else if (node.children.length == 0) {
+		}
+		else if (node.children.length == 0)
+		{
 			result ~= node.source;
-		} else {
+		}
+		else
+		{
 			size_t lc = node.start; // layout cursor
-			foreach (ref c; node.children) {
-				if (!c || c.noLayout) {
+			foreach (ref c; node.children)
+			{
+				if (!c || c.noLayout)
+				{
 					//dprint(node.source);
-				} else {
+				}
+				else
+				{
 					const layout = node.fullSource[lc .. c.start];
-					foreach (i; 0 .. layout.length) {
-						if (layout[i] != '\\') { //#filter '\' from layout
+					foreach (i; 0 .. layout.length)
+					{
+						if (layout[i] != '\\') // #filter '\' from layout
+						{
 							result ~= layout[i];
 						}
 					}
@@ -195,23 +228,20 @@ struct Node
 	}
 
 	/// Returns: full translated D source code of this node after translation
-	string output() const @trusted {
-		version(none) {
-			import bops.outbuffer;
-			OutBuffer appender;
-			appendOutput(this, appender);
-			return cast(string) appender[];
-		} else {
-			string result = "";
-			appendOutput(this, result);
-			return result;
-		}
+	string output() const @trusted
+	{
+		OutBuffer appender;
+		appendOutput(this, appender);
+		return cast(string) appender[];
 	}
 
-	inout(Node)* childField(Field field) @trusted inout {
+	inout(Node)* childField(Field field) @trusted inout
+	{
 		auto f = ts_node_child_by_field_id(tsnode, field);
-		foreach (ref c; children) {
-			if (ts_node_eq(c.tsnode, f)) {
+		foreach (ref c; children)
+		{
+			if (ts_node_eq(c.tsnode, f))
+			{
 				return &c;
 			}
 		}

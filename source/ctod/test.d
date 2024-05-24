@@ -4,11 +4,13 @@ module ctod.test;
 
 import ctod.translate;
 
-private void test(string c, string d) {
+private void test(string c, string d)
+{
 	TranslationSettings settings;
 	settings.includeHeader = false;
 	const actual = translateFile(c, "testmodule", settings);
-	if (actual != d) {
+	if (actual != d)
+	{
 		import std.stdio: writeln;
 		writeln("--- EXPECTED: ---");
 		writeln(d);
@@ -19,7 +21,8 @@ private void test(string c, string d) {
 	}
 }
 
-@("time complexity") unittest {
+@"time complexity" unittest
+{
 	// Accidental binary recursion when constructing the node tree gave exponential time complexity
 	// This test won't finish in a reasonable time if that happens again
 	test("int y = (((((((((((((((((((((((((((((((((((((((((((((((((((((x)))))))))))))))))))))))))))))))))))))))))))))))))))));",
@@ -27,7 +30,8 @@ private void test(string c, string d) {
 
 }
 
-@("types") unittest {
+@"types" unittest
+{
 	test("unsigned x0;", "uint x0;");
 	test("unsigned int x0;", "uint x0;");
 	test("unsigned char c;", "ubyte c;");
@@ -263,7 +267,8 @@ ushort y;/*: int.sizeof !!*/
 ");
 }
 
-@("static array .ptr") unittest {
+@"static array .ptr" unittest
+{
 	test("
 int x[4];
 void pp(int *p);
@@ -299,7 +304,8 @@ void main() {
 
 }
 
-@("struct") unittest {
+@"struct" unittest
+{
 	test("
 typedef struct T {
 	S *ptr;
@@ -328,7 +334,8 @@ alias U1 = U0;
 ");
 }
 
-@("enum") unittest {
+@"enum" unittest
+{
 	test("
 typedef enum AnEnum
 {
@@ -368,7 +375,8 @@ alias B = X.B;
 
 }
 
-@("sizeof") unittest {
+@"sizeof" unittest
+{
 	test("int so1 = sizeof(int);", "int so1 = int.sizeof;");
 	test("int so2 = sizeof (4);", "int so2 = typeof(4).sizeof;");
 	test("int so3 = sizeof((short) 3 + 4l);", "int so3 = typeof(cast(short) 3 + 4L).sizeof;");
@@ -395,13 +403,15 @@ alias B = X.B;
 
 }
 
-@("numbers") unittest {
+@"numbers" unittest
+{
 	test("float x = 1.f;", "float x = 1.0f;");
 	test("float x = FLT_MAX;", "float x = float.max;");
 	test("int x = DBL_MAX_10_EXP + DBL_MAX_EXP;", "int x = double.max_10_exp + double.max_exp;");
 }
 
-@("cast") unittest {
+@"cast" unittest
+{
 	test("int x = (int) 3.5;", "int x = cast(int) 3.5;");
 	test("int x = (void(*)()) NULL;", "int x = cast(void function()) null;");
 
@@ -424,7 +434,8 @@ void main() {
 	`);
 }
 
-@("function") unittest {
+@"function" unittest
+{
 	test("
 int *bar(int y, ...) {
 	while (x) {
@@ -461,7 +472,8 @@ int* bar(int y, ...) {
 
 }
 
-@("assignment in if/while/for") unittest {
+@"assignment in if/while/for" unittest
+{
 	test("
 void main() {
 	if (x=30) {}
@@ -490,7 +502,8 @@ void main() {
 
 }
 
-@("strings") unittest {
+@"strings" unittest
+{
 	test(`
 const char *p0 = "con" "cat" "enated";
 char const *p1;
@@ -510,7 +523,8 @@ char[$] p6 = MACRO;
 	test("wchar_t p3;", "import core.stdc.stddef: wchar_t;\nwchar_t p3;");
 }
 
-@("initializers") unittest {
+@"initializers" unittest
+{
 
 	test("
 int x[4] = { 0 };
@@ -594,7 +608,8 @@ struct S1 { struct  { int y; }; }S1[1][1] Sarray = [[ {{2}} ]];
 ");
 }
 
-@("preprocessor") unittest {
+@"preprocessor" unittest
+{
 	test("
 #include <assert.h>
 #include <string.h>
@@ -855,7 +870,18 @@ ubyte z = 3;
 
 }
 
-@("misc") unittest {
+@"misc" unittest
+{
 	// strip backslash before newline
 	test("int x = 3\\\n*4;", "int x = 3\n*4;");
+
+	enum wcharImp = "import core.stdc.stddef: wchar_t;\n";
+
+	test(`wchar_t *x = L"Msg";`, wcharImp ~ `wchar_t* x = "Msg"w;`);
+	test(`char16_t *x = u"Msg";`, `wchar* x = "Msg"w;`);
+	test(`char32_t *x = U"Msg";`, `dchar* x = "Msg"d;`);
+
+	test(`wchar_t  b = L'\xFFEF';`, wcharImp ~ `wchar_t b = wchar('\xFFEF');`);
+	test(`char16_t c = u'\u00F6';`, `wchar c = wchar('\u00F6');`);
+	test(`char32_t d = U'\U0010FFFF';`, `dchar d = dchar('\U0010FFFF');`);
 }
