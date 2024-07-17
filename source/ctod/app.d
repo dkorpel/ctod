@@ -27,7 +27,7 @@ int main(string[] args)
 {
 	if (args.length < 2)
 	{
-		stderr.writeln("give at least one file argument");
+		printHelp(args[0]);
 		return -1;
 	}
 	try
@@ -62,5 +62,6 @@ int main(string[] args)
 
 void printHelp(string name)
 {
-	writeln("Usage: ", name, " [FILES]\nOptions:\n  --strip  strip comments");
+	stderr.writeln("Usage: ", name, " [FILES]\n" ~
+			"A translated .d file will be written to the same directory as each C source file.");
 }
