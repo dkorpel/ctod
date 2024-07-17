@@ -103,7 +103,7 @@ nothrow:
 	uint end() @trusted const => ts_node_end_byte(tsnode);
 
 	/// Tag identifying the C AST node type
-	Sym typeEnum() @trusted const => cast(Sym) ts_node_symbol(tsnode);
+	Sym sym() @trusted const => cast(Sym) ts_node_symbol(tsnode);
 
 	/// Source code of this node
 	string source() const => fullSource[start .. end];
@@ -182,7 +182,7 @@ nothrow:
 	{
 		foreach (ref c; this.children)
 		{
-			if (c.typeEnum == type)
+			if (c.sym == type)
 			{
 				return &c;
 			}
@@ -191,7 +191,7 @@ nothrow:
 	}
 
 	/// `false` if this is null
-	bool opCast() const => !isNone;
+	bool opCast(T : bool)() const => !isNone;
 
 	private static void appendOutput(O)(const ref Node node, ref O result)
 	{

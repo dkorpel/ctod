@@ -2,24 +2,24 @@ module ctod.cexpr;
 
 nothrow @safe:
 
-import ctod.tree_sitter;
-import ctod.translate;
-import ctod.ctype;
 import ctod.cdeclaration;
+import ctod.ctype;
+import ctod.translate;
+import ctod.tree_sitter;
+import ctod.util;
 
 /// Given a (x) expression, get the node with x.
 /// This is surprisingly non-trivial since the there is no field name for it in the C parser,
 /// and there can be comments between the parens and the expression.
 Node* getParenContent(return scope Node* node)
 {
-	if (node.typeEnum != Sym.parenthesized_expression && node.typeEnum != Sym
-		.parenthesized_declarator)
+	if (node.sym != Sym.parenthesized_expression && node.sym != Sym.parenthesized_declarator)
 	{
 		return node;
 	}
 	foreach (i; 1 .. node.children.length + -1)
 	{
-		if (node.children[i].typeEnum != Sym.comment)
+		if (node.children[i].sym != Sym.comment)
 		{
 			return &node.children[i];
 		}
@@ -43,7 +43,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 		}
 	}
 
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.alias_field_identifier:
 	case Sym.alias_type_identifier:
@@ -146,12 +146,12 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 		{
 
 			// !(x = 3) => ((x = 3) != true)
-			if (r.typeEnum == Sym.parenthesized_expression)
+			if (r.sym == Sym.parenthesized_expression)
 			{
 				auto a = getParenContent(r);
-				if (a.typeEnum == Sym.assignment_expression)
+				if (a.sym == Sym.assignment_expression)
 				{
-					if (node.children[0].typeEnum == Sym.anon_BANG)
+					if (node.children[0].sym == Sym.anon_BANG)
 					{
 						// enhancement: when parent is parenthesized (like in `while (!(x=5))`), don't add parens
 						r.prepend("(");
@@ -175,7 +175,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 		bool first = true;
 		foreach (ref c; node.children)
 		{
-			if (c.typeEnum == Sym.string_literal)
+			if (c.sym == Sym.string_literal)
 			{
 				if (first)
 				{
@@ -192,7 +192,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 	case Sym.char_literal:
 		// Just remove u'x' U'x' u8'x' L'x' prefixes
 		node.children[0].replace(`'`);
-		switch (node.children[0].typeEnum)
+		switch (node.children[0].sym)
 		{
 		case Sym.anon_L_SQUOTE:
 		case Sym.anon_u_SQUOTE:
@@ -214,7 +214,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 	case Sym.string_literal:
 
 		node.children[0].replace(`"`);
-		switch (node.children[0].typeEnum)
+		switch (node.children[0].sym)
 		{
 		case Sym.anon_L_DQUOTE:
 		case Sym.anon_u_DQUOTE:
@@ -241,7 +241,9 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 			Decl[] decls = parseDecls(ctx, *c, ctx.inlineTypes); //TODO: emit inline types?
 			if (decls.length == 1)
 			{
-				c.replace(decls[0].toString());
+				OutBuffer sink;
+				decls[0].toD(sink);
+				c.replace(sink.extractOutBuffer);
 				ctx.setExpType(node, decls[0].type);
 			}
 		}
@@ -259,11 +261,11 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 			{
 				ctx.setExpType(node, fType.next[0]);
 			}
-			if (funcNode.typeEnum == Sym.parenthesized_expression)
+			if (funcNode.sym == Sym.parenthesized_expression)
 			{
 				if (auto parenValue = getParenContent(funcNode))
 				{
-					if (parenValue.typeEnum == Sym.identifier)
+					if (parenValue.sym == Sym.identifier)
 					{
 						// So we have (X)(Y), which could be a cast to type X or a call to function X
 						// Tree-sitter parses it like a call, but we assume that it's a cast,
@@ -273,7 +275,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 				}
 			}
 
-			if (funcNode.typeEnum == Sym.identifier)
+			if (funcNode.sym == Sym.identifier)
 			{
 				const string funcName = funcNode.source;
 				if (funcName == "malloc" || funcName == "calloc" || funcName == "realloc")
@@ -308,14 +310,14 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 		}
 		if (auto argsNode = node.childField(Field.arguments))
 		{
-			if (argsNode.typeEnum != Sym.argument_list)
+			if (argsNode.sym != Sym.argument_list)
 			{
 				break;
 			}
 			foreach (ref c; argsNode.children)
 			{
-				if (c.typeEnum == Sym.anon_COMMA || c.typeEnum == Sym.comment ||
-					c.typeEnum == Sym.anon_LPAREN || c.typeEnum == Sym.anon_RPAREN)
+				if (c.sym == Sym.anon_COMMA || c.sym == Sym.comment ||
+					c.sym == Sym.anon_LPAREN || c.sym == Sym.anon_RPAREN)
 				{
 					continue;
 				}
@@ -325,7 +327,7 @@ bool ctodExpression(ref CtodCtx ctx, ref Node node)
 					c.append("`");
 					continue;
 				}
-				if (c.typeEnum != Sym.identifier)
+				if (c.sym != Sym.identifier)
 				{
 					continue;
 				}
@@ -361,7 +363,9 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r)
 
 	void castR()
 	{
-		const castStr = "cast(" ~ lType.toString() ~ ") ";
+		OutBuffer sink;
+		lType.toD(sink);
+		const castStr = "cast(" ~ sink.extractOutBuffer ~ ") ";
 		if (!mayNeedParens(r))
 		{
 			r.prepend(castStr);
@@ -395,7 +399,7 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r)
 		}
 		castR();
 	}
-	if (lType.isPointer && r.typeEnum == Sym.number_literal)
+	if (lType.isPointer && r.sym == Sym.number_literal)
 	{
 		if (r.source == "0")
 		{
@@ -414,7 +418,7 @@ void convertPointerTypes(ref CtodCtx ctx, CType lType, ref Node r)
 ///   `false` if it's an atomic primairy expression where surrounding it with parens is always redundant
 private bool mayNeedParens(ref Node node)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.call_expression:
 	case Sym.identifier:
@@ -437,7 +441,7 @@ private bool mayNeedParens(ref Node node)
 /// va_arg(v, int) => va_arg!int(v)
 bool translateSpecialFunction(ref Node node, ref Node funcNode)
 {
-	if (funcNode.typeEnum != Sym.identifier)
+	if (funcNode.sym != Sym.identifier)
 	{
 		return false;
 	}
@@ -454,7 +458,7 @@ bool translateSpecialFunction(ref Node node, ref Node funcNode)
 			size_t i = 0;
 			foreach (ref c; args.children)
 			{
-				if (c.typeEnum == Sym.identifier)
+				if (c.sym == Sym.identifier)
 				{
 					if (i >= 2)
 					{
@@ -503,27 +507,29 @@ private bool ctodSizeof(ref CtodCtx ctx, ref Node node)
 		Decl[] decls = parseDecls(ctx, *typeNode, ctx.inlineTypes); //TODO: emit inline types?
 		if (decls.length == 1)
 		{
-			return node.replace(toSizeof(decls[0].toString()));
+			OutBuffer sink;
+			decls[0].toD(sink);
+			return node.replace(toSizeof(sink.extractOutBuffer));
 		}
 	}
 	else if (auto valueNode = node.childField(Field.value))
 	{
 		translateNode(ctx, *valueNode);
 		// `sizeof short` => `short.sizeof`
-		if (valueNode.typeEnum == Sym.identifier || valueNode.typeEnum == Sym.number_literal)
+		if (valueNode.sym == Sym.identifier || valueNode.sym == Sym.number_literal)
 		{
 			node.replace(valueNode.output() ~ ".sizeof");
 		}
-		else if (valueNode.typeEnum == Sym.parenthesized_expression)
+		else if (valueNode.sym == Sym.parenthesized_expression)
 		{
 			if (auto parenValue = getParenContent(valueNode))
 			{
-				if (parenValue.typeEnum == Sym.identifier)
+				if (parenValue.sym == Sym.identifier)
 				{
 					// sizeof(T) => T.sizeof
 					return node.replace(parenValue.output() ~ ".sizeof");
 				}
-				else if (parenValue.typeEnum == Sym.string_literal)
+				else if (parenValue.sym == Sym.string_literal)
 				{
 					// sizeof("abc") => ("abc".length + 1)
 					return node.replace("(" ~ parenValue.output() ~ ".length + 1)");
@@ -535,7 +541,7 @@ private bool ctodSizeof(ref CtodCtx ctx, ref Node node)
 				}
 			}
 		}
-		else if (valueNode.typeEnum == Sym.cast_expression)
+		else if (valueNode.sym == Sym.cast_expression)
 		{
 			// tree-sitter doesn't parse `sizeof(int) * 5;` correctly, so fix it
 			if (auto t = valueNode.firstChildType(Sym.type_descriptor))
@@ -546,7 +552,7 @@ private bool ctodSizeof(ref CtodCtx ctx, ref Node node)
 				}
 			}
 		}
-		else if (valueNode.typeEnum == Sym.string_literal)
+		else if (valueNode.sym == Sym.string_literal)
 		{
 			// sizeof "abc" => ("abc".length + 1)
 			return node.replace("(" ~ valueNode.output() ~ ".length + 1)");

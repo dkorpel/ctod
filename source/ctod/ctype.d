@@ -9,6 +9,7 @@ import ctod.tree_sitter;
 import ctod.translate;
 import ctod.cdeclaration;
 import ctod.cexpr;
+import ctod.util;
 
 /// Declaration
 struct Decl
@@ -16,76 +17,53 @@ struct Decl
 	CQuals quals; /// qualifiers / storage classes
 	CType type = CType.none;
 	string identifier = ""; /// name of variable / function
-	string initializer = ""; /// expression that initializes the variable
+	string initializerD = ""; /// expression that initializes the variable
 
 pure nothrow:
 
-	string toString() const
+	void toD(ref OutBuffer sink) const
 	{
-		string result = quals.toString();
+		quals.toD(sink);
 		// D declarations are usually separated as [type] followed by [identifier], but there is one exception:
 		// extern functions. (functions with bodies are handled separately, and function pointers have the name on the right
 		if (type.tag == CType.Tag.funcDecl)
 		{
-			// result ~= format("%s %s(%(%s, %))", type.next[0].toString(), identifier, type.params);
-			result ~= fmtFunction(type.next[0], identifier, type.params);
+			funcTypeToD(sink, type.next[0], identifier, type.params);
 		}
 		else
 		{
-			result ~= type.toString();
+			type.toD(sink);
 			if (identifier.length > 0)
 			{
-				result ~= " ";
-				result ~= identifier;
+				sink ~= " ";
+				sink ~= identifier;
 			}
-			result ~= this.initializerAssign();
+			sink ~= initializerD;
 		}
-		return result;
-	}
-
-	string initializerAssign() const
-	{
-		if (initializer.length > 0)
-		{
-			return " = " ~ initializer;
-		}
-		return "";
-	}
-
-	bool opEquals(const Decl other) const scope
-	{
-		return quals == other.quals && type == other.type
-			&& identifier == other.identifier && initializer == other.initializer;
 	}
 
 	///
 	enum none = Decl.init;
 	///
-	bool opCast() const scope => cast(bool) type;
-}
-
-unittest
-{
-	assert(Decl(CQuals.init, CType.named("int"), "x", "3").toString() == "int x = 3");
+	bool opCast(T : bool)() const => cast(bool) type;
 }
 
 /// Generate D function type syntax
-private string fmtFunction(const CType retType, string name, const Decl[] params) pure
+private void funcTypeToD(ref OutBuffer sink, const CType retType, string name, const Decl[] params) pure
 {
-	string result = retType.toString();
-	result ~= " ";
-	result ~= name;
-	result ~= "(";
+	retType.toD(sink);
+	sink ~= " ";
+	sink ~= name;
+	sink ~= "(";
 	foreach (i, par; params)
 	{
 		if (i > 0)
 		{
-			result ~= ", ";
+			sink ~= ", ";
 		}
-		result ~= par.toString();
+		par.toD(sink);
 	}
-	result ~= ")";
-	return result;
+	sink ~= ")";
 }
 
 /// A type in the middle of an expression.
@@ -100,9 +78,21 @@ struct InlineType
 pure nothrow:
 
 	bool hasBody() const => body_.length > 0;
-	string toString() const
+
+	void toD(ref OutBuffer sink) const
 	{
-		return keyword ~ " " ~ name ~ (hasBody() ? " " ~ body_ : ";");
+		sink ~= keyword;
+		sink ~= " ";
+		sink ~= name;
+		if (this.hasBody)
+		{
+			sink ~= " ";
+			sink ~= body_;
+		}
+		else
+		{
+			sink ~= ";";
+		}
 	}
 }
 
@@ -110,14 +100,14 @@ pure nothrow:
 /// C enums don't have a scope for their members
 string enumMemberAliases(string enumName, ref Node c)
 {
-	if (c.typeEnum != Sym.enumerator_list)
+	if (c.sym != Sym.enumerator_list)
 	{
 		return null;
 	}
 	string res = "\n";
 	foreach (ref c2; c.children)
 	{
-		if (c2.typeEnum == Sym.enumerator)
+		if (c2.sym == Sym.enumerator)
 		{
 			string mem = c2.childField(Field.name).source;
 			res ~= "alias " ~ mem ~ " = " ~ enumName ~ "." ~ mem ~ ";\n";
@@ -178,7 +168,7 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		return null;
 	}
 
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.type_descriptor:
 		if (auto c = node.childField(Field.type))
@@ -230,7 +220,7 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 	case Sym.struct_specifier:
 	case Sym.union_specifier:
 	case Sym.enum_specifier:
-		return namedType(node.typeEnum);
+		return namedType(node.sym);
 	default:
 		break;
 	}
@@ -245,7 +235,7 @@ string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node)
 	string primitive = "";
 	foreach (ref c; node.children)
 	{
-		switch (c.typeEnum)
+		switch (c.sym)
 		{
 		case Sym.comment:
 			continue;
@@ -321,34 +311,35 @@ struct CQuals
 
 pure nothrow:
 
-	string toString() const
+	void toD(ref OutBuffer sink) const
 	{
-		string result;
 		if (inline)
-			result ~= "pragma(inline, true) ";
+			sink ~= "pragma(inline, true) ";
 		if (extern_)
-			result ~= "extern ";
+			sink ~= "extern ";
 		// C's static meaning 'private to the translation unit' doesn't exist in D
 		// The closest thing is `private extern(D)` which restricts access and
 		// avoids name conflicts, but still emits a symbol
 		// However, we don't do `extern(D)` since that changes abi as well
 		if (staticGlobal)
-			result ~= "private ";
+			sink ~= "private ";
 		if (staticFunc)
-			result ~= "static ";
+			sink ~= "static ";
 		// Also: static can also mean 'array of length at least X'
+
+		// const_ is ignored
+		//    sink ~= "const ";
 		// D has transitive const unlike C
 		// it must surround the primitive type, e.g. `const int*` => `const(int)*`
-		// if (const_) result ~= "const ";
+
 		if (auto_)
-			result ~= "auto ";
+			sink ~= "auto ";
 		if (volatile_)
-			result ~= "/*volatile*/ ";
+			sink ~= "/*volatile*/ ";
 		if (restrict)
-			result ~= "/*restrict*/ ";
+			sink ~= "/*restrict*/ ";
 		if (atomic)
-			result ~= "/*atomic*/ ";
-		return result;
+			sink ~= "/*atomic*/ ";
 	}
 }
 
@@ -357,9 +348,9 @@ pure nothrow:
 /// Returns: `true` on success
 bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals)
 {
-	if (node.typeEnum == Sym.type_qualifier || node.typeEnum == Sym.storage_class_specifier)
+	if (node.sym == Sym.type_qualifier || node.sym == Sym.storage_class_specifier)
 	{
-		switch (node.children[0].typeEnum)
+		switch (node.children[0].sym)
 		{
 		case Sym.anon_const:
 			quals.const_ = true;
@@ -416,7 +407,7 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes, false);
 
 	// This happens with API macros, which get parsed as a return type.
-	if (apiMacro && node.children.length > 1 && node.children[1].typeEnum == Sym.error)
+	if (apiMacro && node.children.length > 1 && node.children[1].sym == Sym.error)
 	{
 		*apiMacro = primitiveType;
 		primitiveType = node.children[1].source;
@@ -479,11 +470,11 @@ uint initializerLength(ref Node node, ref string firstElement)
 	uint commaCount = 0;
 	foreach (ref e; node.children)
 	{
-		if (e.typeEnum == Sym.comment || e.typeEnum == Sym.anon_LBRACE || e.typeEnum == Sym.anon_RBRACE)
+		if (e.sym == Sym.comment || e.sym == Sym.anon_LBRACE || e.sym == Sym.anon_RBRACE)
 		{
 			continue;
 		}
-		if (e.typeEnum == Sym.anon_COMMA)
+		if (e.sym == Sym.anon_COMMA)
 		{
 			commaCount++;
 		}
@@ -520,12 +511,12 @@ unittest
 /// Returns: whether a type was found and parsed in `node`
 bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.init_declarator:
 		if (auto declaratorNode = node.childField(Field.declarator))
 		{
-			decl.initializer = "TMP";
+			decl.initializerD = "TMP";
 			parseCtype(ctx, *declaratorNode, decl, inlineTypes);
 		}
 		if (auto valueNode = node.childField(Field.value))
@@ -534,7 +525,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			translateNode(ctx, *valueNode);
 			ctx.inDeclType = CType.none;
 			convertPointerTypes(ctx, decl.type, *valueNode);
-			if (valueNode.typeEnum == Sym.initializer_list)
+			if (valueNode.sym == Sym.initializer_list)
 			{
 				string firstElem;
 				const len = initializerLength(*valueNode, firstElem);
@@ -560,7 +551,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			{
 				decl.type = CType.array(decl.type.next[0], intToString(stringSize));
 			}
-			decl.initializer = valueNode.output();
+			decl.initializerD = " = "  ~ valueNode.output();
 		}
 		return true;
 	case Sym.parenthesized_declarator:
@@ -579,12 +570,12 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			ctx.inParameterList++;
 			foreach (ref c; paramNode.children)
 			{
-				if (c.typeEnum == Sym.parameter_declaration)
+				if (c.sym == Sym.parameter_declaration)
 				{
 					auto d = parseDecls(ctx, c, inlineTypes);
 					paramDecls ~= d;
 				}
-				else if (c.typeEnum == Sym.variadic_parameter)
+				else if (c.sym == Sym.variadic_parameter)
 				{
 					// variadic args
 					paramDecls ~= Decl(CQuals.none, CType.named("..."), "", "");
@@ -595,7 +586,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 		if (auto declNode = node.childField(Field.declarator))
 		{
 			decl.type = CType.funcDecl(decl.type, paramDecls);
-			if (node.typeEnum == Sym.abstract_function_declarator)
+			if (node.sym == Sym.abstract_function_declarator)
 			{
 				decl.type = CType.pointer(decl.type);
 			}
@@ -643,7 +634,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			// unsized array, might become a static array at global scope `int x[] = {3, 4, 5}`
 			if (auto c1 = node.childField(Field.declarator))
 			{
-				if (ctx.inParameterList || decl.initializer.length > 0)
+				if (ctx.inParameterList || decl.initializerD.length > 0)
 				{
 					decl.type = CType.cArray(decl.type);
 				}
@@ -666,12 +657,12 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 /// Returns: sizeof string initializer, including zero terminator, or -1 if not a string initializer
 int stringInitializerSize(ref Node node)
 {
-	if (node.typeEnum == Sym.concatenated_string)
+	if (node.sym == Sym.concatenated_string)
 	{
 		int stringSize = 0;
 		foreach (ref c; node.children)
 		{
-			if (c.typeEnum == Sym.string_literal)
+			if (c.sym == Sym.string_literal)
 			{
 				const s = stringLiteralSize(c.source);
 				if (s < 0)
@@ -683,7 +674,7 @@ int stringInitializerSize(ref Node node)
 		}
 		return stringSize + 1;
 	}
-	else if (node.typeEnum == Sym.string_literal)
+	else if (node.sym == Sym.string_literal)
 	{
 		const s = stringLiteralSize(node.source);
 		if (s < 0)
@@ -779,7 +770,7 @@ struct CType
 	bool isConst = false;
 
 	enum none = CType.init;
-	enum unknown = CType.fromTag(Tag.unknown);
+	enum unknown = CType(tag: Tag.unknown);
 
 pure nothrow:
 
@@ -792,7 +783,7 @@ pure nothrow:
 		return result;
 	}
 
-	bool opCast() const scope => tag != Tag.none;
+	bool opCast(T : bool)() const => tag != Tag.none;
 	bool isFunction() const => tag == Tag.funcDecl;
 	bool isStaticArray() const => tag == Tag.staticArray;
 	bool isCArray() const => tag == Tag.cArray;
@@ -891,52 +882,62 @@ pure nothrow:
 		return result;
 	}
 
-	private static CType fromTag(Tag tag)
-	{
-		CType result;
-		result.tag = tag;
-		return result;
-	}
-
-	string toString() const
+	void toD(ref OutBuffer sink) const
 	{
 		final switch (tag)
 		{
 		case Tag.cArray:
-			return next[0].toString() ~ "[$]";
+			next[0].toD(sink);
+			sink ~= "[$]";
+			break;
 		case Tag.staticArrayParam:
 			// Possible to translate as `ref` parameter, but we also translate passing `sa` to `sa.ptr`
 			// So translating as pointer makes this more consistent
-			// return "ref " ~ next[0].toString() ~ "[" ~ countExpr ~ "]";
+			// sink ~= "ref "
 			goto case;
 		case Tag.pointer:
 			if (next[0].isFunction)
 			{
-				return fmtFunction(next[0].next[0], "function", next[0].params);
+				funcTypeToD(sink, next[0].next[0], "function", next[0].params);
+			}
+			else if (isConst)
+			{
+				//format(isConst ? "const(%s*)" : "%s*", next[0]);
+				sink ~= "const(";
+				next[0].toD(sink);
+				sink ~= "*)";
 			}
 			else
 			{
-				//format(isConst ? "const(%s*)" : "%s*", next[0]);
-				return isConst ? ("const(" ~ next[0].toString() ~ "*)") : next[0].toString() ~ "*";
+				next[0].toD(sink);
+				sink ~= "*";
 			}
+			break;
 		case Tag.staticArray:
-			return next[0].toString() ~ "[" ~ countExpr ~ "]";
+			next[0].toD(sink);
+			sink ~= "[";
+			sink ~= countExpr;
+			sink ~= "]";
+			break;
 		case Tag.funcDecl:
-			return null; // format("%s FUNC(%(%s, %))", next[0], params);
+			return; // format("%s FUNC(%(%s, %))", next[0], params);
 		case Tag.named:
-			return isConst ? ("const(" ~ name ~ ")") : name;
+			if (isConst)
+			{
+				sink ~= "const(";
+				sink ~= name;
+				sink ~= ")";
+			}
+			else
+			{
+				sink ~= name;
+			}
+			break;
 		case Tag.unknown:
-			return "unknown";
 		case Tag.none:
-			return "none";
+			break;
 		}
 	}
-}
-
-unittest
-{
-	assert(CType.array(CType.array(CType.named("float"), "2"), "10").toString() == "float[2][10]");
-	assert(CType.pointer(CType.pointer(CType.named("ab"))).toString() == "ab**");
 }
 
 /// Returns: `true` if `t` would not be default initialized to all zero like in C, but e.g. `char.init` or NaN

@@ -5,6 +5,7 @@ nothrow @safe:
 import ctod.tree_sitter;
 import ctod.translate;
 import ctod.ctype;
+import ctod.util;
 
 /// Returns: list of parsed declarations from `node`
 Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
@@ -18,31 +19,31 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 		string apiMacro;
 		Decl[] decls = parseDecls(ctx, node, inlinetypes, &apiMacro);
 
-		string result = "";
+		OutBuffer result;
 		if (apiMacro.length > 0)
 		{
 			result ~= apiMacro ~ " ";
 		}
 		foreach (s; inlinetypes)
 		{
-			result ~= s.toString();
+			s.toD(result);
 		}
 		CType previousType = CType.none;
 		size_t finalCount = 0;
 		foreach (decl; decls)
 		{
 			bool cInit = sym == Sym.declaration || sym == Sym.field_declaration;
-			if (cInit && decl.initializer.length == 0)
+			if (cInit && decl.initializerD.length == 0)
 			{
 				if (ctx.inFunction && !decl.quals.staticFunc)
 				{
 					// void initialize function local variables
-					decl.initializer = "void";
+					decl.initializerD = " = void";
 				}
 				else if (!zeroInitInD(decl.type) && !(ctx.inUnion && ctx.currentTypeScope.fieldIndex > 0))
 				{
 					// `char x;` => `char x = 0;`
-					decl.initializer = "0";
+					decl.initializerD = " = 0";
 				}
 			}
 
@@ -58,11 +59,11 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 				{
 					result ~= "; ";
 				}
-				result ~= decl.toString();
+				decl.toD(result);
 			}
 			else
 			{
-				result ~= ", " ~ decl.identifier ~ decl.initializerAssign;
+				result ~= ", " ~ decl.identifier ~ decl.initializerD;
 			}
 			ctx.registerDecl(decl);
 			previousType = decl.type;
@@ -70,11 +71,12 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 		}
 		if (finalCount > 0)
 			result ~= suffix;
-		node.replace(result);
+
+		node.replace(result.extractOutBuffer);
 		return decls;
 	}
 
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.function_definition:
 		if (auto bodyNode = node.childField(Field.body_))
@@ -89,20 +91,20 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 			translateNode(ctx, *bodyNode);
 			ctx.leaveFunction();
 
-			return translateDecl(layout ~ bodyNode.output(), node.typeEnum);
+			return translateDecl(layout ~ bodyNode.output(), node.sym);
 		}
 		break;
 	case Sym.parameter_declaration:
-		return translateDecl("", node.typeEnum);
+		return translateDecl("", node.sym);
 	case Sym.field_declaration: // struct / union field
 		if (auto bitNode = node.firstChildType(Sym.bitfield_clause))
 		{
 			translateNode(ctx, *bitNode);
 			node.append("/*" ~ bitNode.output ~ " !!*/");
 		}
-		return translateDecl(";", node.typeEnum);
+		return translateDecl(";", node.sym);
 	case Sym.declaration: // global / local variable
-		return translateDecl(";", node.typeEnum);
+		return translateDecl(";", node.sym);
 	default:
 		break;
 	}
@@ -112,12 +114,12 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 {
 	InlineType[] inlinetypes;
-	if (node.typeEnum != Sym.type_definition)
+	if (node.sym != Sym.type_definition)
 	{
 		return false;
 	}
 	Decl[] decls = parseDecls(ctx, node, inlinetypes);
-	string result = "";
+	OutBuffer result;
 
 	// It's very common to typedef an anonymous type with a single name:
 	// `typedef struct {...} X`
@@ -134,7 +136,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 
 	foreach (s; inlinetypes)
 	{
-		result ~= s.toString();
+		s.toD(result);
 		if (s.node)
 		{
 			// Put enum members into the global scope with aliases
@@ -144,11 +146,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 	bool first = true;
 	foreach (d; decls)
 	{
-		if (d.type == CType.named(d.identifier))
-		{
-			// result ~= "/*alias " ~ d.toString() ~ ";*/";
-		}
-		else
+		if (d.type != CType.named(d.identifier))
 		{
 			if (first)
 			{
@@ -158,10 +156,12 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 			{
 				result ~= "\n";
 			}
-			result ~= "alias " ~ d.identifier ~ " = " ~ d.type.toString() ~ ";";
+			result ~= "alias " ~ d.identifier ~ " = ";
+			d.type.toD(result);
+			result ~= ";";
 		}
 	}
-	node.replace(result);
+	node.replace(result.extractOutBuffer);
 	return true;
 }
 
@@ -169,29 +169,29 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 /// Returns: true if translation is done, no need to translate children
 bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.compound_literal_expression:
 		// (Rectangle){x, y, width, height} => Rectangle(x, y, width, height)
 		foreach (ref c; node.children)
 		{
-			if (c.typeEnum == Sym.anon_LPAREN)
+			if (c.sym == Sym.anon_LPAREN)
 			{
 				c.replace("");
 			}
-			else if (c.typeEnum == Sym.anon_RPAREN)
+			else if (c.sym == Sym.anon_RPAREN)
 			{
 				c.replace("");
 			}
-			else if (c.typeEnum == Sym.initializer_list)
+			else if (c.sym == Sym.initializer_list)
 			{
 				foreach (ref c2; c.children)
 				{
-					if (c2.typeEnum == Sym.anon_LBRACE)
+					if (c2.sym == Sym.anon_LBRACE)
 					{
 						c2.replace("(");
 					}
-					else if (c2.typeEnum == Sym.anon_RBRACE)
+					else if (c2.sym == Sym.anon_RBRACE)
 					{
 						c2.replace(")");
 					}
@@ -218,15 +218,15 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 		foreach (ref c; node.children)
 		{
 			// Array literal can have `[0] = 3`, struct can have `.field = 3`
-			if (c.typeEnum == Sym.initializer_pair)
+			if (c.sym == Sym.initializer_pair)
 			{
 				if (auto c1 = c.childField(Field.designator))
 				{
-					if (c1.typeEnum == Sym.field_designator)
+					if (c1.sym == Sym.field_designator)
 					{
 						arrayInit = false;
 					}
-					else if (c1.typeEnum == Sym.subscript_designator)
+					else if (c1.sym == Sym.subscript_designator)
 					{
 						arrayInit = true;
 					}
@@ -253,7 +253,7 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 		// {.entry = {}} => {entry: {}}
 		if (auto designatorNode = node.childField(Field.designator))
 		{
-			// if (designatorNode.typeEnum == Sym.subscript_designator)
+			// if (designatorNode.sym == Sym.subscript_designator)
 			if (auto c = node.firstChildType(Sym.anon_EQ))
 			{
 				c.replace("");

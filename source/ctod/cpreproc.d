@@ -15,7 +15,7 @@ package
 /// Returns: `true` on success
 bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.aux_preproc_else_token1: // "#else"
 		return node.replace("} else {");
@@ -163,7 +163,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		string[] params;
 		foreach (ref param; parametersNode.children)
 		{
-			if (param.typeEnum == Sym.identifier)
+			if (param.sym == Sym.identifier)
 			{
 				ctx.macroFuncParams[param.source] = true;
 				params ~= param.source;
@@ -205,7 +205,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			if (node.children.length == 4)
 			{
 				Node b = node.children[2];
-				if (b.typeEnum == Sym.preproc_def)
+				if (b.sym == Sym.preproc_def)
 				{
 					if (auto cc = b.childField(Field.name))
 					{
@@ -244,7 +244,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			return true;
 		}
 
-		if (c.typeEnum == Sym.preproc_defined)
+		if (c.sym == Sym.preproc_defined)
 		{
 			ifnode.replace("version");
 			replaceDefined(ctx, *c, true);
@@ -275,7 +275,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			if (auto ifnode = node.firstChildType(Sym.aux_preproc_elif_token1))
 			{
 				// "#elif"
-				if (c.typeEnum == Sym.preproc_defined)
+				if (c.sym == Sym.preproc_defined)
 				{
 					ifnode.replace("} else version");
 					replaceDefined(ctx, *c, true);
@@ -303,7 +303,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		//if (auto c = node.firstChildType("string_literal")) {
 		if (auto pathNode = node.childField(Field.path))
 		{
-			if (pathNode.typeEnum == Sym.string_literal)
+			if (pathNode.sym == Sym.string_literal)
 			{
 				pathNode.replace(ctodIncludePath(pathNode.source));
 			}
@@ -346,7 +346,7 @@ string ctodMacroFunc(ref CtodCtx ctx, string macroText)
 	}
 	foreach (ref c; f.children)
 	{
-		if (c.typeEnum == Sym.anon_LBRACE || c.typeEnum == Sym.anon_RBRACE)
+		if (c.sym == Sym.anon_LBRACE || c.sym == Sym.anon_RBRACE)
 		{
 			c.replace("");
 		}
@@ -366,10 +366,10 @@ string ctodMacroFunc(ref CtodCtx ctx, string macroText)
 private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode)
 {
 
-	assert(ifdefNode.typeEnum == Sym.preproc_ifdef);
+	assert(ifdefNode.sym == Sym.preproc_ifdef);
 
 	// The grammar has the same node type for `#ifdef` and `#ifndef`
-	if (ifdefNode.children[0].typeEnum != Sym.aux_preproc_ifdef_token2)
+	if (ifdefNode.children[0].sym != Sym.aux_preproc_ifdef_token2)
 	{
 		return false;
 	}
@@ -380,7 +380,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode)
 
 	foreach (i; 0 .. ifdefNode.children.length)
 	{
-		switch (ifdefNode.children[i].typeEnum)
+		switch (ifdefNode.children[i].sym)
 		{
 		case Sym.comment:
 			commentCount++;

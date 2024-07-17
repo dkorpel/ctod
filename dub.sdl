@@ -9,7 +9,6 @@ targetPath "build"
 sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a" platform="osx"
 sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a" platform="linux"
 sourceFiles "lib/libc-parser.obj" "lib/libtree-sitter.obj" platform="windows"
-workingDirectory "build"
 buildRequirements "allowWarnings"
 
 dflags "-preview=dip1000"

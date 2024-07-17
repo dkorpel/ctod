@@ -5,14 +5,23 @@ module ctod.util;
 
 @safe:
 
-version(none)
+version (none)
 {
-	public import bops.ds.hashtable: Map = HashTable;
-	public import bops.ascii: isWhite;
+	public import bops.ds.hashtable : Map = HashTable;
+	public import bops.ascii : isWhite;
 	public import bops.outbuffer;
-	public import bops.string: startsWith, stripWhite;
+	public import bops.string : startsWith, stripWhite;
 	public import bops.stdio;
-	public import bops.test: assertEq;
+	public import bops.range : splitter;
+	public import bops.test : assertEq;
+
+	version (WebAssembly)
+	{
+	}
+	else
+	{
+		public import bops.file : fileReadText;
+	}
 
 	void mapClear(T)(ref T map)
 	{
@@ -26,11 +35,18 @@ version(none)
 }
 else
 {
-	void assertEq(T, U)(T l, U r) { assert(l == r); }
-	public import std.algorithm.searching: startsWith;
-	public import std.ascii: isWhite;
-	public import std.string: stripWhite = strip;
+	void assertEq(T, U)(T l, U r)
+	{
+		assert(l == r);
+	}
+
+	public import std.algorithm.searching : startsWith;
+	public import std.ascii : isWhite;
+	public import std.string : stripWhite = strip;
+	public import std.algorithm.iteration : splitter;
 	import std.array;
+	import std.file : read;
+
 	alias OutBuffer = Appender!string;
 
 	// Enable switching to custom Associative Array type
@@ -45,5 +61,10 @@ else
 	auto extractOutBuffer(ref OutBuffer o)
 	{
 		return o.data();
+	}
+
+	string fileReadText(string path) @trusted
+	{
+		return cast(string) read(path);
 	}
 }

@@ -57,13 +57,6 @@ string translateFile(string source, string moduleName)
 	Node* root = parseCtree(ctx.parser, source);
 	assert(root);
 
-	// checkErrors();
-	// if (node.typeEnum == Sym.error)
-	// {
-	// 	import ctod.util;
-	// 	stderr.writeln("Error (", node.lineNumber, "):", node.source);
-	// }
-
 	findFuncDecls(ctx, *root);
 	translateNode(ctx, *root);
 
@@ -108,6 +101,7 @@ struct TypeScope
 	Sym sym; // Sym.union_specifier, Sym.struct_specifier, Sym.enum_specifier
 	int fieldIndex = 0; // counts up every declaration
 }
+
 /// Translation context, all 'global' state
 package
 struct CtodCtx
@@ -146,7 +140,7 @@ struct CtodCtx
 	string inFunction = null;
 	/// type of the declaration we're currently in
 	CType inDeclType = CType.none;
-	/// If we're in a parameter list (function types can be nested, so not a bool)
+	/// If we're in a parameter list (function types can be nested, the int is the nest level)
 	int inParameterList = 0;
 	/// stack of "struct" "enum" "union"
 	private TypeScope[] typeScope = null;
@@ -292,7 +286,7 @@ void translateNode(ref CtodCtx ctx, ref Node node)
 /// during translation. (C requires forward function declarations, D doesn't)
 void findFuncDecls(ref CtodCtx ctx, ref Node node)
 {
-	if (node.typeEnum == Sym.function_definition)
+	if (node.sym == Sym.function_definition)
 	{
 		if (auto declNode = node.childField(Field.declarator))
 		{
@@ -314,11 +308,11 @@ bool hasDefaultStatement(ref Node node)
 {
 	foreach (ref c; node.children)
 	{
-		if (c.typeEnum == Sym.anon_default)
+		if (c.sym == Sym.anon_default)
 		{
 			return true;
 		}
-		if (c.typeEnum == Sym.switch_statement)
+		if (c.sym == Sym.switch_statement)
 		{
 			// any default statement we find in here doesn't belong to the original switch anymore
 			continue;
@@ -333,7 +327,7 @@ bool hasDefaultStatement(ref Node node)
 
 package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.if_statement:
 	case Sym.while_statement:
@@ -343,11 +337,11 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 		// if (!(x = 3)) => if ((x = 3) == 0)
 		if (auto a = node.childField(Field.condition))
 		{
-			if (a.typeEnum == Sym.parenthesized_expression)
+			if (a.sym == Sym.parenthesized_expression)
 			{
 				a = getParenContent(a);
 			}
-			if (a.typeEnum == Sym.assignment_expression)
+			if (a.sym == Sym.assignment_expression)
 			{
 				a.prepend("(");
 				a.append(") != 0");
@@ -381,7 +375,7 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 		// we can be a bit conservative here and only check the common switch pattern
 		if (auto bodyNode = node.childField(Field.body_))
 		{
-			if (bodyNode.typeEnum != Sym.compound_statement)
+			if (bodyNode.sym != Sym.compound_statement)
 				break;
 
 			if (hasDefaultStatement(*bodyNode))
@@ -400,7 +394,7 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 
 package bool ctodMisc(ref CtodCtx ctx, ref Node node)
 {
-	switch (node.typeEnum)
+	switch (node.sym)
 	{
 	case Sym.primitive_type:
 		if (string s = ctodPrimitiveType(node.source))
@@ -460,7 +454,7 @@ package void removeSemicolons(ref Node node)
 {
 	foreach (ref c; node.children)
 	{
-		if (c.typeEnum == Sym.anon_SEMI)
+		if (c.sym == Sym.anon_SEMI)
 		{
 			c.replace("");
 		}
