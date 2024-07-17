@@ -65,6 +65,12 @@ else
 
 	string fileReadText(string path) @trusted
 	{
-		return cast(string) read(path);
+		version(Windows)
+		{
+			import std.string;
+			return (cast(string) read(path)).replace("\r", "");
+		}
+		else
+			return cast(string) read(path);
 	}
 }
