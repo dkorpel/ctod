@@ -86,6 +86,8 @@ It's being developed like this:
 
 So this is really just a big find-and-replace tool that operates on an AST provided by tree-sitter.
 
+You can take a look at [testcases.md](https://github.com/dkorpel/ctod/blob/master/source/ctod/testcases.md) to see the capabilities of ctod.
+
 ### Alternatives
 
 If you only need to translate C headers and not actual code, there are also these tools available:
