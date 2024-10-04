@@ -22,7 +22,7 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 	case Sym.aux_preproc_if_token2: // "#endif"
 		return node.replace("}");
 	case Sym.aux_preproc_include_token1: // "#include"
-		return node.replace("public import");
+		return node.replace(ctx.isHeaderFile ? "public import" : "import");
 	case Sym.preproc_call: // #error, #pragma, #undef
 		auto argument = node.childField(Field.argument);
 		if (auto directive = node.childField(Field.directive))
@@ -331,7 +331,7 @@ string ctodMacroFunc(ref scope CtodCtx ctx, string macroText)
 	// Then extract the function body and remove braces
 	string funcStr = "void __macroFunc(void) {" ~ macroText ~ "}";
 
-	CtodCtx ctx2 = CtodCtx(funcStr, ctx.parser);
+	CtodCtx ctx2 = CtodCtx(funcStr, ctx.parser, ctx.isHeaderFile);
 	auto root = parseCtree(ctx2);
 
 	if (!root || !root.children.length > 0)

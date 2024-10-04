@@ -33,8 +33,9 @@ private TSParser* getCParser() @trusted
 /// Params:
 ///   source = C source code
 ///   moduleName = name for the `module` declaration on the D side
+///   isHeaderFile = true if the source is a .h file (assumes includes are public imports)
 /// Returns: `source` translated from C to D
-string translateFile(string source, string moduleName)
+string translateFile(string source, string moduleName, bool isHeaderFile = false)
 {
 	auto parser = getCParser();
 	// scope(exit) ts_parser_delete(parser);
@@ -42,7 +43,7 @@ string translateFile(string source, string moduleName)
 
 	source = filterCppBlocks(source);
 
-	CtodCtx ctx = CtodCtx(source, parser);
+	CtodCtx ctx = CtodCtx(source, parser, isHeaderFile);
 	Node root = parseCtree(ctx);
 
 	version(none)
@@ -110,6 +111,8 @@ struct CtodCtx
 {
 	/// input C  source code
 	string sourceC;
+	/// Translating a .h instead of .c (decides whether includes are assumed public or private imports)
+	bool isHeaderFile = false;
 	/// C parser
 	TSParser* parser;
 	/// HasVersion(string) template is needed
@@ -162,10 +165,11 @@ nothrow:
 		}
 	}
 
-	this(return scope string source, return scope TSParser* parser) scope
+	this(return scope string source, return scope TSParser* parser, bool isHeaderFile) scope
 	{
 		this.sourceC = source;
 		this.parser = parser;
+		this.isHeaderFile = isHeaderFile;
 		this.typeScope = [TypeScope(Sym.null_)];
 	}
 

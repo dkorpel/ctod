@@ -1018,19 +1018,19 @@ struct S1 { struct  { int y; }; }S1[1][1] Sarray = [[ {{2}} ]];
 #include <x>
 ```
 ```D
-public import core.stdc.assert_;
-public import core.stdc.string;
-public import core.stdc.stdio;
-public import small;
-public import core.sys.windows.winuser;
-public import core.stdc.limits;
-public import core.sys.linux.sys.inotify;
-public import core.sys.linux.sys.timerfd;
-public import core.sys.posix.sys.ioctl;
-public import my.lib;
-public import core.sys.posix.pthread;
-public import cfile;
-public import x;
+import core.stdc.assert_;
+import core.stdc.string;
+import core.stdc.stdio;
+import small;
+import core.sys.windows.winuser;
+import core.stdc.limits;
+import core.sys.linux.sys.inotify;
+import core.sys.linux.sys.timerfd;
+import core.sys.posix.sys.ioctl;
+import my.lib;
+import core.sys.posix.pthread;
+import cfile;
+import x;
 ```
 ---
 ```C

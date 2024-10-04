@@ -40,7 +40,8 @@ int main(string[] args)
 			else
 			{
 				const fname = args[i];
-				if (!(fname.extension == ".c" || fname.extension == ".h"))
+				const ext = fname.extension;
+				if (!(ext == ".c" || ext == ".h"))
 				{
 					stderr.writeln("file shoud have .c or .h extension, not ", fname.extension);
 					return -1;
@@ -48,7 +49,7 @@ int main(string[] args)
 				scope source = cast(string) fileReadText(fname);
 
 				const moduleName = fname.baseName;
-				writeFile(fname.withExtension(".d"), translateFile(source, moduleName));
+				writeFile(fname.withExtension(".d"), translateFile(source, moduleName, ext == ".h"));
 			}
 		}
 	}
