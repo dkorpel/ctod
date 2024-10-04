@@ -46,30 +46,18 @@ unittest
 	}
 }
 
-private void test(string c, string d, size_t line = __LINE__)
+private void test(string c, string d, size_t line = __LINE__) @trusted
 {
 	const actual = translateFile(c, "testmodule")[56 .. $];
 
-	import std.stdio: writeln;
-	version(none)
-	{
-		writeln("```C");
-		writeln(c);
-		writeln("```");
-		writeln("```D");
-		writeln(d);
-		writeln("```");
-		writeln("---");
-	}
-
 	if (actual != d)
 	{
-		writeln("Error on line ", line);
-		writeln("--- EXPECTED: ---");
-		writeln(d);
-		writeln("--- ACTUAL:   ---");
-		writeln(actual);
-		writeln("-----------------");
+		stderr.writeln("Error on line ", line);
+		stderr.writeln("--- EXPECTED: ---");
+		stderr.writeln(d);
+		stderr.writeln("--- ACTUAL:   ---");
+		stderr.writeln(actual);
+		stderr.writeln("-----------------");
 		assert(actual == d);
 	}
 }

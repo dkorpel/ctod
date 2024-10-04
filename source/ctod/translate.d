@@ -30,17 +30,6 @@ private TSParser* getCParser() @trusted
 	return parser;
 }
 
-package void headerString(ref OutBuffer result, string moduleName)
-{
-	if (moduleName.length > 0)
-	{
-		result ~= "module ";
-		result ~= moduleName;
-		result ~= ";\n";
-	}
-	result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
-}
-
 /// Params:
 ///   source = C source code
 ///   moduleName = name for the `module` declaration on the D side
@@ -53,15 +42,28 @@ string translateFile(string source, string moduleName)
 
 	source = filterCppBlocks(source);
 
-	auto ctx = CtodCtx(source, parser);
-	Node* root = parseCtree(ctx.parser, source);
-	assert(root);
+	CtodCtx ctx = CtodCtx(source, parser);
+	Node root = parseCtree(ctx);
 
-	findFuncDecls(ctx, *root);
-	translateNode(ctx, *root);
+	version(none)
+	{
+		checkErrors();
+		if (node.sym == Sym.error)
+		{
+			import ctod.util;
+			stderr.writeln("Error (", node.lineNumber, "):", node.sourceC);
+		}
+	}
+
+	findFuncDecls(ctx, root);
+	translateNode(ctx, root);
 
 	OutBuffer result;
-	headerString(result, moduleName);
+	if (moduleName.length > 0)
+	{
+		result ~= "module " ~ moduleName ~ ";\n";
+	}
+	result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
 
 	if (ctx.needsHasVersion)
 		result ~= hasVersion;
@@ -80,7 +82,7 @@ string translateFile(string source, string moduleName)
 
 	// white space leading up to the first AST element is not included in the AST, so add it
 	result ~= source[0 .. root.start];
-	result ~= root.output();
+	result ~= root.translation();
 	return result.extractOutBuffer();
 }
 
@@ -107,7 +109,7 @@ package
 struct CtodCtx
 {
 	/// input C  source code
-	string source;
+	string sourceC;
 	/// C parser
 	TSParser* parser;
 	/// HasVersion(string) template is needed
@@ -122,17 +124,18 @@ struct CtodCtx
 	bool needsInt128 = false;
 
 	/// global variables and function declarations
-	Map!(string, Decl) symbolTable;
+	private Map!(string, Decl) symbolTable;
 	/// for function local variables
-	Map!(string, Decl) localSymbolTable;
+	private Map!(string, Decl) localSymbolTable;
 	/// Table of all #define macros
 	Map!(string, MacroType) macroTable;
 	/// Set of macro func names, #define S(x, y) ... => [x: true, y: true]
 	Map!(string, bool) macroFuncParams;
-	/// Type of expression nodes
-	Map!(ulong, CType) nodeTypes;
 	/// Keeps track of all global functions with a body
 	Map!(string, bool) functionDefinitions;
+
+	/// Translation data
+	Map!(ulong, TranslationData) translationData;
 
 	/// collect structs, unions and enums definitions that were defined in expressions
 	InlineType[] inlineTypes;
@@ -146,95 +149,77 @@ struct CtodCtx
 	private TypeScope[] typeScope = null;
 
 nothrow:
-
-	this(string source, TSParser* parser)
+	ref TranslationData getTranslationData(ulong id)
 	{
-		this.source = source;
+		try
+		{
+			TranslationData initial;
+			return translationData.require(id, initial);
+		}
+		catch (Exception)
+		{
+			assert(0);
+		}
+	}
+
+	this(return scope string source, return scope TSParser* parser) scope
+	{
+		this.sourceC = source;
 		this.parser = parser;
 		this.typeScope = [TypeScope(Sym.null_)];
 	}
 
-	void enterFunction(string functionName)
+	void enterFunction(string functionName) scope
 	{
 		this.inFunction = functionName;
 	}
 
-	void leaveFunction() @trusted
+	void leaveFunction() scope
 	{
 		this.inFunction = null;
-		this.localSymbolTable.clear();
+		this.localSymbolTable.mapClear();
 	}
 
-	bool inMacroFunction()
-	{
-		return this.macroFuncParams.length > 0;
-	}
+	bool inMacroFunction() scope => this.macroFuncParams.length > 0;
 
-	void pushTypeScope(Sym sym)
+	void pushTypeScope(Sym sym) scope
 	{
 		this.typeScope ~= TypeScope(sym);
 	}
 
-	void popTypeScope()
+	void popTypeScope() scope
 	{
 		this.typeScope.length--;
 	}
 
 	/// Gives info what struct / union we're in
-	ref TypeScope currentTypeScope() => this.typeScope[$ - 1];
+	ref TypeScope currentTypeScope() return scope => this.typeScope[$ - 1];
 
-	bool inUnion()
-	{
-		return currentTypeScope.sym == Sym.union_specifier;
-	}
+	bool inUnion() scope => currentTypeScope.sym == Sym.union_specifier;
 
-	CType expType(ref Node node)
-	{
-		if (auto type = node.id in nodeTypes)
-		{
-			return *type;
-		}
-		return CType.none;
-	}
-
-	void setExpType(ref Node node, CType type)
-	{
-		nodeTypes[node.id] = type;
-	}
-
-	Decl lookupDecl(string id)
+	Decl lookupDecl(string id) scope
 	{
 		if (auto local = id in localSymbolTable)
-		{
 			return *local;
-		}
 		else if (auto global = id in symbolTable)
-		{
 			return *global;
-		}
 		else
-		{
 			return Decl.none;
-		}
 	}
 
-	void registerDecl(Decl decl)
+	void registerDecl(Decl decl) scope
 	{
 		if (decl.identifier)
 		{
 			if (inFunction)
-			{
 				localSymbolTable[decl.identifier] = decl;
-			}
 			else
-			{
 				symbolTable[decl.identifier] = decl;
-			}
 		}
 		currentTypeScope.fieldIndex++;
 	}
 
-	string uniqueIdentifier(string suggestion)
+	static string uniqueIdentifier(string suggestion)
 	{
 		static char toUpper(char c) => cast(char)(c - (c >= 'a' && c <= 'z') * ('a' - 'A'));
 		if (suggestion.length > 0)
@@ -248,7 +233,7 @@ nothrow:
 	}
 }
 
-void translateNode(ref CtodCtx ctx, ref Node node)
+void translateNode(ref scope CtodCtx ctx, Node node)
 {
 	if (node.isTranslated)
 		return;
@@ -277,21 +262,19 @@ void translateNode(ref CtodCtx ctx, ref Node node)
 		return;
 
 	foreach (ref c; node.children)
-	{
 		translateNode(ctx, c);
-	}
 }
 
 /// Start looking for function definitions so redundant extern function declarations can be removed
 /// during translation. (C requires forward function declarations, D doesn't)
-void findFuncDecls(ref CtodCtx ctx, ref Node node)
+void findFuncDecls(ref CtodCtx ctx, Node node)
 {
 	if (node.sym == Sym.function_definition)
 	{
 		if (auto declNode = node.childField(Field.declarator))
 		{
 			if (auto idNode = declNode.childField(Field.declarator))
-				ctx.functionDefinitions[idNode.source] = true;
+				ctx.functionDefinitions[idNode.sourceC] = true;
 		}
 	}
 	else
@@ -309,23 +292,20 @@ bool hasDefaultStatement(ref Node node)
 	foreach (ref c; node.children)
 	{
 		if (c.sym == Sym.anon_default)
-		{
 			return true;
-		}
+
+		// any default statement we find in here doesn't belong to the original switch anymore
 		if (c.sym == Sym.switch_statement)
-		{
-			// any default statement we find in here doesn't belong to the original switch anymore
 			continue;
-		}
+
 		if (hasDefaultStatement(c))
-		{
 			return true;
-		}
+
 	}
 	return false;
 }
 
-package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
+package bool ctodTryStatement(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
@@ -349,7 +329,7 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 		}
 		if (auto initializer = node.childField(Field.initializer))
 		{
-			if (auto decls = ctodTryDeclaration(ctx, *initializer))
+			if (auto decls = ctodTryDeclaration(ctx, initializer))
 			{
 				// If there are multiple declarations with different types, need to wrap in {}
 				CType prevType = CType.none;
@@ -371,19 +351,17 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 		break;
 	case Sym.switch_statement:
 		// D mandates `default` case in `switch`
-		// note: switch statements can have `case` statements in the weirdest places
-		// we can be a bit conservative here and only check the common switch pattern
+		// Note: switch statements can have `case` statements in the weirdest places.
+		// We can be a bit conservative here and only check the common switch pattern
 		if (auto bodyNode = node.childField(Field.body_))
 		{
 			if (bodyNode.sym != Sym.compound_statement)
 				break;
 
-			if (hasDefaultStatement(*bodyNode))
-			{
+			if (hasDefaultStatement(bodyNode))
 				break;
-			}
 
-			bodyNode.children[$ - 1].prepend("default: break;");
+			bodyNode.children.back.prepend("default: break;");
 		}
 		break;
 	default:
@@ -392,12 +370,12 @@ package bool ctodTryStatement(ref CtodCtx ctx, ref Node node)
 	return false;
 }
 
-package bool ctodMisc(ref CtodCtx ctx, ref Node node)
+package bool ctodMisc(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
 	case Sym.primitive_type:
-		if (string s = ctodPrimitiveType(node.source))
+		if (string s = ctodPrimitiveType(node.sourceC))
 		{
 			node.replace(s);
 		}
@@ -406,7 +384,7 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node)
 		return node.replace("."); // s->field => s.field
 	case Sym.expression_statement:
 		// ; as empty statement not allowed in D, for (;;); => for (;;) {}
-		if (node.source == ";")
+		if (node.sourceC == ";")
 		{
 			return node.replace("{}");
 		}
@@ -426,7 +404,7 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node)
 				{
 					if (auto n = inlineTypes[0].node)
 					{
-						node.append(enumMemberAliases(s, *n));
+						node.append(enumMemberAliases(s, n));
 					}
 				}
 			}
@@ -450,7 +428,7 @@ package bool ctodMisc(ref CtodCtx ctx, ref Node node)
 /// In C there are trailing ; after union and struct definitions.
 /// We don't want them in D
 /// This should be called on a translation_unit, preproc_if, or preproc_ifdef node
-package void removeSemicolons(ref Node node)
+package void removeSemicolons(ref scope Node node)
 {
 	foreach (ref c; node.children)
 	{
@@ -493,7 +471,6 @@ package string mapLookup(const string[] map, string str, string orElse)
 ///   type = gets set to number type of the literal
 string ctodNumberLiteral(string str, ref CType type)
 {
-
 	string typeName = "int";
 	if (str.length < 2)
 	{

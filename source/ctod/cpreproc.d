@@ -13,7 +13,7 @@ package
 /// If `node` is a recognized preprocessor node, translate it to D
 ///
 /// Returns: `true` on success
-bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
+bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
@@ -27,7 +27,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		auto argument = node.childField(Field.argument);
 		if (auto directive = node.childField(Field.directive))
 		{
-			if (directive.source == "#error")
+			if (directive.sourceC == "#error")
 			{
 				directive.replace("static assert");
 				if (argument)
@@ -36,16 +36,16 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 					argument.append(");");
 				}
 			}
-			else if (directive.source == "#pragma")
+			else if (directive.sourceC == "#pragma")
 			{
 				// preceeding whitespace is part of the argument node
-				if (argument && argument.source.length >= 4 && argument.source[$ - 4 .. $] == "once")
+				if (argument && argument.sourceC.length >= 4 && argument.sourceC[$ - 4 .. $] == "once")
 				{
 					node.prepend("//");
 					return true;
 				}
 			}
-			else if (directive.source == "#undef")
+			else if (directive.sourceC == "#undef")
 			{
 				node.replace(""); // no undef in D
 			}
@@ -62,12 +62,12 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			// aux_sym_preproc_def_token1 = "#define"
 			if (auto c = node.childField(Field.name))
 			{
-				translateNode(ctx, *c);
-				ctx.macroTable[c.output()] = MacroType.manifestConstant;
+				translateNode(ctx, c);
+				ctx.macroTable[c.translation()] = MacroType.manifestConstant;
 			}
 			auto argNode = node.firstChildType(Sym.preproc_arg);
 			assert(argNode);
-			const argText = argNode.source;
+			const argText = argNode.sourceC;
 			size_t p = 0;
 			while (p < argText.length && argText[p].isWhite)
 			{
@@ -131,8 +131,8 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			if (auto c = node.childField(Field.name))
 			{
 				c.append(";");
-				translateNode(ctx, *c);
-				ctx.macroTable[c.output()] = MacroType.versionId;
+				translateNode(ctx, c);
+				ctx.macroTable[c.translation()] = MacroType.versionId;
 			}
 		}
 		break;
@@ -149,7 +149,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		{
 			// #define F(x)
 			node.prepend("//");
-			ctx.macroTable[nameNode.output()] = MacroType.emptyFunc;
+			ctx.macroTable[nameNode.translation()] = MacroType.emptyFunc;
 			return true;
 		}
 		// #define
@@ -157,22 +157,22 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		{
 			c.replace("enum string");
 		}
-		translateNode(ctx, *nameNode);
-		ctx.macroTable[nameNode.output()] = MacroType.inlineFunc;
+		translateNode(ctx, nameNode);
+		ctx.macroTable[nameNode.translation()] = MacroType.inlineFunc;
 
 		string[] params;
 		foreach (ref param; parametersNode.children)
 		{
 			if (param.sym == Sym.identifier)
 			{
-				ctx.macroFuncParams[param.source] = true;
-				params ~= param.source;
+				ctx.macroFuncParams[param.sourceC] = true;
+				params ~= param.sourceC;
 				param.prepend("string ");
 			}
 		}
 
 		valueNode.prepend(" = `");
-		valueNode.replace(ctodMacroFunc(ctx, valueNode.source));
+		valueNode.replace(ctodMacroFunc(ctx, valueNode.sourceC));
 		ctx.macroFuncParams.mapClear();
 		valueNode.append("`;");
 		break;
@@ -187,8 +187,8 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		{
 			return true;
 		}
-		string versionName = nameNode.source;
-		if (string s = mapLookup(versionMap, nameNode.source, null))
+		string versionName = nameNode.sourceC;
+		if (string s = mapLookup(versionMap, nameNode.sourceC, null))
 		{
 			nameNode.replace(s);
 			versionName = s;
@@ -209,10 +209,10 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 				{
 					if (auto cc = b.childField(Field.name))
 					{
-						if (cc.source == nameNode.source)
+						if (cc.sourceC == nameNode.sourceC)
 						{
 							translateNode(ctx, b);
-							node.replace(b.output);
+							node.replace(b.translation());
 							return true;
 						}
 					}
@@ -229,11 +229,10 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 			if (auto a = node.childField(Field.alternative))
 			{
 				// first token of preproc_else is "#else"
-				a.children[0].replace("} version (" ~ versionName ~ ") {");
+				a.children.front.replace("} version (" ~ versionName ~ ") {");
 			}
 		}
-		nameNode.isTranslated = true;
-		return false; // name node should not be translated as an identifier, but other children must be translated still
+		return false;
 	case Sym.preproc_defined:
 		return replaceDefined(ctx, node, false);
 	case Sym.preproc_if:
@@ -247,14 +246,13 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		if (c.sym == Sym.preproc_defined)
 		{
 			ifnode.replace("version");
-			replaceDefined(ctx, *c, true);
-			c.isTranslated = true;
+			replaceDefined(ctx, c, true);
 			c.prepend("(");
 			c.append(") {");
 		}
 		else
 		{
-			if (c.source == "0")
+			if (c.sourceC == "0")
 			{
 				ifnode.replace("version");
 				c.replace("(none) {");
@@ -278,8 +276,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 				if (c.sym == Sym.preproc_defined)
 				{
 					ifnode.replace("} else version");
-					replaceDefined(ctx, *c, true);
-					c.isTranslated = true;
+					replaceDefined(ctx, c, true);
 				}
 				else
 				{
@@ -292,11 +289,11 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 	case Sym.preproc_params:
 		break;
 	case Sym.system_lib_string:
-		if (node.source.length < "<>".length)
+		if (node.sourceC.length < "<>".length)
 		{
 			return false; // to short to slice
 		}
-		string lib = node.source[1 .. $ - 1]; // slice to strip off angle brackets in <stdio.h>
+		string lib = node.sourceC[1 .. $ - 1]; // slice to strip off angle brackets in <stdio.h>
 		node.replace(ctodSysLib(lib));
 		break;
 	case Sym.preproc_include:
@@ -305,12 +302,12 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 		{
 			if (pathNode.sym == Sym.string_literal)
 			{
-				pathNode.replace(ctodIncludePath(pathNode.source));
+				pathNode.replace(ctodIncludePath(pathNode.sourceC));
 			}
 			else
 			{
 				// see case for system_lib_string above
-				ctodTryPreprocessor(ctx, *pathNode);
+				ctodTryPreprocessor(ctx, pathNode);
 				// note: explicit call not really needed, children are
 				// automatically translated by returning false
 			}
@@ -323,7 +320,7 @@ bool ctodTryPreprocessor(ref CtodCtx ctx, ref Node node)
 }
 
 /// Find params in macroText, and surround them with ~""~
-string ctodMacroFunc(ref CtodCtx ctx, string macroText)
+string ctodMacroFunc(ref scope CtodCtx ctx, string macroText)
 {
 	while (macroText.length > 0 && macroText[0].isWhite)
 	{
@@ -333,13 +330,16 @@ string ctodMacroFunc(ref CtodCtx ctx, string macroText)
 	// We need to wrap it in a function because tree-sitter parses a translation unit
 	// Then extract the function body and remove braces
 	string funcStr = "void __macroFunc(void) {" ~ macroText ~ "}";
-	auto root = parseCtree(ctx.parser, funcStr);
+
+	CtodCtx ctx2 = CtodCtx(funcStr, ctx.parser);
+	auto root = parseCtree(ctx2);
+
 	if (!root || !root.children.length > 0)
 	{
 		return macroText;
 	}
-	translateNode(ctx, *root);
-	auto f = root.children[0].childField(Field.body_);
+	(() @trusted => translateNode(ctx, root))(); // TODO: having root.ctx different than ctx is sketchy, verify this
+	auto f = root.children.front.childField(Field.body_);
 	if (!f || !f.children.length > 0)
 	{
 		return macroText;
@@ -351,7 +351,7 @@ string ctodMacroFunc(ref CtodCtx ctx, string macroText)
 			c.replace("");
 		}
 	}
-	return f.output();
+	return f.translation();
 }
 
 /// Try to remove a header guard
@@ -363,20 +363,19 @@ string ctodMacroFunc(ref CtodCtx ctx, string macroText)
 /// ...actual code
 /// #endif
 /// ---
-private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode)
+private bool ctodHeaderGuard(ref scope CtodCtx ctx, ref Node ifdefNode)
 {
-
 	assert(ifdefNode.sym == Sym.preproc_ifdef);
 
 	// The grammar has the same node type for `#ifdef` and `#ifndef`
-	if (ifdefNode.children[0].sym != Sym.aux_preproc_ifdef_token2)
+	if (ifdefNode.children.front.sym != Sym.aux_preproc_ifdef_token2)
 	{
 		return false;
 	}
 
 	int commentCount = 0;
 	// second node is always field `name` with a `Sym.identifier`
-	string id = ifdefNode.children[1].source;
+	string id = ifdefNode.children[1].sourceC;
 
 	foreach (i; 0 .. ifdefNode.children.length)
 	{
@@ -400,7 +399,7 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode)
 			if (auto defIdNode = ifdefNode.children[i].childField(Field.name))
 			{
 				// `#define` must match the `#ifndef`
-				if (defIdNode.source != id)
+				if (defIdNode.sourceC != id)
 				{
 					return false;
 				}
@@ -428,19 +427,19 @@ private bool ctodHeaderGuard(ref CtodCtx ctx, ref Node ifdefNode)
 
 /// Replace a defined(__WIN32__) to either `HasVersion!"Windows"` (in a `static if`)
 /// or just `Windows` (in a `version()`)
-bool replaceDefined(ref CtodCtx ctx, ref Node node, bool inVersionStatement)
+bool replaceDefined(ref scope CtodCtx ctx, ref Node node, bool inVersionStatement)
 {
 	if (auto c = node.firstChildType(Sym.identifier))
 	{
-		string replacement = c.source;
-		if (string s = mapLookup(versionMap, c.source, null))
+		string replacement = c.sourceC;
+		if (string s = mapLookup(versionMap, c.sourceC, null))
 		{
 			c.replace(s); // known #define translation
 			replacement = s;
 		}
 		else
 		{
-			translateNode(ctx, *c); // reserved identifier replacement
+			translateNode(ctx, c); // reserved identifier replacement
 		}
 		if (inVersionStatement)
 		{

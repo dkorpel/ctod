@@ -58,9 +58,8 @@ private void funcTypeToD(ref OutBuffer sink, const CType retType, string name, c
 	foreach (i, par; params)
 	{
 		if (i > 0)
-		{
 			sink ~= ", ";
-		}
+
 		par.toD(sink);
 	}
 	sink ~= ")";
@@ -73,7 +72,7 @@ struct InlineType
 	string keyword;
 	string name = null;
 	string body_;
-	Node* node; // body node
+	Node node; // body node
 
 pure nothrow:
 
@@ -109,7 +108,7 @@ string enumMemberAliases(string enumName, ref Node c)
 	{
 		if (c2.sym == Sym.enumerator)
 		{
-			string mem = c2.childField(Field.name).source;
+			string mem = c2.childField(Field.name).sourceC;
 			res ~= "alias " ~ mem ~ " = " ~ enumName ~ "." ~ mem ~ ";\n";
 		}
 	}
@@ -139,7 +138,7 @@ private string typeSymToKeyword(Sym sym)
 /// These are stored in `inlineTypes`, and the caller should emit these
 ///
 /// Returns: primitive type
-string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, bool keepOpaque)
+string parseTypeNode(ref scope CtodCtx ctx, ref Node node, scope ref InlineType[] inlineTypes, bool keepOpaque)
 {
 
 	// keyword = struct, union or enum
@@ -149,10 +148,10 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		if (auto c = node.childField(Field.body_))
 		{
 			ctx.pushTypeScope(sym);
-			translateNode(ctx, *c);
+			translateNode(ctx, c);
 			ctx.popTypeScope();
-			string name = nameNode ? nameNode.source : null;
-			inlineTypes ~= InlineType(typeSymToKeyword(sym), name, c.output(), c);
+			string name = nameNode ? nameNode.sourceC : null;
+			inlineTypes ~= InlineType(typeSymToKeyword(sym), name, c.translation(), c);
 			return name;
 		}
 		else if (nameNode)
@@ -162,8 +161,8 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 				return null;
 			}
 			// Don't emit bodyless types, assume they were defined before
-			// inlineTypes ~= InlineType(keyword, nameNode.source, /*body*/ "");
-			return nameNode.source;
+			// inlineTypes ~= InlineType(keyword, nameNode.sourceC, /*body*/ "");
+			return nameNode.sourceC;
 		}
 		return null;
 	}
@@ -173,28 +172,28 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 	case Sym.type_descriptor:
 		if (auto c = node.childField(Field.type))
 		{
-			return parseTypeNode(ctx, *c, inlineTypes, keepOpaque);
+			return parseTypeNode(ctx, c, inlineTypes, keepOpaque);
 		}
 		break;
 	case Sym.primitive_type:
-		return ctodPrimitiveType(node.source);
+		return ctodPrimitiveType(node.sourceC);
 	case Sym.alias_type_identifier:
-		if (node.source == "wchar_t")
+		if (node.sourceC == "wchar_t")
 		{
 			ctx.needsWchar = true;
-			return node.source;
+			return node.sourceC;
 		}
-		else if (node.source == "bool")
+		else if (node.sourceC == "bool")
 		{
 			ctx.needsCbool = true;
 			return "c_bool";
 		}
-		else if (node.source == "__int128_t")
+		else if (node.sourceC == "__int128_t")
 		{
 			ctx.needsInt128 = true;
 			return "Cent";
 		}
-		else if (node.source == "__uint128_t")
+		else if (node.sourceC == "__uint128_t")
 		{
 			ctx.needsInt128 = true;
 			return "Cent";
@@ -203,11 +202,11 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 		{
 			// int8_t is recognized as a primitive type, but __u8 is a type identifier,
 			// so also do ctodPrimitiveType here.
-			const replacement = ctodPrimitiveType(node.source);
-			if (replacement == node.source)
+			const replacement = ctodPrimitiveType(node.sourceC);
+			if (replacement == node.sourceC)
 			{
 				// no replacement to a D-type, so escape keywords (out => out_)
-				return translateIdentifier(node.source);
+				return translateIdentifier(node.sourceC);
 			}
 			else
 			{
@@ -228,7 +227,7 @@ string parseTypeNode(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineType
 }
 
 /// Translate built-in integral types (int, long, short, char, etc.)
-string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node)
+string ctodSizedTypeSpecifier(ref scope CtodCtx ctx, ref Node node)
 {
 	bool signed = true;
 	int longCount = 0;
@@ -246,7 +245,7 @@ string ctodSizedTypeSpecifier(ref CtodCtx ctx, ref Node node)
 			longCount++;
 			break;
 		case Sym.primitive_type:
-			primitive = ctodPrimitiveType(c.source);
+			primitive = ctodPrimitiveType(c.sourceC);
 			break;
 		case Sym.anon_short: // not a primitive_type apparently, but similar to `unsigned`
 			primitive = "short";
@@ -346,11 +345,11 @@ pure nothrow:
 /// Look for type qualifiers in this node, set the corresponding booleans
 /// Unknown qualifiers are ignored, though the function is supposed to catch all of them.
 /// Returns: `true` on success
-bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals)
+bool tryParseTypeQual(ref scope CtodCtx ctx, ref Node node, ref CQuals quals)
 {
 	if (node.sym == Sym.type_qualifier || node.sym == Sym.storage_class_specifier)
 	{
-		switch (node.children[0].sym)
+		switch (node.children.front.sym)
 		{
 		case Sym.anon_const:
 			quals.const_ = true;
@@ -396,21 +395,20 @@ bool tryParseTypeQual(ref CtodCtx ctx, ref Node node, ref CQuals quals)
 /// Parse declarations
 /// Often a node represents a single declaration, but in case of e.g. `int x, *y;` they are split up into two
 /// declarations since in D you can't declare differently typed variables in one declaration
-Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, scope string* apiMacro = null)
+Decl[] parseDecls(ref scope CtodCtx ctx, ref Node node, scope ref InlineType[] inlineTypes, scope string* apiMacro = null)
 {
 	auto typeNode = node.childField(Field.type);
 	if (!typeNode)
-	{
 		return null;
-	}
+
 	const oldLen = inlineTypes.length;
-	auto primitiveType = parseTypeNode(ctx, *typeNode, inlineTypes, false);
+	auto primitiveType = parseTypeNode(ctx, typeNode, inlineTypes, false);
 
 	// This happens with API macros, which get parsed as a return type.
 	if (apiMacro && node.children.length > 1 && node.children[1].sym == Sym.error)
 	{
 		*apiMacro = primitiveType;
-		primitiveType = node.children[1].source;
+		primitiveType = node.children[1].sourceC;
 	}
 
 	// there may be multiple type_qualifier fields
@@ -421,11 +419,11 @@ Decl[] parseDecls(ref CtodCtx ctx, ref Node node, ref InlineType[] inlineTypes, 
 		cast(void) tryParseTypeQual(ctx, c, quals);
 	}
 	CType baseType = CType.named(primitiveType);
-	baseType.setConst(quals.const_);
+	baseType.isConst = quals.const_;
 	Decl[] result;
 	foreach (ref c; node.children)
 	{
-		if (&c == typeNode)
+		if (c == typeNode)
 		{
 			// the type field may pass as a declarator, resulting in e.g.
 			// T* t; => T T; T* t;
@@ -480,7 +478,7 @@ uint initializerLength(ref Node node, ref string firstElement)
 		}
 		if (!firstElement)
 		{
-			firstElement = e.source;
+			firstElement = e.sourceC;
 		}
 	}
 	return commaCount + (firstElement != null); // == 0 && firstElement == "0";
@@ -509,7 +507,7 @@ unittest
 /// From a decl, parse the type and identifier
 /// identifier: gets set to identifier of decl
 /// Returns: whether a type was found and parsed in `node`
-bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] inlineTypes)
+bool parseCtype(ref scope CtodCtx ctx, ref Node node, ref Decl decl, scope ref InlineType[] inlineTypes)
 {
 	switch (node.sym)
 	{
@@ -517,18 +515,18 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 		if (auto declaratorNode = node.childField(Field.declarator))
 		{
 			decl.initializerD = "TMP";
-			parseCtype(ctx, *declaratorNode, decl, inlineTypes);
+			parseCtype(ctx, declaratorNode, decl, inlineTypes);
 		}
 		if (auto valueNode = node.childField(Field.value))
 		{
 			ctx.inDeclType = decl.type;
-			translateNode(ctx, *valueNode);
+			translateNode(ctx, valueNode);
 			ctx.inDeclType = CType.none;
-			convertPointerTypes(ctx, decl.type, *valueNode);
+			convertPointerTypes(ctx, decl.type, valueNode);
 			if (valueNode.sym == Sym.initializer_list)
 			{
 				string firstElem;
-				const len = initializerLength(*valueNode, firstElem);
+				const len = initializerLength(valueNode, firstElem);
 				// int x[4] = {0} => int[4] x = 0
 				// Important because in function scope, all elements must be in [] initializer
 				if (decl.type.isStaticArray())
@@ -546,22 +544,18 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 					decl.type = CType.array(decl.type.next[0], intToString(len));
 				}
 			}
-			const stringSize = stringInitializerSize(*valueNode);
+			const stringSize = stringInitializerSize(valueNode);
 			if (decl.type.isCArray() && stringSize >= 0)
 			{
 				decl.type = CType.array(decl.type.next[0], intToString(stringSize));
 			}
-			decl.initializerD = " = "  ~ valueNode.output();
+			decl.initializerD = " = "  ~ valueNode.translation();
 		}
 		return true;
 	case Sym.parenthesized_declarator:
 		// (*(x));
-		auto pc = getParenContent(&node);
-		if (pc != &node)
-		{ // should not happen, but avoid endless recursion at all costs
-			return parseCtype(ctx, *pc, decl, inlineTypes);
-		}
-		break;
+		auto pc = getParenContent(node);
+		return parseCtype(ctx, pc, decl, inlineTypes);
 	case Sym.abstract_function_declarator:
 	case Sym.function_declarator:
 		Decl[] paramDecls = [];
@@ -590,13 +584,13 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 			{
 				decl.type = CType.pointer(decl.type);
 			}
-			parseCtype(ctx, *declNode, decl, inlineTypes);
+			parseCtype(ctx, declNode, decl, inlineTypes);
 		}
 		return true;
 	case Sym.alias_field_identifier: // int x;
 	case Sym.alias_type_identifier: // typedef X Y;
 	case Sym.identifier: // ??
-		decl.identifier = translateIdentifier(node.source);
+		decl.identifier = translateIdentifier(node.sourceC);
 		return true;
 		// pointer/array declarators always have a declarator field.
 		// abstract declarators maybe not, for example: void foo(float*, float[])
@@ -606,15 +600,15 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 		decl.type = CType.pointer(decl.type);
 		if (auto c = node.firstChildType(Sym.type_qualifier))
 		{
-			if (c.source == "const" && decl.type.next[0].isConst)
+			if (c.sourceC == "const" && decl.type.next[0].isConst)
 			{
-				decl.type.setConst();
-				decl.type.next[0].setConst(false); // D has transitive const, so no need for `const(const(int)*)`
+				decl.type.isConst = true;
+				decl.type.next[0].isConst = false; // D has transitive const, so no need for `const(const(int)*)`
 			}
 		}
 		if (auto c = node.childField(Field.declarator))
 		{
-			parseCtype(ctx, *c, decl, inlineTypes);
+			parseCtype(ctx, c, decl, inlineTypes);
 		}
 		return true;
 	case Sym.array_declarator:
@@ -622,11 +616,11 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 		// static array
 		if (auto sizeNode = node.childField(Field.size))
 		{
-			translateNode(ctx, *sizeNode);
-			decl.type = CType.array(decl.type, sizeNode.output());
+			translateNode(ctx, sizeNode);
+			decl.type = CType.array(decl.type, sizeNode.translation());
 			if (auto c1 = node.childField(Field.declarator))
 			{
-				parseCtype(ctx, *c1, decl, inlineTypes);
+				parseCtype(ctx, c1, decl, inlineTypes);
 			}
 		}
 		else
@@ -644,7 +638,7 @@ bool parseCtype(ref CtodCtx ctx, ref Node node, ref Decl decl, ref InlineType[] 
 					// but defaults to 1 element
 					decl.type = CType.array(decl.type, "1");
 				}
-				parseCtype(ctx, *c1, decl, inlineTypes);
+				parseCtype(ctx, c1, decl, inlineTypes);
 			}
 		}
 		return true;
@@ -664,11 +658,10 @@ int stringInitializerSize(ref Node node)
 		{
 			if (c.sym == Sym.string_literal)
 			{
-				const s = stringLiteralSize(c.source);
+				const s = stringLiteralSize(c.sourceC);
 				if (s < 0)
-				{
 					return -1;
-				}
+
 				stringSize += s;
 			}
 		}
@@ -676,11 +669,10 @@ int stringInitializerSize(ref Node node)
 	}
 	else if (node.sym == Sym.string_literal)
 	{
-		const s = stringLiteralSize(node.source);
+		const s = stringLiteralSize(node.sourceC);
 		if (s < 0)
-		{
 			return -1;
-		}
+
 		return s + 1;
 	}
 	else
@@ -728,9 +720,8 @@ int stringLiteralSize(string s)
 		p++;
 	}
 	if (result < 0)
-	{
 		return -1; // malformed string literal
-	}
+
 	return cast(uint) result;
 }
 
@@ -783,22 +774,20 @@ pure nothrow:
 		return result;
 	}
 
-	bool opCast(T : bool)() const => tag != Tag.none;
-	bool isFunction() const => tag == Tag.funcDecl;
-	bool isStaticArray() const => tag == Tag.staticArray;
-	bool isCArray() const => tag == Tag.cArray;
-	bool isPointer() const => tag == Tag.pointer;
+	bool opCast(T : bool)() const scope => tag != Tag.none;
+	bool isFunction() const scope => tag == Tag.funcDecl;
+	bool isStaticArray() const scope => tag == Tag.staticArray;
+	bool isCArray() const scope => tag == Tag.cArray;
+	bool isPointer() const scope => tag == Tag.pointer;
 
 	bool opEquals(const CType other) const scope
 	{
 		if (other.tag != this.tag)
-		{
 			return false;
-		}
+
 		if (other.isConst != this.isConst)
-		{
 			return false;
-		}
+
 		final switch (tag)
 		{
 		case Tag.cArray:
@@ -817,14 +806,9 @@ pure nothrow:
 		}
 	}
 
-	void setConst(bool value = true)
-	{
-		isConst = value;
-	}
-
 	// replace the eventual name of this type
 	// used for giving anonymous structs/unions/enums a name afterwards, based on variable names
-	void setName(string name)
+	void setName(string name) scope
 	{
 		if (tag == Tag.named)
 		{
@@ -882,7 +866,7 @@ pure nothrow:
 		return result;
 	}
 
-	void toD(ref OutBuffer sink) const
+	void toD(ref OutBuffer sink) const scope
 	{
 		final switch (tag)
 		{

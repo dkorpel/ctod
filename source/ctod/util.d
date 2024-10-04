@@ -12,7 +12,7 @@ version (none)
 	public import bops.outbuffer;
 	public import bops.string : startsWith, stripWhite;
 	public import bops.stdio;
-	public import bops.range : splitter;
+	public import bops.range : splitter, front, back;
 	public import bops.test : assertEq;
 
 	version (WebAssembly)
@@ -44,6 +44,8 @@ else
 	public import std.ascii : isWhite;
 	public import std.string : stripWhite = strip;
 	public import std.algorithm.iteration : splitter;
+	public import std.stdio : stderr, writeln;
+	public import std.range : front, back;
 	import std.array;
 	import std.file : read;
 

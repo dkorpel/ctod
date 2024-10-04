@@ -4,75 +4,66 @@ nothrow @safe:
 
 import tree_sitter.api;
 import ctod.util;
+import ctod.translate;
+import ctod.ctype;
 
 /// Returns: a concrete syntax tree for C source code
-Node* parseCtree(TSParser* parser, string source) @trusted
+Node parseCtree(return scope ref CtodCtx ctx) @trusted
 {
-	scope TSTree* tree = ts_parser_parse_string(parser, null, source.ptr, cast(uint) source.length);
+	scope TSTree* tree = ts_parser_parse_string(ctx.parser, null, ctx.sourceC.ptr, cast(uint) ctx.sourceC.length);
 	if (ts_node_is_null(ts_tree_root_node(tree)))
 	{
-		return null;
+		return Node.none;
 	}
-	Extra* extra = new Extra(source);
-	Node* result = new Node(ts_tree_root_node(tree), extra);
-	return result;
+	return Node(ts_tree_root_node(tree), &ctx);
 }
 
-struct Extra
-{
-	string fullSource;
-	Map!(size_t, Node) nodes;
-
-	ref Node get(TSNode tsnode) @trusted
-	{
-		const id = ts_node_start_byte(tsnode);
-		if (auto x = id in nodes)
-		{
-			return *x;
-		}
-		else
-		{
-			return nodes[id] = Node(tsnode, &this);
-		}
-	}
-}
-
-// WIP: replace array with this lazy range
 struct Children
 {
+nothrow:
 	private TSNode tsnode;
-	Extra* extra;
+	CtodCtx* ctx;
 	size_t length;
 	bool named = false;
 	size_t i = 0;
 
-	this(TSNode tsnode, bool named, Extra* extra) @trusted
+	this(return scope TSNode tsnode, const return scope CtodCtx* ctx, bool named) @trusted scope
 	{
+		this.ctx = cast(CtodCtx*) ctx;
 		this.tsnode = tsnode;
 		this.named = named;
-		this.extra = extra;
-		this.length = named ?
-			ts_node_named_child_count(tsnode) : ts_node_child_count(tsnode);
+		this.length = named ? ts_node_named_child_count(tsnode) : ts_node_child_count(tsnode);
 	}
 
-	@disable this(this);
+	alias opDollar = length;
 
-	ref Node opIndex(size_t i) @trusted
+	Node opIndex(size_t i) return scope @trusted
 	{
-		return extra.get(named ?
-				ts_node_named_child(tsnode, cast(uint) i) : ts_node_child(tsnode, cast(uint) i)
-		);
+		return Node(named ?
+			ts_node_named_child(tsnode, cast(uint) i) :
+			ts_node_child(tsnode, cast(uint) i), ctx);
 	}
 
-	bool empty() const => i >= length;
-	void popFront()
+	bool empty() const scope => i >= length;
+	void popFront() scope
 	{
 		i++;
 	}
 
-	ref Node front() => this[i];
+	Node front() return scope => this[i];
+	Node back()  return scope => this[$ - 1];
+}
 
-	Node[] children;
+struct TranslationData
+{
+	/// D code to replace source with for this node
+	string replacement = null;
+	string prefix = null;
+	string suffix = null;
+	bool isTranslated = false; /// if translation has already been done
+	bool hasBeenReplaced = false;
+	bool noLayout = false; // don't emit layout
+	CType type;
 }
 
 /// Conrete syntax tree node
@@ -80,179 +71,155 @@ struct Node
 {
 nothrow:
 	private TSNode tsnode; // 32 bytes
+	private CtodCtx* ctx;
 
-	/// The entire C source code this belongs in
-	string fullSource;
-	/// D code to replace source with for this node
-	private string replacement;
-	private string prefix;
-	private string suffix;
-
-	/// Child nodes
-	private Node[] children_;
-
-	bool isTranslated = false; /// if translation has already been done
-	bool hasBeenReplaced = false;
-	private bool noLayout = false; // don't emit layout
-
-	Extra* extra;
-
-	/// Start index fullSource
-	uint start() @trusted const => ts_node_start_byte(tsnode);
-	/// End index in fullSource
-	uint end() @trusted const => ts_node_end_byte(tsnode);
+	/// Start index sourceC
+	uint start() @trusted const scope => ts_node_start_byte(tsnode);
+	/// End index in sourceC
+	uint end() @trusted const scope => ts_node_end_byte(tsnode);
 
 	/// Tag identifying the C AST node type
-	Sym sym() @trusted const => cast(Sym) ts_node_symbol(tsnode);
+	Sym sym() @trusted const scope => cast(Sym) ts_node_symbol(tsnode);
 
 	/// Source code of this node
-	string source() const => fullSource[start .. end];
+	string sourceC() const return scope => this.ctx.sourceC[start .. end];
 
-	bool isNone() @trusted const => ts_node_is_null(tsnode);
-	bool hasError() @trusted const => ts_node_has_error(tsnode);
+	bool isNone() @trusted const scope => ts_node_is_null(tsnode);
+	enum none = Node();
+	bool hasError() @trusted const scope => ts_node_has_error(tsnode);
 
-	/// Each node has unique source location, so we can use it as a key
-	ulong id() const => start | (cast(ulong) end << 32);
-
-	size_t toHash() const => cast(size_t) id; // #optimization: On 32-bit, we can do better than truncating
+	/// #twab: "Each node has unique source range, so we can use it as a key" yeah right, not true
+	ulong id() const scope => cast(ulong) this.tsnode.id; // start | (cast(ulong) end << 32) | cast(ulong) sym << 24;
 
 	bool opEquals(ref Node other) const => this.start == other.start && this.end == other.end;
 
-	// @disable this(this);
+	/// Returns: Range over this node's child nodes
+	Children children() inout return scope => Children(tsnode, ctx, false);
 
-	this(TSNode node, Extra* extra) @trusted
+	this(TSNode node, return scope CtodCtx* ctx)
 	{
-		this.tsnode = node; //
-		this.extra = extra;
-		this.fullSource = extra.fullSource;
-		this.children_.length = ts_node_child_count(node);
-		this.findChildren();
+		assert(ctx);
+		this.tsnode = node;
+		this.ctx = ctx;
 	}
 
-	inout(Node[]) children() inout
+	private ref TranslationData mutData() return scope
 	{
-		return children_;
+		return ctx.getTranslationData(this.id);
 	}
 
-	private void findChildren() @trusted return
+	private ref const(TranslationData) constData() return scope
 	{
-		foreach (i, ref c; children_)
-		{
-			c = Node(ts_node_child(tsnode, cast(uint) i), this.extra);
-		}
+		return ctx.getTranslationData(this.id);
 	}
+
+	bool isTranslated() scope => constData.isTranslated;
+	bool isTranslated(bool v) scope => mutData.isTranslated = v;
+
+	CType type() scope => mutData.type;
+	CType type(CType t) scope => mutData.type = t;
 
 	/// Replace this entire subtree with a translation
-	bool replace(string s)
+	bool replace(string s) scope
 	{
-		this.isTranslated = true;
-		this.hasBeenReplaced = true;
-		this.replacement = s;
+		auto translation = &this.mutData();
+		translation.isTranslated = true;
+		translation.hasBeenReplaced = true;
+		translation.replacement = s;
 		return true;
 	}
 
 	/// Returns: source line number
-	uint lineNumber() @trusted
-	{
-		return ts_node_start_point(tsnode).row;
-	}
+	uint lineNumber() @trusted => ts_node_start_point(tsnode).row;
 
 	/// Prevent preceding whitespace / comments from being output
-	void removeLayout()
+	void removeLayout() scope
 	{
-		this.noLayout = true;
+		this.mutData.noLayout = true;
 	}
 
 	/// For translation purposes, prepend/append `s` to this node's source, without modifying the node's source itself
-	bool prepend(string s)
+	void prepend(string s) scope
 	{
-		this.prefix = s ~ this.prefix;
-		return false;
+		this.mutData.prefix = s ~ this.mutData.prefix;
 	}
 
 	/// ditto
-	bool append(string s)
+	void append(string s) scope
 	{
-		this.suffix ~= s;
-		return false;
+		this.mutData.suffix ~= s;
 	}
 
 	/// Returns: first child node with `type`
-	Node* firstChildType(TSSymbol type)
+	Node firstChildType(Sym type)
 	{
 		foreach (ref c; this.children)
-		{
 			if (c.sym == type)
-			{
-				return &c;
-			}
-		}
-		return null;
+				return c;
+
+		return Node.none;
 	}
 
 	/// `false` if this is null
-	bool opCast(T : bool)() const => !isNone;
+	bool opCast(T : bool)() const scope => !isNone;
 
-	private static void appendOutput(O)(const ref Node node, ref O result)
-	{
-		result ~= node.prefix;
-		if (node.hasBeenReplaced)
-		{
-			result ~= node.replacement;
-		}
-		else if (node.children.length == 0)
-		{
-			result ~= node.source;
-		}
-		else
-		{
-			size_t lc = node.start; // layout cursor
-			foreach (ref c; node.children)
-			{
-				if (!c || c.noLayout)
-				{
-					//dprint(node.source);
-				}
-				else
-				{
-					const layout = node.fullSource[lc .. c.start];
-					foreach (i; 0 .. layout.length)
-					{
-						if (layout[i] != '\\') // #filter '\' from layout
-						{
-							result ~= layout[i];
-						}
-					}
-				}
-				lc = c.end;
-				appendOutput(c, result);
-
-			}
-			result ~= node.fullSource[lc .. node.end];
-		}
-		result ~= node.suffix;
-	}
+	bool opEquals(Node other) @trusted const scope => ts_node_eq(this.tsnode, other.tsnode);
 
 	/// Returns: full translated D source code of this node after translation
-	string output() const @trusted
+	string translation() scope
 	{
 		OutBuffer appender;
 		appendOutput(this, appender);
 		return appender.extractOutBuffer;
 	}
 
-	inout(Node)* childField(Field field) @trusted inout
+	Node childField(Field field) return scope @trusted
 	{
 		auto f = ts_node_child_by_field_id(tsnode, field);
 		foreach (ref c; children)
-		{
 			if (ts_node_eq(c.tsnode, f))
-			{
-				return &c;
-			}
-		}
-		return null;
+				return c;
+
+		return Node.none;
 	}
+}
+
+private static void appendOutput(O)(scope ref Node node, ref O result)
+{
+	const translation = node.constData;
+	string fullSource = node.ctx.sourceC;
+	result ~= translation.prefix;
+	if (translation.hasBeenReplaced)
+	{
+		result ~= translation.replacement;
+	}
+	else if (node.children.length == 0)
+	{
+		result ~= node.sourceC;
+	}
+	else
+	{
+		size_t lc = node.start; // layout cursor
+		foreach (ref c; node.children)
+		{
+			if (!c || c.constData.noLayout)
+			{
+				//dprint(node.sourceC);
+			}
+			else
+			{
+				const layout = fullSource[lc .. c.start];
+				foreach (i; 0 .. layout.length)
+					if (layout[i] != '\\') // #filter '\' from layout
+						result ~= layout[i];
+			}
+			lc = c.end;
+			appendOutput(c, result);
+
+		}
+		result ~= fullSource[lc .. node.end];
+	}
+	result ~= translation.suffix;
 }
 
 /// For accessing specific child nodes

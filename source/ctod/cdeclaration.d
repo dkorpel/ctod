@@ -8,7 +8,7 @@ import ctod.ctype;
 import ctod.util;
 
 /// Returns: list of parsed declarations from `node`
-Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
+Decl[] ctodTryDeclaration(ref scope CtodCtx ctx, ref Node node)
 {
 	InlineType[] inlinetypes;
 
@@ -86,12 +86,12 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 			// Translation of function signautre is pretty destructive regarding layout,
 			// but at least it's rare to have comments inside the parameter list
 			// For now: add whitespace before bodyNode to preserve brace style and comments after the signature
-			const layout = node.fullSource[declNode.end .. bodyNode.start];
+			const layout = ctx.sourceC[declNode.end .. bodyNode.start];
 			ctx.enterFunction("???");
-			translateNode(ctx, *bodyNode);
+			translateNode(ctx, bodyNode);
 			ctx.leaveFunction();
 
-			return translateDecl(layout ~ bodyNode.output(), node.sym);
+			return translateDecl(layout ~ bodyNode.translation(), node.sym);
 		}
 		break;
 	case Sym.parameter_declaration:
@@ -99,8 +99,8 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 	case Sym.field_declaration: // struct / union field
 		if (auto bitNode = node.firstChildType(Sym.bitfield_clause))
 		{
-			translateNode(ctx, *bitNode);
-			node.append("/*" ~ bitNode.output ~ " !!*/");
+			translateNode(ctx, bitNode);
+			node.append("/*" ~ bitNode.translation() ~ " !!*/");
 		}
 		return translateDecl(";", node.sym);
 	case Sym.declaration: // global / local variable
@@ -111,7 +111,7 @@ Decl[] ctodTryDeclaration(ref CtodCtx ctx, ref Node node)
 	return null;
 }
 
-bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
+bool ctodTryTypedef(ref scope CtodCtx ctx, ref Node node)
 {
 	InlineType[] inlinetypes;
 	if (node.sym != Sym.type_definition)
@@ -140,7 +140,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 		if (s.node)
 		{
 			// Put enum members into the global scope with aliases
-			node.append(enumMemberAliases(s.name, *s.node));
+			node.append(enumMemberAliases(s.name, s.node));
 		}
 	}
 	bool first = true;
@@ -167,7 +167,7 @@ bool ctodTryTypedef(ref CtodCtx ctx, ref Node node)
 
 /// Try translating variable initializers
 /// Returns: true if translation is done, no need to translate children
-bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
+bool ctodTryInitializer(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
@@ -188,17 +188,11 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 				foreach (ref c2; c.children)
 				{
 					if (c2.sym == Sym.anon_LBRACE)
-					{
 						c2.replace("(");
-					}
 					else if (c2.sym == Sym.anon_RBRACE)
-					{
 						c2.replace(")");
-					}
 					else
-					{
 						translateNode(ctx, c2);
-					}
 				}
 			}
 		}
@@ -234,7 +228,7 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 			}
 			ctx.translateNode(c);
 		}
-		ctx.inDeclType = t;
+		(() @trusted => ctx.inDeclType = t)(); // DIP1000 limitation with lifetimes
 
 		if (arrayInit)
 		{
@@ -267,7 +261,7 @@ bool ctodTryInitializer(ref CtodCtx ctx, ref Node node)
 		break;
 	case Sym.field_designator:
 		// .field = => field:
-		node.replace(node.children[1].source); // take source of child field_identifier to remove leading dot
+		node.replace(node.children[1].sourceC); // take source of child field_identifier to remove leading dot
 		node.append(":");
 		break;
 	case Sym.subscript_designator:

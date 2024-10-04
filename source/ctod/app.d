@@ -19,8 +19,7 @@ import std.file : writeFile = write;
 import std.path;
 
 import ctod.translate;
-
-private:
+import ctod.util;
 
 version (unittest) { } else
 int main(string[] args)
@@ -46,8 +45,9 @@ int main(string[] args)
 					stderr.writeln("file shoud have .c or .h extension, not ", fname.extension);
 					return -1;
 				}
-				const source = cast(string) read(fname);
-				const moduleName = fname.baseName.stripExtension;
+				scope source = cast(string) fileReadText(fname);
+
+				const moduleName = fname.baseName;
 				writeFile(fname.withExtension(".d"), translateFile(source, moduleName));
 			}
 		}
