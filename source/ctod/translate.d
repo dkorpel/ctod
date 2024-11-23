@@ -506,29 +506,32 @@ string ctodNumberLiteral(string str, ref CType type)
 		if (str[i] == 'l')
 		{
 			if (!cap)
-			{
 				cap = str.dup;
-			}
+
 			cap[i] = 'L';
 			longCount++;
 		}
 		if (str[i] == 'L')
-		{
 			longCount++;
-		}
+
 		if (str[i] == 'u' || str[i] == 'U')
-		{
 			unsigned = true;
-		}
 	}
 	if (longCount > 1)
 	{
+		if (!cap)
+			cap = str.dup;
+
+		// Double LL not allowed, move back last character, so
+		// ULL => UL, LLU => LU
+		cap[$ - 2] = cap[$ - 1];
+		cap = cap[0 .. $ - 1];
 		typeName = "long";
 	}
+
 	if (unsigned)
-	{
 		typeName = "u" ~ typeName;
-	}
+
 	type = CType.named(typeName);
 
 	if (cap)
@@ -549,7 +552,8 @@ string ctodNumberLiteral(string str, ref CType type)
 	assert(type == CType.named("float"));
 	assert(ctodNumberLiteral("4l", type) == "4L");
 	assert(type == CType.named("int"));
-
-	assert(ctodNumberLiteral("1llu", type) != "1Lu");
+	assert(ctodNumberLiteral("1ULL", type) == "1UL");
+	assert(type == CType.named("ulong"));
+	assert(ctodNumberLiteral("1llu", type) == "1Lu");
 	assert(type == CType.named("ulong"));
 }

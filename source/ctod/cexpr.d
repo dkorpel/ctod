@@ -540,6 +540,16 @@ private bool ctodSizeof(ref scope CtodCtx ctx, ref Node node)
 			// sizeof "abc" => ("abc".length + 1)
 			return node.replace("(" ~ valueNode.translation() ~ ".length + 1)");
 		}
+		else if (valueNode.sym == Sym.field_expression)
+		{
+			// sizeof foo.ptr => foo.ptr.sizeof
+			return node.replace(valueNode.translation() ~ ".sizeof");
+		}
+		else
+		{
+			// sizeof(x+y) => (x+y).sizeof
+			return node.replace("(" ~ valueNode.translation() ~ ").sizeof");
+		}
 	}
 	return false;
 }

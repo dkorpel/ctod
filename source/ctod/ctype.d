@@ -183,37 +183,31 @@ string parseTypeNode(ref scope CtodCtx ctx, ref Node node, scope ref InlineType[
 			ctx.needsWchar = true;
 			return node.sourceC;
 		}
-		else if (node.sourceC == "bool")
+		if (node.sourceC == "bool")
 		{
 			ctx.needsCbool = true;
 			return "c_bool";
 		}
-		else if (node.sourceC == "__int128_t")
+		if (node.sourceC == "__int128_t")
 		{
 			ctx.needsInt128 = true;
 			return "Cent";
 		}
-		else if (node.sourceC == "__uint128_t")
+		if (node.sourceC == "__uint128_t")
 		{
 			ctx.needsInt128 = true;
 			return "Cent";
 		}
-		else
+		// int8_t is recognized as a primitive type, but __u8 is a type identifier,
+		// so also do ctodPrimitiveType here.
+		const replacement = ctodPrimitiveType(node.sourceC);
+		if (replacement == node.sourceC)
 		{
-			// int8_t is recognized as a primitive type, but __u8 is a type identifier,
-			// so also do ctodPrimitiveType here.
-			const replacement = ctodPrimitiveType(node.sourceC);
-			if (replacement == node.sourceC)
-			{
-				// no replacement to a D-type, so escape keywords (out => out_)
-				return translateIdentifier(node.sourceC);
-			}
-			else
-			{
-				// replacement to a D-type , e.g. __u8 => ubyte, no escaping
-				return replacement;
-			}
+			// no replacement to a D-type, so escape keywords (out => out_)
+			return translateIdentifier(node.sourceC);
 		}
+		// replacement to a D-type , e.g. __u8 => ubyte, no escaping
+		return replacement;
 	case Sym.sized_type_specifier:
 		return ctodSizedTypeSpecifier(ctx, node);
 	case Sym.struct_specifier:
@@ -259,12 +253,12 @@ string ctodSizedTypeSpecifier(ref scope CtodCtx ctx, ref Node node)
 	{
 		primitive = "real";
 	}
-	else if (longCount == 1 && primitive == "")
+	else if (longCount == 1)
 	{
 		primitive = "c_long";
 		ctx.needsClong = true;
 	}
-	else if (longCount == 2 && primitive == "")
+	else if (longCount == 2)
 	{
 		primitive = "long";
 	}
@@ -469,17 +463,13 @@ uint initializerLength(ref Node node, ref string firstElement)
 	foreach (ref e; node.children)
 	{
 		if (e.sym == Sym.comment || e.sym == Sym.anon_LBRACE || e.sym == Sym.anon_RBRACE)
-		{
 			continue;
-		}
+
 		if (e.sym == Sym.anon_COMMA)
-		{
 			commaCount++;
-		}
+
 		if (!firstElement)
-		{
 			firstElement = e.sourceC;
-		}
 	}
 	return commaCount + (firstElement != null); // == 0 && firstElement == "0";
 }

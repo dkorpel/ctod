@@ -10,6 +10,7 @@ unsigned x0;
 ```D
 uint x0;
 ```
+
 ---
 ```C
 unsigned int x0;
@@ -17,6 +18,7 @@ unsigned int x0;
 ```D
 uint x0;
 ```
+
 ---
 ```C
 unsigned char c;
@@ -24,13 +26,17 @@ unsigned char c;
 ```D
 ubyte c;
 ```
+
 ---
 ```C
 long long x3;
+long long int x4;
 ```
 ```D
 long x3;
+long x4;
 ```
+
 ---
 ```C
 unsigned long long x4;
@@ -38,6 +44,7 @@ unsigned long long x4;
 ```D
 ulong x4;
 ```
+
 ---
 ```C
 float x6;
@@ -45,6 +52,7 @@ float x6;
 ```D
 float x6 = 0;
 ```
+
 ---
 ```C
 double x7;
@@ -52,6 +60,7 @@ double x7;
 ```D
 double x7 = 0;
 ```
+
 ---
 ```C
 long double x8;
@@ -59,14 +68,18 @@ long double x8;
 ```D
 real x8 = 0;
 ```
+
 ---
 ```C
 long x1;
+long int y1;
 ```
 ```D
 import core.stdc.config: c_long, c_ulong;
 c_long x1;
+c_long y1;
 ```
+
 ---
 ```C
 unsigned long x5;
@@ -75,6 +88,7 @@ unsigned long x5;
 import core.stdc.config: c_long, c_ulong;
 c_ulong x5;
 ```
+
 ---
 ```C
 S xA;
@@ -82,6 +96,7 @@ S xA;
 ```D
 S xA;
 ```
+
 ---
 ```C
 unsigned x[10];
@@ -89,6 +104,7 @@ unsigned x[10];
 ```D
 uint[10] x;
 ```
+
 ---
 ```C
 struct S { unsigned x; };
@@ -104,6 +120,7 @@ int x = 1, y = 2, *z = null, w = 0;
 ```D
 int x = 1, y = 2; int* z = null; int w = 0;
 ```
+
 ---
 ```C
 unsigned *in = i, *out = o;
@@ -111,6 +128,7 @@ unsigned *in = i, *out = o;
 ```D
 uint* in_ = i, out_ = o;
 ```
+
 ---
 ```C
 unsigned *in = i, *out = o;
@@ -118,6 +136,7 @@ unsigned *in = i, *out = o;
 ```D
 uint* in_ = i, out_ = o;
 ```
+
 ---
 ```C
 void f() {for (int i = 1, j = 2; i < 5; ++i);}
@@ -133,6 +152,7 @@ void foo(struct {int x;} t);
 ```D
 struct _T {int x;}void foo(_T t);
 ```
+
 ---
 ```C
 void foo(struct T t);
@@ -140,6 +160,7 @@ void foo(struct T t);
 ```D
 void foo(T t);
 ```
+
 ---
 ```C
 void foo(struct T *t);
@@ -147,6 +168,7 @@ void foo(struct T *t);
 ```D
 void foo(T* t);
 ```
+
 ---
 ```C
 void foo(enum E *e);
@@ -170,6 +192,7 @@ int a0[1];
 ```D
 int[1] a0;
 ```
+
 ---
 ```C
 int *a1[2];
@@ -177,6 +200,7 @@ int *a1[2];
 ```D
 int*[2] a1;
 ```
+
 ---
 ```C
 int (*a2)[3];
@@ -184,6 +208,7 @@ int (*a2)[3];
 ```D
 int[3]* a2;
 ```
+
 ---
 ```C
 int a3[4][5];
@@ -191,6 +216,7 @@ int a3[4][5];
 ```D
 int[5][4] a3;
 ```
+
 ---
 ```C
 int *a4[6][7];
@@ -198,6 +224,7 @@ int *a4[6][7];
 ```D
 int*[7][6] a4;
 ```
+
 ---
 ```C
 int *(*a5)[8][9];
@@ -205,6 +232,7 @@ int *(*a5)[8][9];
 ```D
 int*[9][8]* a5;
 ```
+
 ---
 ```C
 int **a6[8][9];
@@ -212,6 +240,7 @@ int **a6[8][9];
 ```D
 int**[9][8] a6;
 ```
+
 ---
 ```C
 int a[2], (*b)[2];
@@ -219,6 +248,7 @@ int a[2], (*b)[2];
 ```D
 int[2] a; int[2]* b;
 ```
+
 ---
 ```C
 double z[4][3];
@@ -226,6 +256,7 @@ double z[4][3];
 ```D
 double[3][4] z = 0;
 ```
+
 ---
 ```C
 void (*f0)(int x, float, char*, char[], char*[], char***);
@@ -233,6 +264,7 @@ void (*f0)(int x, float, char*, char[], char*[], char***);
 ```D
 void function(int x, float, char*, char, char*, char***) f0;
 ```
+
 ---
 ```C
 typedef __uint128_t tb_uint128_t;
@@ -251,6 +283,7 @@ char * const(*(* const bar)[5])(int);
 ```D
 char* function(int)[5]* bar;
 ```
+
 ---
 ```C
 struct S
@@ -268,6 +301,7 @@ struct S
 	int z;
 }
 ```
+
 ---
 ```C
 typedef union
@@ -282,6 +316,7 @@ union FP32 {
 	float f;
 }
 ```
+
 ---
 ```C
 union U { float f, x; };
@@ -289,6 +324,7 @@ union U { float f, x; };
 ```D
 union U { float f = 0, x; }
 ```
+
 ---
 ```C
 union U {
@@ -312,6 +348,7 @@ union U {
 	float c;
 }
 ```
+
 ---
 ```C
 int (*f1[4])(void);
@@ -319,6 +356,7 @@ int (*f1[4])(void);
 ```D
 int function()[4] f1;
 ```
+
 ---
 ```C
 int (*f2)(enum {a} param0, struct {int x;} param1);
@@ -326,6 +364,7 @@ int (*f2)(enum {a} param0, struct {int x;} param1);
 ```D
 enum _Param0 {a}struct _Param1 {int x;}int function(_Param0 param0, _Param1 param1) f2;
 ```
+
 ---
 ```C
 inline static void foo(int x);
@@ -333,6 +372,7 @@ inline static void foo(int x);
 ```D
 pragma(inline, true) private void foo(int x);
 ```
+
 ---
 Test API macro before function definition
 ```C
@@ -341,6 +381,7 @@ WINAPI int** Whoa(void);
 ```D
 WINAPI int** Whoa();
 ```
+
 ---
 Unfortunately, tree-sitter sees this as 2 declarations with a missing ';',
 so there's no translation unsigned int => uint, but it should be clear what happened
@@ -350,6 +391,7 @@ MYAPI unsigned int f(void);
 ```D
 MYAPI unsigned; int f();
 ```
+
 ---
 ```C
 int main(void) {
@@ -361,6 +403,7 @@ int main() {
 	static int xx;
 }
 ```
+
 ---
 ```C
 union U {
@@ -381,6 +424,7 @@ union U {
 	}_Overlapped overlapped;
 }
 ```
+
 ---
 ```C
 extern inline int e0;
@@ -388,6 +432,7 @@ extern inline int e0;
 ```D
 pragma(inline, true) extern int e0;
 ```
+
 ---
 ```C
 inline static void foo(int x[], int (*y)(void)) {
@@ -440,6 +485,7 @@ void f() { FILE *f = 0; f = 0; f = 1; }
 ```D
 void f() { FILE* f = null; f = null; f = cast(FILE*) 1; }
 ```
+
 ---
 ```C
 typedef int intArr[3], intScalar;
@@ -448,6 +494,7 @@ typedef int intArr[3], intScalar;
 alias intArr = int[3];
 alias intScalar = int;
 ```
+
 ---
 ```C
 typedef struct X X;
@@ -463,6 +510,7 @@ struct OpaqueS;
 ```D
 struct OpaqueS;
 ```
+
 ---
 ```C
 union OpaqueU;
@@ -470,6 +518,7 @@ union OpaqueU;
 ```D
 union OpaqueU;
 ```
+
 ---
 ```C
 enum OpaqueE;
@@ -509,6 +558,7 @@ ushort x;/*: 12 !!*/
 ushort y;/*: int.sizeof !!*/
 }_Bitfields bitfields;
 ```
+
 ---
 ```C
 int x[4];
@@ -530,6 +580,7 @@ void foo() // comment
 	pp(x.ptr);
 }
 ```
+
 ---
 ```C
 void main() {
@@ -543,6 +594,7 @@ void main() {
 	int b = buf[0] == 0;
 }
 ```
+
 ---
 ```C
 typedef struct T {
@@ -560,6 +612,7 @@ struct T {
 	ubyte type;
 }
 ```
+
 ---
 ```C
 typedef struct S S;
@@ -573,6 +626,7 @@ typedef union U0 U1;
 alias S1 = S0;
 alias U1 = U0;
 ```
+
 ---
 ```C
 typedef enum AnEnum
@@ -590,6 +644,7 @@ alias one = AnEnum.one;
 alias two = AnEnum.two;
 
 ```
+
 ---
 ```C
 typedef enum { a, b } Foo;
@@ -600,6 +655,7 @@ alias a = Foo.a;
 alias b = Foo.b;
 
 ```
+
 ---
 ```C
 typedef enum { a } *Foo;
@@ -617,6 +673,7 @@ enum {A};
 ```D
 enum {A}
 ```
+
 ---
 ```C
 enum X
@@ -637,12 +694,14 @@ alias B = X.B;
 ```
 ---
 ## Sizeof
+
 ```C
 int so1 = sizeof(int);
 ```
 ```D
 int so1 = int.sizeof;
 ```
+
 ---
 ```C
 int so2 = sizeof (4);
@@ -650,6 +709,7 @@ int so2 = sizeof (4);
 ```D
 int so2 = typeof(4).sizeof;
 ```
+
 ---
 ```C
 int so3 = sizeof((short) 3 + 4l);
@@ -657,6 +717,7 @@ int so3 = sizeof((short) 3 + 4l);
 ```D
 int so3 = typeof(cast(short) 3 + 4L).sizeof;
 ```
+
 ---
 ```C
 int so4 = sizeof(unsigned short);
@@ -664,6 +725,7 @@ int so4 = sizeof(unsigned short);
 ```D
 int so4 = ushort.sizeof;
 ```
+
 ---
 ```C
 int so5 = sizeof(GLFWvidmode);
@@ -671,6 +733,7 @@ int so5 = sizeof(GLFWvidmode);
 ```D
 int so5 = GLFWvidmode.sizeof;
 ```
+
 ---
 ```C
 int so6 = sizeof 4lu;
@@ -678,6 +741,7 @@ int so6 = sizeof 4lu;
 ```D
 int so6 = 4Lu.sizeof;
 ```
+
 ---
 ```C
 int so7 = sizeof "abc";
@@ -685,6 +749,7 @@ int so7 = sizeof "abc";
 ```D
 int so7 = ("abc".length + 1);
 ```
+
 ---
 ```C
 int so7 = sizeof("abc");
@@ -692,6 +757,7 @@ int so7 = sizeof("abc");
 ```D
 int so7 = ("abc".length + 1);
 ```
+
 ---
 ```C
 int so8 = ((size_t) _glfw.monitorCount - 1) * sizeof(_GLFWmonitor*);
@@ -699,6 +765,7 @@ int so8 = ((size_t) _glfw.monitorCount - 1) * sizeof(_GLFWmonitor*);
 ```D
 int so8 = (cast(size_t) _glfw.monitorCount - 1) * (_GLFWmonitor*).sizeof;
 ```
+
 ---
 ```C
 int so9 = sizeof(int) * 5;
@@ -706,6 +773,7 @@ int so9 = sizeof(int) * 5;
 ```D
 int so9 = int.sizeof * 5;
 ```
+
 ---
 ```C
 int soA = sizeof(unsigned char) * 5;
@@ -713,6 +781,7 @@ int soA = sizeof(unsigned char) * 5;
 ```D
 int soA = ubyte.sizeof * 5;
 ```
+
 ---
 ```C
 int soB = sizeof(int*) * 5;
@@ -720,6 +789,7 @@ int soB = sizeof(int*) * 5;
 ```D
 int soB = (int*).sizeof * 5;
 ```
+
 ---
 ```C
 int soC = sizeof(struct mg_dns_header);
@@ -727,6 +797,7 @@ int soC = sizeof(struct mg_dns_header);
 ```D
 int soC = mg_dns_header.sizeof;
 ```
+
 ---
 ```C
 int soD = sizeof(struct {int x; int y;});
@@ -734,6 +805,23 @@ int soD = sizeof(struct {int x; int y;});
 ```D
 int soD = .sizeof;
 ```
+
+---
+```C
+int soE = sizeof foo.ptr;
+```
+```D
+int soE = foo.ptr.sizeof;
+```
+
+---
+```C
+int soF = sizeof x+y;
+```
+```D
+int soF = (x+y).sizeof;
+```
+
 ---
 ```C
 int of = offsetof(S, f);
@@ -741,6 +829,7 @@ int of = offsetof(S, f);
 ```D
 int of = S.f.offsetof;
 ```
+
 ---
 ```C
 int of = offsetof(S, f, g);
@@ -748,6 +837,7 @@ int of = offsetof(S, f, g);
 ```D
 int of = offsetof(S, f, g);
 ```
+
 ---
 ```C
 int of = offsetof(struct S, f);
@@ -759,10 +849,13 @@ int of = offsetof(struct S, f);
 ## Number literals
 ```C
 float x = 1.f;
+long long int y = 1ULL;
 ```
 ```D
 float x = 1.0f;
+long y = 1UL;
 ```
+
 ---
 ```C
 float x = FLT_MAX;
@@ -770,6 +863,7 @@ float x = FLT_MAX;
 ```D
 float x = float.max;
 ```
+
 ---
 ```C
 int x = DBL_MAX_10_EXP + DBL_MAX_EXP;
@@ -777,6 +871,7 @@ int x = DBL_MAX_10_EXP + DBL_MAX_EXP;
 ```D
 int x = double.max_10_exp + double.max_exp;
 ```
+
 ---
 ```C
 int x = (int) 3.5;
@@ -784,6 +879,7 @@ int x = (int) 3.5;
 ```D
 int x = cast(int) 3.5;
 ```
+
 ---
 ```C
 int x = (void(*)()) NULL;
@@ -791,6 +887,7 @@ int x = (void(*)()) NULL;
 ```D
 int x = cast(void function()) null;
 ```
+
 ---
 ```C
 typedef unsigned char X;
@@ -866,6 +963,7 @@ void main() {
 	if (x==60) {}
 }
 ```
+
 ---
 ```C
 void main() {
@@ -899,6 +997,7 @@ const(char)[4] p3 = "abc"; const(char)[1] p4 = "";
 const(char)[5] p5 = "\nab" ~ "\x22" ~ "";
 char[$] p6 = MACRO;
 ```
+
 ---
 ```C
 wchar_t p3;
@@ -927,6 +1026,7 @@ void main() {
 }
 int[4] b = [ 0, 1 ];
 ```
+
 ---
 ```C
 Rectangle r = (Rectangle){0l, y, width, height};
@@ -934,6 +1034,7 @@ Rectangle r = (Rectangle){0l, y, width, height};
 ```D
 Rectangle r = Rectangle(0L, y, width, height);
 ```
+
 ---
 ```C
 int x[] = { 0, 3, 5 /*comment*/ , 9 };
@@ -949,6 +1050,7 @@ void main() {
 	int[1] z = [10];
 }
 ```
+
 ---
 ```C
 int a[2] = {
@@ -962,6 +1064,7 @@ int[2] a = [
 	1: 2,
 ];
 ```
+
 ---
 ```C
 INTARRAY a = {[0] = 1};
@@ -969,6 +1072,7 @@ INTARRAY a = {[0] = 1};
 ```D
 INTARRAY a = [0: 1];
 ```
+
 ---
 ```C
 S a = {
@@ -982,6 +1086,7 @@ S a = {
 	fieldB: 2,
 };
 ```
+
 ---
 ```C
 struct S { double x; int y; }
@@ -1032,12 +1137,14 @@ import core.sys.posix.pthread;
 import cfile;
 import x;
 ```
+
 ---
 ```C
 #undef X
 ```
 ```D
 ```
+
 ---
 ```C
 #ifndef NO_HEADER_GUARD
@@ -1048,6 +1155,7 @@ import x;
 enum NO_HEADER_GUARD = 3;
 
 ```
+
 ---
 ```C
 #ifndef CONDITION
@@ -1059,6 +1167,7 @@ version (CONDITION) {} else {
 enum NOT_THE_IFNDEF_CONDITION = 99;
 }
 ```
+
 ---
 ```C
 #define TEST
@@ -1070,6 +1179,7 @@ version = TEST;
 enum PI = 3.14159265;
 //#define LOL(x)
 ```
+
 ---
 ```C
 #define MY_INT int
@@ -1077,6 +1187,7 @@ enum PI = 3.14159265;
 ```D
 alias MY_INT = int;
 ```
+
 ---
 ```C
 #define KEY_LENGTH_TYPE uint8_t
@@ -1084,6 +1195,7 @@ alias MY_INT = int;
 ```D
 alias KEY_LENGTH_TYPE = ubyte;
 ```
+
 ---
 ```C
 #define MY_SHORT short
@@ -1091,6 +1203,7 @@ alias KEY_LENGTH_TYPE = ubyte;
 ```D
 enum MY_SHORT = short;
 ```
+
 ---
 ```C
 #define SQR(x) (x*x)
@@ -1104,6 +1217,7 @@ int x = mixin(SQR!(`3`));
 enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
 int y = mixin(MIN!(`1`,`2`));
 ```
+
 ---
 ```C
 #define WITHCOMMENT//c
@@ -1115,6 +1229,7 @@ version = WITHCOMMENT;//c
 enum WITHCOMMENT1 = '@';// c
 enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
 ```
+
 ---
 ```C
 #define _CONCAT_VERSION(m, n, r) #m "." #n "." #r
@@ -1124,6 +1239,7 @@ enum WITHCOMMENTS /*a*/ = '@' /*b*/; // c
 enum string _CONCAT_VERSION(string m, string n, string r) = `#m "." #n "." #r`;
 enum string _MAKE_VERSION(string m, string n, string r) = `` ~ _CONCAT_VERSION!(` ~ `m` ~ `, ` ~ `n` ~ `, ` ~ `r` ~ `) ~ ``;
 ```
+
 ---
 ```C
 #define _VERSION_NUMBER _MAKE_VERSION(VERSION_MAJOR, \
@@ -1135,6 +1251,7 @@ enum _VERSION_NUMBER = _MAKE_VERSION(VERSION_MAJOR, \
 	VERSION_MINOR, \
 	VERSION_REVISION);
 ```
+
 ---
 ```C
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -1144,6 +1261,7 @@ pixels[y*image->width + x+1].r = MIN((int)pixels[y*image->width + x+1].r + (int)
 enum string MIN(string a,string b) = `(((` ~ a ~ `)<(` ~ b ~ `))?(` ~ a ~ `):(` ~ b ~ `))`;
 pixels[y*image.width + x+1].r = mixin(MIN!(`cast(int)pixels[y*image.width + x+1].r + cast(int)(cast(float)rError*7.0f/16)`, `0xff`));
 ```
+
 ---
 ```C
 #ifdef _WIN32
@@ -1171,6 +1289,7 @@ version (linux) {
 // no test
 }
 ```
+
 ---
 ```C
 #if 0
@@ -1186,6 +1305,7 @@ static assert(0, "error message");
 // whoo
 }
 ```
+
 ---
 ```C
 #ifndef _WIN32
@@ -1201,6 +1321,7 @@ version (Windows) {} else {
 	int y;
 }
 ```
+
 ---
 ```C
 #if !defined(_WIN32)
@@ -1301,6 +1422,7 @@ wchar_t *x = L"Msg";
 import core.stdc.stddef: wchar_t;
 wchar_t* x = "Msg"w;
 ```
+
 ---
 ```C
 char16_t *x = u"Msg";
@@ -1308,6 +1430,7 @@ char16_t *x = u"Msg";
 ```D
 wchar* x = "Msg"w;
 ```
+
 ---
 ```C
 char32_t *x = U"Msg";
@@ -1315,6 +1438,7 @@ char32_t *x = U"Msg";
 ```D
 dchar* x = "Msg"d;
 ```
+
 ---
 ```C
 wchar_t  b = L'\xFFEF';
@@ -1323,6 +1447,7 @@ wchar_t  b = L'\xFFEF';
 import core.stdc.stddef: wchar_t;
 wchar_t b = wchar('\xFFEF');
 ```
+
 ---
 ```C
 char16_t c = u'\u00F6';
@@ -1330,6 +1455,7 @@ char16_t c = u'\u00F6';
 ```D
 wchar c = wchar('\u00F6');
 ```
+
 ---
 ```C
 char32_t d = U'\U0010FFFF';
@@ -1347,6 +1473,7 @@ void f(void) { }
 
 void f() { }
 ```
+
 ---
 ```C
 void f(void), g(float);
@@ -1354,6 +1481,7 @@ void f(void), g(float);
 ```D
 void f(); void g(float);
 ```
+
 ---
 ```C
 void f(), g();
