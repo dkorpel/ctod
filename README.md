@@ -80,7 +80,7 @@ It's being developed like this:
 
 - Run `ctod` on a C file
 - Look at the output, notice something that needs to be adjusted to be valid D
-- Enter the C code in the [tree-sitter playground](https://tree-sitter.github.io/tree-sitter/playground) to see what it looks like in the AST
+- Enter the C code in the [tree-sitter playground](https://tree-sitter.github.io/tree-sitter/7-playground.html) to see what it looks like in the AST
 - Add code to recognize and translate the pattern
 - Repeat for as many patterns as possible
 
