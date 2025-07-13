@@ -79,7 +79,22 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 		auto r = node.childField(Field.right);
 		assert(l);
 		assert(r);
-		convertPointerTypes(ctx, l.type, r);
+
+		// The annoying thing is that the tree-sitter C grammar groups opAssign and opOpAssign, so:
+		// ptr = 1
+		// ptr += 1
+		// ptr -= 1 etc.
+		// Only differ by the anonymous tag of the `=` `+=` child node,
+		// And we only need to add a cast in case of `=`
+		bool isAssignment = false;
+		foreach (c; node.children)
+		{
+			if (c.sym == Sym.anon_EQ)
+				isAssignment = true;
+
+		}
+		if (isAssignment)
+			convertPointerTypes(ctx, l.type, r);
 		break;
 	case Sym.binary_expression:
 		depthFirst();
@@ -123,13 +138,9 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 		{
 			CType pType = arg.type;
 			if (pType.isPointer())
-			{
 				node.type = pType.next[0];
-			}
 			else
-			{
 				node.type = CType.unknown;
-			}
 		}
 		break;
 	case Sym.unary_expression:
@@ -171,13 +182,9 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 			if (c.sym == Sym.string_literal)
 			{
 				if (first)
-				{
 					first = false;
-				}
 				else
-				{
 					c.prepend("~ ");
-				}
 			}
 		}
 		node.type = CType.stringLiteral;
@@ -226,9 +233,8 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 		return true;
 	case Sym.cast_expression:
 		if (auto c = node.firstChildType(Sym.anon_LPAREN))
-		{
 			c.replace("cast(");
-		}
+
 		if (auto c = node.childField(Field.type))
 		{
 			Decl[] decls = parseDecls(ctx, c, ctx.inlineTypes); //TODO: emit inline types?
@@ -271,9 +277,8 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 			{
 				const string funcName = funcNode.sourceC;
 				if (funcName == "malloc" || funcName == "calloc" || funcName == "realloc")
-				{
 					node.type = CType.pointer(CType.named("void"));
-				}
+
 				if (translateSpecialFunction(node, funcNode))
 					return true;
 
@@ -302,16 +307,14 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 		if (auto argsNode = node.childField(Field.arguments))
 		{
 			if (argsNode.sym != Sym.argument_list)
-			{
 				break;
-			}
+
 			foreach (ref c; argsNode.children)
 			{
 				if (c.sym == Sym.anon_COMMA || c.sym == Sym.comment ||
 					c.sym == Sym.anon_LPAREN || c.sym == Sym.anon_RPAREN)
-				{
 					continue;
-				}
+
 				if (isMacroFunc)
 				{
 					c.prepend("`");

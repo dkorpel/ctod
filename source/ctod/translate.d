@@ -30,6 +30,8 @@ private TSParser* getCParser() @trusted
 	return parser;
 }
 
+enum attributePrelude = "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
+
 /// Params:
 ///   source = C source code
 ///   moduleName = name for the `module` declaration on the D side
@@ -64,7 +66,7 @@ string translateFile(string source, string moduleName, bool isHeaderFile = false
 	{
 		result ~= "module " ~ moduleName ~ ";\n";
 	}
-	result ~= "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
+	result ~= attributePrelude;
 
 	if (ctx.needsHasVersion)
 		result ~= hasVersion;

@@ -47,7 +47,9 @@ unittest
 
 private void test(string c, string d, size_t line = __LINE__) @trusted // stderr in Phobos is @system
 {
-	const actual = translateFile(c, "testmodule")[56 .. $];
+	auto actual = translateFile(c, "");
+	if (actual.length >= attributePrelude.length)
+		actual = actual[attributePrelude.length .. $];
 
 	if (actual != d)
 	{

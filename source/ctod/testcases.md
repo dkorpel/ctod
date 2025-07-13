@@ -478,6 +478,21 @@ void main() {
 }
 ```
 ---
+Don't cast pointer math to pointer types https://github.com/dkorpel/ctod/issues/42
+```C
+void f(void) {
+	const char* ptr = "hello";
+	ptr += 1;
+}
+```
+```D
+void f() {
+	const(char)* ptr = "hello";
+	ptr += 1;
+}
+```
+
+---
 Convert 0 to `null`
 ```C
 void f() { FILE *f = 0; f = 0; f = 1; }
