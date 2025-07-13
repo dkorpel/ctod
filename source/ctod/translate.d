@@ -1,6 +1,6 @@
 module ctod.translate;
-
-nothrow @safe:
+@safe:
+nothrow:
 
 import ctod.tree_sitter;
 import ctod.ctype;
@@ -227,13 +227,9 @@ nothrow:
 	{
 		static char toUpper(char c) => cast(char)(c - (c >= 'a' && c <= 'z') * ('a' - 'A'));
 		if (suggestion.length > 0)
-		{
 			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1 .. $];
-		}
-		else
-		{
-			assert(0);
-		}
+
+		assert(0);
 	}
 }
 
@@ -541,7 +537,7 @@ string ctodNumberLiteral(string str, ref CType type)
 	return str;
 }
 
-@"ctodNumberLiteral" unittest
+unittest
 {
 	CType type;
 	assert(ctodNumberLiteral("0", type) == "0");

@@ -2,7 +2,6 @@
 Helper functions / dependencies
 */
 module ctod.util;
-
 @safe:
 
 version (none)

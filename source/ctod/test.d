@@ -1,5 +1,4 @@
 module ctod.test;
-
 @safe:
 
 import ctod.translate;
@@ -46,7 +45,7 @@ unittest
 	}
 }
 
-private void test(string c, string d, size_t line = __LINE__) @trusted
+private void test(string c, string d, size_t line = __LINE__) @trusted // stderr in Phobos is @system
 {
 	const actual = translateFile(c, "testmodule")[56 .. $];
 

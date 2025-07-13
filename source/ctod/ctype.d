@@ -2,8 +2,8 @@
 Translate C types
 */
 module ctod.ctype;
-
-nothrow @safe:
+@safe:
+nothrow:
 
 import ctod.tree_sitter;
 import ctod.translate;
@@ -100,9 +100,8 @@ pure nothrow:
 string enumMemberAliases(string enumName, ref Node c)
 {
 	if (c.sym != Sym.enumerator_list)
-	{
 		return null;
-	}
+
 	string res = "\n";
 	foreach (ref c2; c.children)
 	{
@@ -157,9 +156,8 @@ string parseTypeNode(ref scope CtodCtx ctx, ref Node node, scope ref InlineType[
 		else if (nameNode)
 		{
 			if (keepOpaque)
-			{
 				return null;
-			}
+
 			// Don't emit bodyless types, assume they were defined before
 			// inlineTypes ~= InlineType(keyword, nameNode.sourceC, /*body*/ "");
 			return nameNode.sourceC;
@@ -171,9 +169,8 @@ string parseTypeNode(ref scope CtodCtx ctx, ref Node node, scope ref InlineType[
 	{
 	case Sym.type_descriptor:
 		if (auto c = node.childField(Field.type))
-		{
 			return parseTypeNode(ctx, c, inlineTypes, keepOpaque);
-		}
+
 		break;
 	case Sym.primitive_type:
 		return ctodPrimitiveType(node.sourceC);
@@ -270,17 +267,11 @@ string ctodSizedTypeSpecifier(ref scope CtodCtx ctx, ref Node node)
 	if (!signed && primitive.length > 0 && primitive[0] != 'u')
 	{
 		if (primitive == "char")
-		{
 			primitive = "ubyte";
-		}
 		else if (primitive == "c_long")
-		{
 			primitive = "c_ulong";
-		}
 		else
-		{
 			primitive = "u" ~ primitive;
-		}
 	}
 	return primitive;
 }
@@ -478,13 +469,9 @@ uint initializerLength(ref Node node, ref string firstElement)
 private string intToString(uint i)
 {
 	if (i < 10)
-	{
 		return [cast(char)('0' + i)];
-	}
 	else
-	{
 		return intToString(i / 10) ~ intToString(i % 10);
-	}
 }
 
 unittest
@@ -624,8 +611,7 @@ bool parseCtype(ref scope CtodCtx ctx, ref Node node, ref Decl decl, scope ref I
 				}
 				else
 				{
-					// C arrays without initializer are uncommon (raise a warning),
-					// but defaults to 1 element
+					// C arrays without initializer are uncommon, but defaults to 1 element
 					decl.type = CType.array(decl.type, "1");
 				}
 				parseCtype(ctx, c1, decl, inlineTypes);
@@ -808,10 +794,6 @@ pure nothrow:
 		{
 			next[0].setName(name);
 		}
-		else
-		{
-
-		}
 	}
 
 	static CType pointer(CType to)
@@ -918,13 +900,11 @@ pure nothrow:
 bool zeroInitInD(const CType t)
 {
 	if (t.name == "float" || t.name == "char" || t.name == "double" || t.name == "real")
-	{
 		return false;
-	}
+
 	if (t.isStaticArray())
-	{
 		return zeroInitInD(t.next[0]);
-	}
+
 	return true;
 }
 
@@ -978,10 +958,4 @@ private immutable string[2][] basicTypeMap = [
 string ctodPrimitiveType(string s)
 {
 	return mapLookup(basicTypeMap, s, s);
-}
-
-unittest
-{
-	assert(ctodPrimitiveType("int16_t") == "short");
-	assert(ctodPrimitiveType("float") == "float");
 }

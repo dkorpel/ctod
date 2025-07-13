@@ -1,6 +1,6 @@
 module ctod.cexpr;
-
-nothrow @safe:
+@safe:
+nothrow:
 
 import ctod.cdeclaration;
 import ctod.ctype;

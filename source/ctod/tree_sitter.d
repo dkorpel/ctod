@@ -1,6 +1,6 @@
 module ctod.tree_sitter;
-
-nothrow @safe:
+@safe:
+nothrow:
 
 import tree_sitter.api;
 import ctod.util;

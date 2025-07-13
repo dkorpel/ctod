@@ -2,8 +2,8 @@
 Translate C macros
 */
 module ctod.cpreproc;
-
-nothrow @safe:
+@safe:
+nothrow:
 
 import ctod.translate;
 import ctod.tree_sitter;
@@ -495,7 +495,7 @@ void replaceChar(char[] s, char from, char to) pure
 	}
 }
 
-@"ctodIncludePath" unittest
+unittest
 {
 	assert(ctodIncludePath("<folder/file.h>") == "folder.file;");
 }
