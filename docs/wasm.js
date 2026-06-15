@@ -33,6 +33,9 @@ async function loadWasm(fileName, imports) {
 			},
 		},
 		env: { ...imports,
+			// LLVM's loop-idiom pass (-Oz) can lower a hand-written null-terminated
+			// string loop into a call to libc strlen, leaving it as an undefined import.
+			strlen: (ptr) => { const m = new Uint8Array(wasm.exports.memory.buffer); let n = 0; while (m[ptr + n] !== 0) n++; return n; },
 			jsConsoleLog: (len, ptr) => { console.log(toJsString(ptr, len)); },
 			jsConsoleError: (len, ptr) => { console.error(toJsString(ptr, len)); },
 			jsGetTimeMillis: () => { return new Date().getTime(); },
