@@ -1,18 +1,11 @@
 
-/// exported so webassembly can send strings to JS
-function ctodSendString(ptr, len) {
-	const s = toJsString(ptr, len);
-	document.getElementById('ctod-output').value = s;
-}
-
 // Don't display errors while user is still typing
 let timer;
 let lastAction = 'paste';
 
 function onCtodInput(target, action) {
-	res = wasmSendString(target.value, 0);
-
-	if (res == null) {
+	// str = str.normalize('NFKD');
+	if (!wasmSendString(target.value, 0)) {
 		return; // don't set timeout, input too big
 	}
 
@@ -30,15 +23,21 @@ function onCtodInput(target, action) {
 
 async function initWasm()
 {
-	loadWasm('ctod.wasm', { ctodSendString });
+	await loadWasm('ctod.wasm');
 	const inputField = document.getElementById('ctod-input');
 	inputField.addEventListener('input', (ev) => onCtodInput(ev.target, 'input'));
 	inputField.addEventListener('paste', (ev) => onCtodInput(ev.target, 'paste'));
+	// Translate the initial example so the output is populated on load.
+	onCtodInput(inputField, 'paste');
 }
 
 window.addEventListener('load', (event) => {
 	initWasm();
+	replaceTabs();
+});
 
+function replaceTabs()
+{
 	// Make the tab key insert a '\t' instead of changing focus
 	document.getElementById('ctod-input').addEventListener('keydown', (ev) => {
 		if (ev.key == 'Tab') {
@@ -50,4 +49,4 @@ window.addEventListener('load', (event) => {
 			t.selectionEnd = t.selectionStart;
 		}
 	});
-});
+}

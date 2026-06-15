@@ -1,55 +1,63 @@
-// Stubs for WASI, needed because tree-sitter uses `fwrite(stderr, ...)` for error printing
-function clock_time_get() { return 0; }
-function fd_close() { return 0; }
-function fd_seek() { return 0; }
-function fd_write() { return 0; }
-function proc_exit() { return 0; }
 
-// Our own glue code
-function jsConsoleLog(len, ptr) { console.log(toJsString(ptr, len)); }
-function jsConsoleError(len, ptr) { console.error(toJsString(ptr, len)); }
-function jsAbort(len, ptr) { throw new Error(toJsString(ptr, len)); }
-function jsGetTimeMillis() { return new Date().getTime(); }
+function toJsString(ptr, len) {return new TextDecoder().decode(new Uint8Array(wasm.exports.memory.buffer, ptr, len));}
+function wasmStoreJsString(str, ptr, len) {return new TextEncoder().encodeInto(str, new Uint8Array(wasm.exports.memory.buffer, ptr, len)).written;}
 
 var wasm;
-
-function toJsString(ptr, len) {
-	try {
-		var buffer = new Uint8Array(wasm.exports.memory.buffer, ptr, len);
-		return new TextDecoder().decode(buffer);
-	} catch (err) {
-		console.error(err);
-		return "";
-	}
-}
-
-/// Send strings from JS to webassembly
-function wasmSendString(str, type) {
-	let buf = wasmStoreJsString(str, wasm.exports.getStringMessageBuffer(), wasm.exports.getStringMessageBufferLen())
-	wasm.exports.receiveStringMessage(buffer.byteOffset, bytes.byteLength + 1, type);
-	return buffer;
-}
-
-function wasmStoreJsString(str, ptr, len) {
-	const bytes = new TextEncoder().encode(str);
-	if (bytes.byteLength > len)
-	{
-		alert("input too big, must be at most " + len + " bytes") // #meh
-		return null;
-	}
-	const buffer = new Uint8Array(wasm.exports.memory.buffer, ptr, bytes.byteLength + 1); // '0' terminator
-	buffer.set(bytes);
-	buffer[bytes.byteLength] = 0; // while Uint8Array is initialized to 0, don't rely on that
-	return buffer;
-}
-
 async function loadWasm(fileName, imports) {
 	const importObject = {
-		wasi_snapshot_preview1: { clock_time_get, fd_close, fd_seek, fd_write, proc_exit },
-		env: { ...imports, jsConsoleLog, jsConsoleError, jsAbort, jsGetTimeMillis }
+		// Stubs for WASI, needed because tree-sitter uses `fwrite(stderr, ...)` for error printing
+		wasi_snapshot_preview1: {
+			fd_write: (fd, iovs_ptr, iovs_len, nwritten_ptr) => {
+				const view = new DataView(wasm.exports.memory.buffer);
+				let text = '';
+				let written = 0;
+				for (let i = 0; i < iovs_len; i++) {
+					const ptr = view.getUint32(iovs_ptr + i * 8, true);
+					const len = view.getUint32(iovs_ptr + i * 8 + 4, true);
+					text += toJsString(ptr, len);
+					written += len;
+				}
+				view.setUint32(nwritten_ptr, written, true);
+				(fd === 2 ? console.error : console.log)(text.replace(/\n$/, ''));
+				return 0;
+			},
+			proc_exit: (code) => { throw new Error('exit ' + code); },
+			fd_close: () => 0,
+			fd_seek: () => 0,
+			clock_time_get: (_clock_id, _precision, time_ptr) => {
+				const nowNs = performance.now() * 1_000_000;
+				const view = new DataView(wasm.exports.memory.buffer);
+				view.setUint32(time_ptr,     nowNs >>> 0,                      true);
+				view.setUint32(time_ptr + 4, Math.floor(nowNs / 0x100000000), true);
+				return 0;
+			},
+		},
+		env: { ...imports,
+			jsConsoleLog: (len, ptr) => { console.log(toJsString(ptr, len)); },
+			jsConsoleError: (len, ptr) => { console.error(toJsString(ptr, len)); },
+			jsGetTimeMillis: () => { return new Date().getTime(); },
+			jsDomSetInnerHtml: (idLen, idPtr, len, ptr) => { document.getElementById(toJsString(idPtr, idLen)).innerHTML = toJsString(ptr, len); },
+			jsDomSetValue: (idLen, idPtr, len, ptr) => { document.getElementById(toJsString(idPtr, idLen)).value = toJsString(ptr, len); },
+			jsDomGetValue: (idLen, idPtr, len, ptr) => { wasmStoreJsString(document.getElementById(toJsString(idPtr, idLen)).value, ptr, len); },
+		}
 	};
 
 	const { instance } = await WebAssembly.instantiateStreaming(fetch(fileName), importObject);
 	wasm = instance;
-	return instance;
+	return wasm;
+}
+
+// Write a JS string into the wasm scratch buffer and hand it to the wasm module.
+// type = 0 for immediate update (user still typing), 1 for update after user stopped.
+// Returns false (without sending) if the string does not fit in the buffer.
+function wasmSendString(str, type) {
+	const ptr = wasm.exports.getStringMessageBuffer();
+	const cap = wasm.exports.getStringMessageBufferLen();
+	const written = wasmStoreJsString(str, ptr, cap - 1); // leave room for '\0'
+	if (written >= cap - 1) {
+		return false; // input too big, possibly truncated - don't send
+	}
+	new Uint8Array(wasm.exports.memory.buffer)[ptr + written] = 0;
+	wasm.exports.receiveStringMessage(ptr, written + 1, type); // length includes '\0'
+	return true;
 }
