@@ -39,16 +39,40 @@ else
 		assert(l == r);
 	}
 
+	void assertTrue(T)(T v)
+	{
+		assert(v);
+	}
+
+	void assertFalse(T)(T v)
+	{
+		assert(!v);
+	}
+
 	public import std.algorithm.searching : startsWith;
-	public import std.ascii : isWhite;
+	public import std.ascii : isWhite, toUpper;
 	public import std.string : stripWhite = strip;
 	public import std.algorithm.iteration : splitter;
 	public import std.stdio : stderr, writeln;
 	public import std.range : front, back;
+	public import ctod.arena : Allocator, Arena, Array, gc, dup;
 	import std.array;
 	import std.file : read;
+	static import std.format;
 
 	alias OutBuffer = Appender!string;
+
+	// The monorepo names this `extractString`; here it just reads the Appender.
+	alias extractString = extractOutBuffer;
+
+	// `format(fmt, args)` builds a string; `buf.format(fmt, args)` appends into
+	// an OutBuffer (the monorepo's OutBuffer has a `format` member).
+	string format(Args...)(string fmt, Args args) => std.format.format(fmt, args);
+
+	void format(Args...)(ref OutBuffer o, string fmt, Args args)
+	{
+		std.format.formattedWrite(o, fmt, args);
+	}
 
 	// Enable switching to custom Associative Array type
 	alias Map(K, V) = V[K];

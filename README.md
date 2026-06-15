@@ -18,12 +18,6 @@ Arguments are `.c` or `.h` files, for which it outputs a translated `.d` file ne
 This `.d` file may not compile yet, but it's supposed to get you 90% there.
 The remaining errors are usually because of non-trivial macros, initializers, or because of D's stricter type system.
 
-### Compatibility
-
-The program depends on C libraries that are currently included in binary form in the `/lib` folder for x86-64 Windows and Linux.
-By editing the `makefile` and running `make` you might make it work for other platforms as well.
-In the future the aim is to use [ImportC](https://dlang.org/spec/importc.html) for this.
-
 ### Installation
 
 You can copy the built binary to a folder in your `PATH`, for example on linux:

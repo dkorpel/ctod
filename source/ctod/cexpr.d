@@ -1,6 +1,5 @@
 module ctod.cexpr;
 @safe:
-nothrow:
 
 import ctod.cdeclaration;
 import ctod.ctype;
@@ -237,12 +236,13 @@ bool ctodExpression(ref scope CtodCtx ctx, ref Node node)
 
 		if (auto c = node.childField(Field.type))
 		{
-			Decl[] decls = parseDecls(ctx, c, ctx.inlineTypes); //TODO: emit inline types?
+			string apiMacro;
+			auto decls = parseDecls(ctx, c, ctx.inlineTypes, apiMacro); //TODO: emit inline types?
 			if (decls.length == 1)
 			{
 				OutBuffer sink;
 				decls[0].toD(sink);
-				c.replace(sink.extractOutBuffer);
+				c.replace(sink.extractString);
 				node.type = decls[0].type;
 			}
 		}
@@ -353,17 +353,17 @@ void convertPointerTypes(ref scope CtodCtx ctx, CType lType, ref Node r)
 	void castR()
 	{
 		OutBuffer sink;
+		sink ~= "cast(";
 		lType.toD(sink);
-		const castStr = "cast(" ~ sink.extractOutBuffer ~ ") ";
-		if (!mayNeedParens(r))
+		sink ~= ") ";
+
+		if (mayNeedParens(r))
 		{
-			r.prepend(castStr);
-		}
-		else
-		{
-			r.prepend(castStr ~ "(");
+			r.prepend("(");
 			r.append(")");
 		}
+		const castStr = sink.extractString;
+		r.prepend(castStr);
 	}
 
 	if (lType.isPointer && rType.isPointer)
@@ -428,9 +428,8 @@ private bool mayNeedParens(ref Node node)
 bool translateSpecialFunction(ref Node node, ref Node funcNode)
 {
 	if (funcNode.sym != Sym.identifier)
-	{
 		return false;
-	}
+
 	if (funcNode.sourceC == "offsetof" || funcNode.sourceC == "va_arg")
 	{
 		if (auto args = node.childField(Field.arguments))
@@ -458,11 +457,11 @@ bool translateSpecialFunction(ref Node node, ref Node funcNode)
 			{
 				if (funcNode.sourceC == "va_arg")
 				{
-					return node.replace(funcNode.sourceC ~ "!" ~ argNames[1] ~ "(" ~ argNames[0] ~ ")");
+					return node.replace(funcNode.sourceC, "!", argNames[1], "(", argNames[0], ")");
 				}
 				else if (funcNode.sourceC == "offsetof")
 				{
-					return node.replace(argNames[0] ~ "." ~ argNames[1] ~ ".offsetof");
+					return node.replace(argNames[0], ".", argNames[1], ".offsetof");
 				}
 			}
 		}
@@ -472,15 +471,12 @@ bool translateSpecialFunction(ref Node node, ref Node funcNode)
 
 private string toSizeof(scope string str)
 {
+	// A pointer / array needs brackets, can't have `int*.sizeof` or `int[].sizeof`
 	foreach (i; 0 .. str.length)
-	{
-		// A pointer / array needs brackets, can't have `int*.sizeof` or `int[].sizeof`
 		if (str[i] == '*' || str[i] == ']')
-		{
-			return "(" ~ str ~ ").sizeof";
-		}
-	}
-	return str ~ ".sizeof";
+			return format("(%s).sizeof",  str);
+
+	return format("%s.sizeof", str);
 }
 
 /// Translate C's `sizeof x` operator to D's `x.sizeof` property
@@ -490,12 +486,13 @@ private bool ctodSizeof(ref scope CtodCtx ctx, ref Node node)
 	if (auto typeNode = node.childField(Field.type))
 	{
 		// sizeof(short) => (short).sizeof
-		Decl[] decls = parseDecls(ctx, typeNode, ctx.inlineTypes); //TODO: emit inline types?
+		string apiMacro;
+		auto decls = parseDecls(ctx, typeNode, ctx.inlineTypes, apiMacro); //TODO: emit inline types?
 		if (decls.length == 1)
 		{
 			OutBuffer sink;
 			decls[0].toD(sink);
-			return node.replace(toSizeof(sink.extractOutBuffer));
+			return node.replace(toSizeof(sink.extractString));
 		}
 	}
 	else if (auto valueNode = node.childField(Field.value))
@@ -504,7 +501,7 @@ private bool ctodSizeof(ref scope CtodCtx ctx, ref Node node)
 		// `sizeof short` => `short.sizeof`
 		if (valueNode.sym == Sym.identifier || valueNode.sym == Sym.number_literal)
 		{
-			node.replace(valueNode.translation() ~ ".sizeof");
+			node.replace(valueNode.translation(), ".sizeof");
 		}
 		else if (valueNode.sym == Sym.parenthesized_expression)
 		{
@@ -513,17 +510,17 @@ private bool ctodSizeof(ref scope CtodCtx ctx, ref Node node)
 				if (parenValue.sym == Sym.identifier)
 				{
 					// sizeof(T) => T.sizeof
-					return node.replace(parenValue.translation() ~ ".sizeof");
+					return node.replace(parenValue.translation(), ".sizeof");
 				}
 				else if (parenValue.sym == Sym.string_literal)
 				{
 					// sizeof("abc") => ("abc".length + 1)
-					return node.replace("(" ~ parenValue.translation() ~ ".length + 1)");
+					return node.replace("(", parenValue.translation(), ".length + 1)");
 				}
 				else
 				{
 					// sizeof(3) => typeof(3).sizeof
-					return node.replace("typeof" ~ valueNode.translation() ~ ".sizeof");
+					return node.replace("typeof", valueNode.translation(), ".sizeof");
 				}
 			}
 		}
@@ -534,24 +531,24 @@ private bool ctodSizeof(ref scope CtodCtx ctx, ref Node node)
 			{
 				if (auto p = valueNode.firstChildType(Sym.pointer_expression))
 				{
-					return node.replace(toSizeof(t.translation()) ~ " " ~ p.translation());
+					return node.replace(toSizeof(t.translation()), " ", p.translation());
 				}
 			}
 		}
 		else if (valueNode.sym == Sym.string_literal)
 		{
 			// sizeof "abc" => ("abc".length + 1)
-			return node.replace("(" ~ valueNode.translation() ~ ".length + 1)");
+			return node.replace("(", valueNode.translation(), ".length + 1)");
 		}
 		else if (valueNode.sym == Sym.field_expression)
 		{
 			// sizeof foo.ptr => foo.ptr.sizeof
-			return node.replace(valueNode.translation() ~ ".sizeof");
+			return node.replace(valueNode.translation(), ".sizeof");
 		}
 		else
 		{
 			// sizeof(x+y) => (x+y).sizeof
-			return node.replace("(" ~ valueNode.translation() ~ ").sizeof");
+			return node.replace("(", valueNode.translation(), ").sizeof");
 		}
 	}
 	return false;

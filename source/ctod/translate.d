@@ -1,36 +1,32 @@
 module ctod.translate;
 @safe:
-nothrow:
 
-import ctod.tree_sitter;
-import ctod.ctype;
 import ctod.cdeclaration;
 import ctod.cexpr;
 import ctod.cpreproc;
+import ctod.ctype;
+import ctod.tree_sitter_header;
+import ctod.tree_sitter;
 import ctod.util;
-
-import tree_sitter.api;
 
 private immutable hasVersion = `
 private template HasVersion(string versionId) {
-	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
+	mixin("version ("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
 `;
 
-/// Returns: C language parser for tree-sitter
-extern (C) void* tree_sitter_c();
+/// Returns: C language parser for tree-sitter (D port of the generated grammar)
+import ctod.c_grammar : tree_sitter_c;
 
 /// Returns: tree-sitter C parser
 private TSParser* getCParser() @trusted
 {
-	TSParser* parser = ts_parser_new();
+	TSParser* parser = tsParserNew();
 	TSLanguage* language = cast(TSLanguage*) tree_sitter_c();
-	const success = ts_parser_set_language(parser, language);
+	const success = parser.setLanguage(language);
 	assert(success);
 	return parser;
 }
-
-enum attributePrelude = "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
 
 /// Params:
 ///   source = C source code
@@ -40,7 +36,7 @@ enum attributePrelude = "@nogc nothrow:\n" ~ "extern(C): __gshared:\n";
 string translateFile(string source, string moduleName, bool isHeaderFile = false)
 {
 	auto parser = getCParser();
-	// scope(exit) ts_parser_delete(parser);
+	// scope (exit) ts_parser_delete(parser);
 	// ts_tree_delete(tree);
 
 	source = filterCppBlocks(source);
@@ -48,7 +44,7 @@ string translateFile(string source, string moduleName, bool isHeaderFile = false
 	CtodCtx ctx = CtodCtx(source, parser, isHeaderFile);
 	Node root = parseCtree(ctx);
 
-	version(none)
+	version (none)
 	{
 		checkErrors();
 		if (node.sym == Sym.error)
@@ -66,7 +62,6 @@ string translateFile(string source, string moduleName, bool isHeaderFile = false
 	{
 		result ~= "module " ~ moduleName ~ ";\n";
 	}
-	result ~= attributePrelude;
 
 	if (ctx.needsHasVersion)
 		result ~= hasVersion;
@@ -86,17 +81,17 @@ string translateFile(string source, string moduleName, bool isHeaderFile = false
 	// white space leading up to the first AST element is not included in the AST, so add it
 	result ~= source[0 .. root.start];
 	result ~= root.translation();
-	return result.extractOutBuffer();
+	return result.extractString();
 }
 
 /// What the C macro is for
 enum MacroType
 {
 	none, // und
-	manifestConstant, // #define three 3
-	inlineFunc, // #define SQR(x) (x*x)
-	versionId, // #ifdef _WIN32_
-	emptyFunc, // #define F(x)
+	manifestConstant, // = #define three 3
+	inlineFunc,       // = #define SQR(x) (x*x)
+	versionId,        // = #ifdef _WIN32_
+	emptyFunc,        // = #define F(x)
 	staticIf,
 }
 
@@ -108,7 +103,6 @@ struct TypeScope
 }
 
 /// Translation context, all 'global' state
-package
 struct CtodCtx
 {
 	/// input C  source code
@@ -117,6 +111,8 @@ struct CtodCtx
 	bool isHeaderFile = false;
 	/// C parser
 	TSParser* parser;
+	/// Add extern (C): @nogc:
+	bool needsFuncAttributes = false;
 	/// HasVersion(string) template is needed
 	bool needsHasVersion = false;
 	/// needs c_long types (long has no consistent .sizeof, 4 on 64-bit Windows, 8 on 64-bit Linux)
@@ -143,7 +139,7 @@ struct CtodCtx
 	Map!(ulong, TranslationData) translationData;
 
 	/// collect structs, unions and enums definitions that were defined in expressions
-	InlineType[] inlineTypes;
+	Array!InlineType inlineTypes;
 	/// name of the function we're currently in
 	string inFunction = null;
 	/// type of the declaration we're currently in
@@ -151,20 +147,12 @@ struct CtodCtx
 	/// If we're in a parameter list (function types can be nested, the int is the nest level)
 	int inParameterList = 0;
 	/// stack of "struct" "enum" "union"
-	private TypeScope[] typeScope = null;
+	private Array!TypeScope typeScope;
 
-nothrow:
-	ref TranslationData getTranslationData(ulong id)
+	ref TranslationData getTranslationData(ulong id) @trusted
 	{
-		try
-		{
-			TranslationData initial;
-			return translationData.require(id, initial);
-		}
-		catch (Exception)
-		{
-			assert(0);
-		}
+		TranslationData initial;
+		return translationData.require(id, initial);
 	}
 
 	this(return scope string source, return scope TSParser* parser, bool isHeaderFile) scope
@@ -172,7 +160,7 @@ nothrow:
 		this.sourceC = source;
 		this.parser = parser;
 		this.isHeaderFile = isHeaderFile;
-		this.typeScope = [TypeScope(Sym.null_)];
+		this.pushTypeScope(Sym.null_);
 	}
 
 	void enterFunction(string functionName) scope
@@ -195,7 +183,7 @@ nothrow:
 
 	void popTypeScope() scope
 	{
-		this.typeScope.length--;
+		this.typeScope.pop();
 	}
 
 	/// Gives info what struct / union we're in
@@ -227,9 +215,8 @@ nothrow:
 
 	static string uniqueIdentifier(string suggestion)
 	{
-		static char toUpper(char c) => cast(char)(c - (c >= 'a' && c <= 'z') * ('a' - 'A'));
 		if (suggestion.length > 0)
-			return "_" ~ toUpper(suggestion[0]) ~ suggestion[1 .. $];
+			return format("_%s%s", toUpper(suggestion[0]), suggestion[1 .. $]);
 
 		assert(0);
 	}
@@ -307,7 +294,7 @@ bool hasDefaultStatement(ref Node node)
 	return false;
 }
 
-package bool ctodTryStatement(ref scope CtodCtx ctx, ref Node node)
+bool ctodTryStatement(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
@@ -372,7 +359,7 @@ package bool ctodTryStatement(ref scope CtodCtx ctx, ref Node node)
 	return false;
 }
 
-package bool ctodMisc(ref scope CtodCtx ctx, ref Node node)
+bool ctodMisc(ref scope CtodCtx ctx, ref Node node)
 {
 	switch (node.sym)
 	{
@@ -398,7 +385,7 @@ package bool ctodMisc(ref scope CtodCtx ctx, ref Node node)
 		{
 			// This comes up in sizeof(unsigned short), or possibly a macro if tree-sitter can parse it
 			// TODO: better inlineTypes handling, in case of sizeof(struct {int x; int y;})
-			InlineType[] inlineTypes;
+			Array!InlineType inlineTypes;
 			if (auto s = parseTypeNode(ctx, node, inlineTypes, /*keepOpaque*/ true))
 			{
 				// #twab: it was translating global struct definitions as inline types
@@ -430,40 +417,30 @@ package bool ctodMisc(ref scope CtodCtx ctx, ref Node node)
 /// In C there are trailing ; after union and struct definitions.
 /// We don't want them in D
 /// This should be called on a translation_unit, preproc_if, or preproc_ifdef node
-package void removeSemicolons(ref scope Node node)
+void removeSemicolons(ref scope Node node)
 {
 	foreach (ref c; node.children)
-	{
 		if (c.sym == Sym.anon_SEMI)
-		{
 			c.replace("");
-		}
-	}
 }
 
-package string mapLookup(const string[2][] map, string str, string orElse)
+string mapLookup(const string[2][] map, string str, string orElse)
 {
 	// #optimization: use binary search
 	foreach (p; map)
-	{
 		if (str == p[0])
-		{
 			return p[1];
-		}
-	}
+
 	return orElse;
 }
 
-package string mapLookup(const string[] map, string str, string orElse)
+string mapLookup(const string[] map, string str, string orElse)
 {
 	// #optimization: use binary search
 	foreach (p; map)
-	{
 		if (str == p)
-		{
 			return p;
-		}
-	}
+
 	return orElse;
 }
 
@@ -473,26 +450,19 @@ package string mapLookup(const string[] map, string str, string orElse)
 ///   type = gets set to number type of the literal
 string ctodNumberLiteral(string str, ref CType type)
 {
-	string typeName = "int";
 	if (str.length < 2)
 	{
 		type = CType.named("int");
 		return str;
 	}
 
-	// float must have digits after dot, 1.f => 1.0f
 	if (str[$ - 1] == 'f' || str[$ - 1] == 'F')
 	{
-		if (str[$ - 2] == '.')
-		{
-			auto res = new char[str.length + 1];
-			res[0 .. str.length] = str[];
-			res[$ - 2] = '0';
-			res[$ - 1] = str[$ - 1];
-			type = CType.named("float");
-			return (() @trusted => cast(immutable) res)();
-		}
 		type = CType.named("float");
+		// float must have digits after dot, 1.f => 1.0f
+		if (str[$ - 2] == '.')
+			return format("%s0%s", str[0 .. $ - 1], str[$ - 1 .. $]);
+
 		return str;
 	}
 
@@ -504,7 +474,7 @@ string ctodNumberLiteral(string str, ref CType type)
 		if (str[i] == 'l')
 		{
 			if (!cap)
-				cap = str.dup;
+				cap = str.dup(gc);
 
 			cap[i] = 'L';
 			longCount++;
@@ -515,10 +485,11 @@ string ctodNumberLiteral(string str, ref CType type)
 		if (str[i] == 'u' || str[i] == 'U')
 			unsigned = true;
 	}
+	string typeName = "int";
 	if (longCount > 1)
 	{
 		if (!cap)
-			cap = str.dup;
+			cap = str.dup(gc);
 
 		// Double LL not allowed, move back last character, so
 		// ULL => UL, LLU => LU
@@ -528,30 +499,33 @@ string ctodNumberLiteral(string str, ref CType type)
 	}
 
 	if (unsigned)
-		typeName = "u" ~ typeName;
+	{
+		if (typeName == "int")
+			typeName = "uint";
+		if (typeName == "long")
+			typeName = "ulong";
+	}
 
 	type = CType.named(typeName);
 
 	if (cap)
-	{
 		return (() @trusted => cast(immutable) cap)();
-	}
+
 	return str;
 }
 
 unittest
 {
-	CType type;
-	assert(ctodNumberLiteral("0", type) == "0");
-	assert(type == CType.named("int"));
-	assert(ctodNumberLiteral("1.f", type) == "1.0f");
-	assert(type == CType.named("float"));
-	assert(ctodNumberLiteral("1.F", type) == "1.0F");
-	assert(type == CType.named("float"));
-	assert(ctodNumberLiteral("4l", type) == "4L");
-	assert(type == CType.named("int"));
-	assert(ctodNumberLiteral("1ULL", type) == "1UL");
-	assert(type == CType.named("ulong"));
-	assert(ctodNumberLiteral("1llu", type) == "1Lu");
-	assert(type == CType.named("ulong"));
+	void test(string c, string d, string type)
+	{
+		CType outType;
+		assertEq(ctodNumberLiteral(c, outType), d);
+		assertEq(outType, CType.named(type));
+	}
+	test(  "0",    "0",   "int");
+	test("1.f", "1.0f", "float");
+	test("1.F", "1.0F", "float");
+	test( "4l",   "4L",   "int");
+	test("1ULL", "1UL", "ulong");
+	test("1llu", "1Lu", "ulong");
 }

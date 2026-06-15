@@ -1,8 +1,7 @@
 module ctod.tree_sitter;
 @safe:
-nothrow:
 
-import tree_sitter.api;
+import ctod.tree_sitter_header;
 import ctod.util;
 import ctod.translate;
 import ctod.ctype;
@@ -10,17 +9,15 @@ import ctod.ctype;
 /// Returns: a concrete syntax tree for C source code
 Node parseCtree(return scope ref CtodCtx ctx) @trusted
 {
-	scope TSTree* tree = ts_parser_parse_string(ctx.parser, null, ctx.sourceC.ptr, cast(uint) ctx.sourceC.length);
-	if (ts_node_is_null(ts_tree_root_node(tree)))
-	{
+	scope TSTree* tree = ctx.parser.parseString(null, ctx.sourceC.ptr, cast(uint) ctx.sourceC.length);
+	if (tsNodeIsNull(tsTreeRootNode(tree)))
 		return Node.none;
-	}
-	return Node(ts_tree_root_node(tree), &ctx);
+
+	return Node(tsTreeRootNode(tree), &ctx);
 }
 
 struct Children
 {
-nothrow:
 	private TSNode tsnode;
 	CtodCtx* ctx;
 	size_t length;
@@ -32,7 +29,7 @@ nothrow:
 		this.ctx = cast(CtodCtx*) ctx;
 		this.tsnode = tsnode;
 		this.named = named;
-		this.length = named ? ts_node_named_child_count(tsnode) : ts_node_child_count(tsnode);
+		this.length = named ? tsNodeNamedChildCount(tsnode) : tsNodeChildCount(tsnode);
 	}
 
 	alias opDollar = length;
@@ -40,8 +37,8 @@ nothrow:
 	Node opIndex(size_t i) return scope @trusted
 	{
 		return Node(named ?
-			ts_node_named_child(tsnode, cast(uint) i) :
-			ts_node_child(tsnode, cast(uint) i), ctx);
+			tsNodeNamedChild(tsnode, cast(uint) i) :
+			tsNodeChild(tsnode, cast(uint) i), ctx);
 	}
 
 	bool empty() const scope => i >= length;
@@ -69,24 +66,23 @@ struct TranslationData
 /// Conrete syntax tree node
 struct Node
 {
-nothrow:
 	private TSNode tsnode; // 32 bytes
 	private CtodCtx* ctx;
 
 	/// Start index sourceC
-	uint start() @trusted const scope => ts_node_start_byte(tsnode);
+	uint start() @trusted const scope => tsNodeStartByte(tsnode);
 	/// End index in sourceC
-	uint end() @trusted const scope => ts_node_end_byte(tsnode);
+	uint end() @trusted const scope => tsNodeEndByte(tsnode);
 
 	/// Tag identifying the C AST node type
-	Sym sym() @trusted const scope => cast(Sym) ts_node_symbol(tsnode);
+	Sym sym() @trusted const scope => cast(Sym) tsNodeSymbol(tsnode);
 
 	/// Source code of this node
 	string sourceC() const return scope => this.ctx.sourceC[start .. end];
 
-	bool isNone() @trusted const scope => ts_node_is_null(tsnode);
+	bool isNone() @trusted const scope => tsNodeIsNull(tsnode);
 	enum none = Node();
-	bool hasError() @trusted const scope => ts_node_has_error(tsnode);
+	bool hasError() @trusted const scope => tsNodeHasError(tsnode);
 
 	/// #twab: "Each node has unique source range, so we can use it as a key" yeah right, not true
 	ulong id() const scope => cast(ulong) this.tsnode.id; // start | (cast(ulong) end << 32) | cast(ulong) sym << 24;
@@ -129,8 +125,17 @@ nothrow:
 		return true;
 	}
 
+	bool replace(T...)(T args) if (T.length > 1)
+	{
+		OutBuffer buf;
+		foreach (a; args)
+			buf ~= a;
+
+		return replace(buf.extractString);
+	}
+
 	/// Returns: source line number
-	uint lineNumber() @trusted => ts_node_start_point(tsnode).row;
+	uint lineNumber() @trusted => tsNodeStartPoint(tsnode).row;
 
 	/// Prevent preceding whitespace / comments from being output
 	void removeLayout() scope
@@ -163,21 +168,21 @@ nothrow:
 	/// `false` if this is null
 	bool opCast(T : bool)() const scope => !isNone;
 
-	bool opEquals(Node other) @trusted const scope => ts_node_eq(this.tsnode, other.tsnode);
+	bool opEquals(Node other) @trusted const scope => tsNodeEq(this.tsnode, other.tsnode);
 
 	/// Returns: full translated D source code of this node after translation
 	string translation() scope
 	{
 		OutBuffer appender;
 		appendOutput(this, appender);
-		return appender.extractOutBuffer;
+		return appender.extractString;
 	}
 
 	Node childField(Field field) return scope @trusted
 	{
-		auto f = ts_node_child_by_field_id(tsnode, field);
+		auto f = tsNodeChildByFieldId(tsnode, field);
 		foreach (ref c; children)
-			if (ts_node_eq(c.tsnode, f))
+			if (tsNodeEq(c.tsnode, f))
 				return c;
 
 		return Node.none;
@@ -204,7 +209,7 @@ private static void appendOutput(O)(scope ref Node node, ref O result)
 		{
 			if (!c || c.constData.noLayout)
 			{
-				//dprint(node.sourceC);
+
 			}
 			else
 			{

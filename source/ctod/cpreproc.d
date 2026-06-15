@@ -3,13 +3,12 @@ Translate C macros
 */
 module ctod.cpreproc;
 @safe:
-nothrow:
 
+import ctod.ctype;
 import ctod.translate;
 import ctod.tree_sitter;
 import ctod.util;
 
-package
 /// If `node` is a recognized preprocessor node, translate it to D
 ///
 /// Returns: `true` on success
@@ -23,7 +22,7 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 		return node.replace("}");
 	case Sym.aux_preproc_include_token1: // "#include"
 		return node.replace(ctx.isHeaderFile ? "public import" : "import");
-	case Sym.preproc_call: // #error, #pragma, #undef
+	case Sym.preproc_call: // "#error", "#pragma", "#undef"
 		auto argument = node.childField(Field.argument);
 		if (auto directive = node.childField(Field.directive))
 		{
@@ -102,8 +101,6 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 
 			if (auto c = node.firstChildType(Sym.aux_preproc_def_token1))
 			{
-				import ctod.ctype : ctodPrimitiveType;
-
 				const newValue = ctodPrimitiveType(value);
 				if (newValue != value)
 				{
@@ -111,7 +108,8 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 					value = newValue;
 				}
 				else if (value == "int")
-				{ // TODO: generalize to all D types
+				{
+					// TODO: generalize to all D types
 					c.replace("alias");
 				}
 				else
@@ -119,7 +117,7 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 					c.replace("enum");
 				}
 			}
-			argNode.replace(" =" ~ whitespace ~ value ~ ";" ~ comment);
+			argNode.replace(" =", whitespace, value, ";", comment);
 
 		}
 		else
@@ -142,9 +140,8 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 		auto parametersNode = node.childField(Field.parameters);
 		auto valueNode = node.childField(Field.value);
 		if (!nameNode || !parametersNode)
-		{
 			return true;
-		}
+
 		if (!valueNode)
 		{
 			// #define F(x)
@@ -160,13 +157,11 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 		translateNode(ctx, nameNode);
 		ctx.macroTable[nameNode.translation()] = MacroType.inlineFunc;
 
-		string[] params;
 		foreach (ref param; parametersNode.children)
 		{
 			if (param.sym == Sym.identifier)
 			{
 				ctx.macroFuncParams[param.sourceC] = true;
-				params ~= param.sourceC;
 				param.prepend("string ");
 			}
 		}
@@ -229,7 +224,7 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 			if (auto a = node.childField(Field.alternative))
 			{
 				// first token of preproc_else is "#else"
-				a.children.front.replace("} version (" ~ versionName ~ ") {");
+				a.children.front.replace("} version (", versionName, ") {");
 			}
 		}
 		return false;
@@ -239,9 +234,7 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 		auto c = node.childField(Field.condition);
 		auto ifnode = node.firstChildType(Sym.aux_preproc_if_token1); // "#if"
 		if (!c || !ifnode)
-		{
 			return true;
-		}
 
 		if (c.sym == Sym.preproc_defined)
 		{
@@ -290,9 +283,8 @@ bool ctodTryPreprocessor(ref scope CtodCtx ctx, ref Node node)
 		break;
 	case Sym.system_lib_string:
 		if (node.sourceC.length < "<>".length)
-		{
 			return false; // to short to slice
-		}
+
 		string lib = node.sourceC[1 .. $ - 1]; // slice to strip off angle brackets in <stdio.h>
 		node.replace(ctodSysLib(lib));
 		break;
@@ -329,27 +321,24 @@ string ctodMacroFunc(ref scope CtodCtx ctx, string macroText)
 	// Assume the macro expand to an expression, statement, or variable declaration
 	// We need to wrap it in a function because tree-sitter parses a translation unit
 	// Then extract the function body and remove braces
-	string funcStr = "void __macroFunc(void) {" ~ macroText ~ "}";
+	string funcStr = format("void __macroFunc(void) {%s}", macroText);
 
 	CtodCtx ctx2 = CtodCtx(funcStr, ctx.parser, ctx.isHeaderFile);
 	auto root = parseCtree(ctx2);
 
 	if (!root || !root.children.length > 0)
-	{
 		return macroText;
-	}
+
 	(() @trusted => translateNode(ctx, root))(); // TODO: having root.ctx different than ctx is sketchy, verify this
 	auto f = root.children.front.childField(Field.body_);
+
 	if (!f || !f.children.length > 0)
-	{
 		return macroText;
-	}
+
 	foreach (ref c; f.children)
 	{
 		if (c.sym == Sym.anon_LBRACE || c.sym == Sym.anon_RBRACE)
-		{
 			c.replace("");
-		}
 	}
 	return f.translation();
 }
@@ -426,7 +415,7 @@ private bool ctodHeaderGuard(ref scope CtodCtx ctx, ref Node ifdefNode)
 }
 
 /// Replace a defined(__WIN32__) to either `HasVersion!"Windows"` (in a `static if`)
-/// or just `Windows` (in a `version()`)
+/// or just `Windows` (in a `version ()`)
 bool replaceDefined(ref scope CtodCtx ctx, ref Node node, bool inVersionStatement)
 {
 	if (auto c = node.firstChildType(Sym.identifier))
@@ -441,20 +430,17 @@ bool replaceDefined(ref scope CtodCtx ctx, ref Node node, bool inVersionStatemen
 		{
 			translateNode(ctx, c); // reserved identifier replacement
 		}
+
 		if (inVersionStatement)
-		{
 			return node.replace(replacement);
-		}
-		else
-		{
-			ctx.needsHasVersion = true;
-			return node.replace(`HasVersion!"` ~ replacement ~ `"`);
-		}
+
+		ctx.needsHasVersion = true;
+		return node.replace(`HasVersion!"`, replacement, `"`);
 	}
 	return false;
 }
 
-/// Map C define to D version identifier, to replace e.g. `#ifdef _WIN32` with `version(Windows)`
+/// Map C define to D version identifier, to replace e.g. `#ifdef _WIN32` with `version (Windows)`
 private immutable string[2][] versionMap = [
 	["__WIN32__", "Windows"],
 	["WIN32", "Windows"],
@@ -477,7 +463,7 @@ string ctodIncludePath(string s) pure
 		return null; // <a.h>
 	}
 	s = s[1 .. $ - 2];
-	auto res = s.dup;
+	auto res = s.dup(gc);
 	replaceChar(res, '/', '.');
 	res[$ - 1] = ';';
 	return (() @trusted => cast(immutable) res)();
@@ -497,7 +483,7 @@ void replaceChar(char[] s, char from, char to) pure
 
 unittest
 {
-	assert(ctodIncludePath("<folder/file.h>") == "folder.file;");
+	assertEq(ctodIncludePath("<folder/file.h>"), "folder.file;");
 }
 
 // C standard lib header translation
@@ -558,71 +544,68 @@ private immutable string[2][] miscMap = [
 /// translate #include<> to an import in druntime.
 string ctodSysLib(string s)
 {
+	string res(string prefix, string mod) => format("%s%s;", prefix, mod);
+
 	if (s.length < 2)
-	{
-		return s ~ ";";
-	}
+		return res(null, s);
+
 	// strip .h or .c extension
 	const ext = s[$ - 1];
 	if (s[$ - 2] == '.' && ext == 'h' || ext == 'i' || ext == 'c')
 	{
 		s = s[0 .. $ - 2];
 		if (ext != 'h')
-		{
-			return s ~ ";";
-		}
+			return res(null, s);
 	}
 
 	if (auto r = mapLookup(libcMap, s, null))
-	{
-		return "core.stdc." ~ r ~ ";";
-	}
-	if (auto r = mapLookup(windowsMap, s, null))
-	{
-		return "core.sys.windows." ~ r ~ ";";
-	}
-	if (auto r = mapLookup(posixMap, s, null))
-	{
-		return "core.sys.posix." ~ r ~ ";";
-	}
-	if (auto r = mapLookup(posixSysMap, s, null))
-	{
-		return "core.sys.posix.sys." ~ r["sys/".length .. $] ~ ";";
-	}
-	if (auto r = mapLookup(miscMap, s, null))
-	{
-		return r ~ ";";
-	}
+		return res("core.stdc.", r);
 
-	return s ~ ";";
+	if (auto r = mapLookup(windowsMap, s, null))
+		return res("core.sys.windows.", r);
+
+	if (auto r = mapLookup(posixMap, s, null))
+		return res("core.sys.posix.", r);
+
+	if (auto r = mapLookup(posixSysMap, s, null))
+		return res("core.sys.posix.sys.", r["sys/".length .. $]);
+
+	if (auto r = mapLookup(miscMap, s, null))
+		return res(null, r);
+
+	return res(null, s);
 }
 
 // Remove `#ifdef __cplusplus \n extern "C" { \n #endif` blocks since tree-sitter can't parse the unmatched braces inside them
 string filterCppBlocks(string source)
 {
-	size_t[3] s = 0; // loop over line triples by keeping 3 indices of the start of a line
+	OutBuffer result;
+	size_t s = 0;
+	size_t[4] l = 0; // loop over line triples by keeping 3 indices of the start of a line
 	for (size_t i = 0; i < source.length; i++)
 	{
-		if (source[i] == '\n')
+		if (source[i] != '\n')
+			continue;
+
+		l[3] = i + 1;
+		if (source[l[0] .. l[1]].startsWith("#ifdef __cplusplus") &&
+			source[l[2] .. l[3]].startsWith("#endif"))
 		{
-			const s3 = i + 1;
-			if (source[s[0] .. s[1]].startsWith("#ifdef __cplusplus") &&
-				source[s[2] .. s3].startsWith("#endif"))
-			{
-				source = source[0 .. s[0]] ~ source[s3 .. $];
-				i = s[0];
-				s[] = 0;
-				continue;
-			}
-			else
-			{
-				s[0] = s[1];
-				s[1] = s[2];
-				s[2] = s3;
-			}
+			result ~= source[s .. l[0]];
+			s = l[3];
+			i = l[3];
+			l[] = 0;
+			continue;
+		}
+		else
+		{
+			l[0] = l[1];
+			l[1] = l[2];
+			l[2] = l[3];
 		}
 	}
-	return source;
+	result ~= source[s .. $];
+	return result.extractString;
 }
 
 unittest
@@ -644,7 +627,6 @@ int main() {
 	return 0;
 }
 ";
-	import ctod.util : assertEq;
 
 	assertEq(filterCppBlocks(source), expected);
 }

@@ -48,8 +48,6 @@ unittest
 private void test(string c, string d, size_t line = __LINE__) @trusted // stderr in Phobos is @system
 {
 	auto actual = translateFile(c, "");
-	if (actual.length >= attributePrelude.length)
-		actual = actual[attributePrelude.length .. $];
 
 	if (actual != d)
 	{
@@ -59,13 +57,13 @@ private void test(string c, string d, size_t line = __LINE__) @trusted // stderr
 		stderr.writeln("--- ACTUAL:   ---");
 		stderr.writeln(actual);
 		stderr.writeln("-----------------");
-		assert(actual == d);
+		assertEq(actual, d);
 	}
 }
 
 unittest
 {
-	version(none) // TODO
+	version (none) // TODO
 	test(
 		"#define CONSTANT ((size_t)1 << (sizeof(size_t) * 2))",
 		"enum CONSTANT = (cast(size_t)1 << (size_t.sizeof * 2))"

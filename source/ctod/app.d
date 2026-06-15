@@ -10,8 +10,6 @@ Will output `source.d` and `header.d` translating the C code the best it can to 
 */
 module ctod.app;
 
-import tree_sitter.api;
-
 import std.stdio;
 import std.path : withExtension;
 import std.file;

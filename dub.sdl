@@ -5,10 +5,6 @@ copyright "Copyright © 2020, dkorpel"
 license "BSL-1.0"
 targetPath "build"
 
-// Link pre-compiled libs, awaiting ImportC improvements
-sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a" platform="osx"
-sourceFiles "lib/libc-parser.a" "lib/libtree-sitter.a" platform="linux"
-sourceFiles "lib/libc-parser.obj" "lib/libtree-sitter.obj" platform="windows"
 buildRequirements "allowWarnings"
 
 dflags "-preview=dip1000"

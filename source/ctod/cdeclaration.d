@@ -1,6 +1,5 @@
 module ctod.cdeclaration;
 @safe:
-nothrow:
 
 import ctod.tree_sitter;
 import ctod.translate;
@@ -10,75 +9,78 @@ import ctod.util;
 /// Returns: list of parsed declarations from `node`
 Decl[] ctodTryDeclaration(ref scope CtodCtx ctx, ref Node node)
 {
-	InlineType[] inlinetypes;
-
-	// cInit = if the variable gets initialized in D,
-	//   which might differ from C which 0 initialized floats and void initializes parameters
-	Decl[] translateDecl(string suffix, Sym sym)
-	{
-		string apiMacro;
-		Decl[] decls = parseDecls(ctx, node, inlinetypes, &apiMacro);
-
-		OutBuffer result;
-		if (apiMacro.length > 0)
-		{
-			result ~= apiMacro ~ " ";
-		}
-		foreach (s; inlinetypes)
-		{
-			s.toD(result);
-		}
-		CType previousType = CType.none;
-		size_t finalCount = 0;
-		foreach (decl; decls)
-		{
-			bool cInit = sym == Sym.declaration || sym == Sym.field_declaration;
-			if (cInit && decl.initializerD.length == 0)
-			{
-				if (ctx.inFunction && !decl.quals.staticFunc)
-				{
-					// void initialize function local variables
-					decl.initializerD = " = void";
-				}
-				else if (!zeroInitInD(decl.type) && !(ctx.inUnion && ctx.currentTypeScope.fieldIndex > 0))
-				{
-					// `char x;` => `char x = 0;`
-					decl.initializerD = " = 0";
-				}
-			}
-
-			if (sym != Sym.function_definition && decl.type.isFunction
-				&& decl.identifier in ctx.functionDefinitions)
-				continue;
-
-			// Try to combine `int* x; int* y;` into `int* x, y`
-			// But: cannot combine function types: `void f(), g;` doesn't work in D (#twab)
-			if (decl.type != previousType || decl.type.isFunction())
-			{
-				if (previousType != CType.none)
-				{
-					result ~= "; ";
-				}
-				decl.toD(result);
-			}
-			else
-			{
-				result ~= ", " ~ decl.identifier ~ decl.initializerD;
-			}
-			ctx.registerDecl(decl);
-			previousType = decl.type;
-			finalCount++;
-		}
-		if (finalCount > 0)
-			result ~= suffix;
-
-		node.replace(result.extractOutBuffer);
-		return decls;
-	}
+	Array!InlineType inlinetypes;
 
 	switch (node.sym)
 	{
 	case Sym.function_definition:
+	case Sym.parameter_declaration:
+	case Sym.field_declaration: // struct / union field
+	case Sym.declaration: // global / local variable
+		break;
+	default:
+		return null;
+	}
+
+	string apiMacro;
+	auto decls = parseDecls(ctx, node, inlinetypes, /*ref*/ apiMacro);
+
+	OutBuffer result;
+	if (apiMacro.length > 0)
+	{
+		result ~= apiMacro;
+		result ~= " ";
+	}
+
+	foreach (s; inlinetypes)
+		s.toD(result);
+
+	CType previousType = CType.none;
+	size_t finalCount = 0;
+	foreach (decl; decls)
+	{
+		// cInit = if the variable gets initialized in D,
+		//   which might differ from C which 0 initialized floats and void initializes parameters
+		bool cInit = node.sym == Sym.declaration || node.sym == Sym.field_declaration;
+		if (cInit && decl.initializerD.length == 0)
+		{
+			if (ctx.inFunction && !decl.quals.staticFunc)
+			{
+				// void initialize function local variables
+				decl.initializerD = "void";
+			}
+			else if (!zeroInitInD(decl.type) && !(ctx.inUnion && ctx.currentTypeScope.fieldIndex > 0))
+			{
+				// `char x;` => `char x = 0;`
+				decl.initializerD = "0";
+			}
+		}
+
+		// No need to emit forward references to functions in D
+		if (node.sym != Sym.function_definition && decl.type.isFunction
+			&& decl.identifier in ctx.functionDefinitions)
+			continue;
+
+		// Try to combine `int* x; int* y;` into `int* x, y`
+		// But: cannot combine function types: `void f(), g;` doesn't work in D (#twab)
+		if (decl.type != previousType || decl.type.isFunction())
+		{
+			if (previousType != CType.none)
+				result ~= "; ";
+
+			decl.toD(result);
+		}
+		else
+		{
+			result ~= ",";
+			decl.declaratorToD(result);
+		}
+		ctx.registerDecl(decl);
+		previousType = decl.type;
+		finalCount++;
+	}
+	if (finalCount > 0)
+	{
 		if (auto bodyNode = node.childField(Field.body_))
 		{
 			auto declNode = node.childField(Field.declarator);
@@ -90,35 +92,27 @@ Decl[] ctodTryDeclaration(ref scope CtodCtx ctx, ref Node node)
 			ctx.enterFunction("???");
 			translateNode(ctx, bodyNode);
 			ctx.leaveFunction();
-
-			return translateDecl(layout ~ bodyNode.translation(), node.sym);
+			result ~= layout;
+			result ~= bodyNode.translation();
 		}
-		break;
-	case Sym.parameter_declaration:
-		return translateDecl("", node.sym);
-	case Sym.field_declaration: // struct / union field
-		if (auto bitNode = node.firstChildType(Sym.bitfield_clause))
+		if (node.sym == Sym.field_declaration || node.sym == Sym.declaration)
 		{
-			translateNode(ctx, bitNode);
-			node.append("/*" ~ bitNode.translation() ~ " !!*/");
+			result ~= ";";
 		}
-		return translateDecl(";", node.sym);
-	case Sym.declaration: // global / local variable
-		return translateDecl(";", node.sym);
-	default:
-		break;
 	}
-	return null;
+
+	node.replace(result.extractString);
+	return decls;
 }
 
 bool ctodTryTypedef(ref scope CtodCtx ctx, ref Node node)
 {
-	InlineType[] inlinetypes;
+	Array!InlineType inlinetypes;
 	if (node.sym != Sym.type_definition)
-	{
 		return false;
-	}
-	Decl[] decls = parseDecls(ctx, node, inlinetypes);
+
+	string apiMacro;
+	auto decls = parseDecls(ctx, node, inlinetypes, apiMacro);
 	OutBuffer result;
 
 	// It's very common to typedef an anonymous type with a single name:
@@ -149,19 +143,18 @@ bool ctodTryTypedef(ref scope CtodCtx ctx, ref Node node)
 		if (d.type != CType.named(d.identifier))
 		{
 			if (first)
-			{
 				first = false;
-			}
 			else
-			{
 				result ~= "\n";
-			}
-			result ~= "alias " ~ d.identifier ~ " = ";
+
+			result ~= "alias ";
+			result ~= d.identifier;
+			result ~= " = ";
 			d.type.toD(result);
 			result ~= ";";
 		}
 	}
-	node.replace(result.extractOutBuffer);
+	node.replace(result.extractString);
 	return true;
 }
 
@@ -285,7 +278,7 @@ bool ctodTryInitializer(ref scope CtodCtx ctx, ref Node node)
 /// Modify C identifiers that are keywords in D
 string translateIdentifier(string s)
 {
-	return mapLookup(keyWordMap, s, null) ? s ~ "_" : s;
+	return mapLookup(keyWordMap, s, null) ? format("%s_", s) : s;
 }
 
 /// C identifiers that are keywords in D

@@ -1,7 +1,7 @@
-# CTOD tests
+# Ctod tests
 
 This is a list of C markdown blocks followed by a D markdown block containing the expected translation of the C code.
-Anything outside the markdown blocks is ignored.
+Anything outside the markdown blocks is ignored by the test runner.
 
 ## Types
 ```C
@@ -569,9 +569,25 @@ unsigned short y : sizeof(int);
 ```
 ```D
 struct _Bitfields {
-ushort x;/*: 12 !!*/
-ushort y;/*: int.sizeof !!*/
+ushort x : 12;
+ushort y : int.sizeof;
 }_Bitfields bitfields;
+```
+
+Todo: multiple bitfields in 1 declaration are parsed as error nodes by tree-sitter
+
+```C
+struct S
+{
+	int x : 3, y : 2, z : 1;
+};
+```
+
+```D
+struct S
+{
+	int x, y, z : 1;
+}
 ```
 
 ---
@@ -1346,7 +1362,7 @@ version (Windows) {} else {
 ```D
 
 private template HasVersion(string versionId) {
-	mixin("version("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
+	mixin("version ("~versionId~") {enum HasVersion = true;} else {enum HasVersion = false;}");
 }
 static if (!HasVersion!"Windows") {
 	enum PLATFORM = WINDOWS;
